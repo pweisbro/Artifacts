@@ -64,6 +64,10 @@ h1{margin:0;font-family:var(--display);font-weight:600;font-size:21px;line-heigh
 .lib-btn{display:inline-flex;align-items:center;gap:8px;flex-shrink:0}
 .lib-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
 .lib-btn[aria-pressed="true"]{border-color:var(--amber);color:var(--amber)}
+.top-acts{display:flex;gap:8px;flex-shrink:0}
+.lib-btn[data-live="true"]{color:var(--amber)}
+.lib-btn[data-live="true"]::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
+@media (max-width:440px){.lib-btn span{display:none}.lib-btn{padding:8px 10px}}
 @media (max-width:540px){.band{display:none}h1{font-size:18px;letter-spacing:.13em}}
 
 .stage{position:relative;min-height:0;border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:var(--bench)}
@@ -144,6 +148,16 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .icon-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .icon-btn.arm{width:auto;padding:0 11px;color:var(--amber);border-color:var(--amber)}
 .empty{padding:13px 14px;border:1px dashed var(--rule);border-radius:9px;color:var(--muted);font-size:13.5px}
+/* sound mode */
+.meter{height:120px}
+.snd-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.react{display:grid;gap:6px}
+.react .field{padding-left:50px}
+.tog{display:flex;align-items:center;gap:10px;font-size:14.5px;line-height:1.3;color:var(--text);cursor:pointer;min-height:34px}
+.tog input{-webkit-appearance:none;appearance:none;flex:none;width:40px;height:24px;border-radius:12px;background:var(--rule-hi);position:relative;margin:0;cursor:pointer;transition:background .15s}
+.tog input::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--text);transition:transform .15s}
+.tog input:checked{background:var(--amber)}
+.tog input:checked::after{transform:translateX(16px);background:var(--amber-ink)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -154,7 +168,10 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
       <div class="brand-row"><h1>Spectrum Bench</h1><span class="band">380–700 nm · 790–430 THz</span></div>
       <div class="hair" aria-hidden="true"></div>
     </div>
-    <button type="button" class="ghost lib-btn" id="b-lib" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5L12 3l9 4.5L12 12z"/><path d="M3 12l9 4.5L21 12"/><path d="M3 16.5L12 21l9-4.5"/></svg><span>Setups</span></button>
+    <div class="top-acts">
+      <button type="button" class="ghost lib-btn" id="b-snd" aria-pressed="false" aria-label="Sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h2M7 8v8M11 4v16M15 8v8M19 10v4M21 12h0"/></svg><span>Sound</span></button>
+      <button type="button" class="ghost lib-btn" id="b-lib" aria-pressed="false" aria-label="Setups"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5L12 3l9 4.5L12 12z"/><path d="M3 12l9 4.5L21 12"/><path d="M3 16.5L12 21l9-4.5"/></svg><span>Setups</span></button>
+    </div>
   </header>
 
   <main class="stage" id="stage">
@@ -163,6 +180,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
     <div class="toast" id="toast" role="status" hidden><span id="toast-msg"></span><button type="button" id="toast-undo">Undo</button></div>
   </main>
 
+  <input type="file" id="snd-file" accept="audio/*" hidden>
   <aside class="dock" id="dock">
     <div class="add" role="toolbar" aria-label="Add to the bench">
       <button type="button" data-add="light" aria-label="Add a light source"><svg viewBox="0 0 24 24"><rect x="2" y="8" width="12" height="8" rx="1.5"/><path d="M14 12h8"/><path d="M5 10.5v3M8 10.5v3"/></svg><span>Light</span></button>
@@ -618,11 +636,12 @@ function drawSelection(el,geo){
 function draw(){
   ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='source-over';
   if(bgc)ctx.drawImage(bgc,0,0);else{ctx.fillStyle='#0a0c10';ctx.fillRect(0,0,canvas.width,canvas.height);}
-  last=render(ctx,scene,{dpr,scale,cx,cy},{bright,lw:1});
-  if(sel){const i=scene.indexOf(sel);if(i>=0)drawSelection(sel,last.geos[i]);}
+  const sc=AU.on?liveScene():scene,br=AU.on&&AU.cfg.bright?bright*(.3+1.05*AU.lvl+.45*AU.kick):bright;
+  last=render(ctx,sc,{dpr,scale,cx,cy},{bright:br,lw:1});
+  if(sel){const i=scene.indexOf(sel);if(i>=0)drawSelection(sc[i],last.geos[i]);}
   if(sel&&sel.type==='screen')drawStrip();
 }
-let raf=0;function request(){if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw();});}
+let raf=0;function request(){if(AU.on)return;if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw();});}
 function resize(){
   const r=stage.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);
   dpr=Math.min(2,window.devicePixelRatio||1);
@@ -691,7 +710,7 @@ const MAT_OPTS=Object.keys(MATS).map(k=>[k,MATS[k].name]);
 
 function changed(){request();saveSoon();}
 function syncAngle(){const n=$('f-angle');if(n&&sel){n.value=Math.round(normA(sel.angle));$('f-angle-v').textContent=fmtA(sel.angle);}}
-function setView(v){view=v;$('b-lib').setAttribute('aria-pressed',String(v==='lib'));}
+function setView(v){view=v;$('b-lib').setAttribute('aria-pressed',String(v==='lib'));$('b-snd').setAttribute('aria-pressed',String(v==='snd'));}
 
 function renderInspector(){
   setView('insp');FM={};
@@ -913,7 +932,7 @@ function toast(msg,undo){$('toast-msg').textContent=msg;undoFn=undo||null;$('toa
 function hideToast(){$('toast').hidden=true;undoFn=null;}
 $('toast-undo').addEventListener('click',()=>{const f=undoFn;hideToast();if(f)f();});
 function snapshotBench(){return{scene:serialScene(scene),bright};}
-function refreshPanel(){if(view==='lib'){const n=$('lib-name');if(n){n.value=defaultName();updSaveBtn();}}else renderInspector();}
+function refreshPanel(){if(view==='lib'){const n=$('lib-name');if(n){n.value=defaultName();updSaveBtn();}}else if(view!=='snd')renderInspector();}
 function restoreBench(s){scene=s.scene.map(sanitize).filter(Boolean);bright=s.bright;sel=null;refreshPanel();changed();}
 
 /* ================= Starter setups ================= */
@@ -1126,6 +1145,163 @@ function renderLib(){
   renderMine();updateStoreNote();updSaveBtn();$('dock').scrollTop=0;
 }
 $('b-lib').addEventListener('click',()=>{if(view==='lib')renderInspector();else renderLib();});
+
+/* ================= Sound mode ================= */
+// Music or the microphone drives the bench. Nothing here changes the saved setup: reactions are applied to a copy each frame.
+const NOTE=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const pcTHz=pc=>428*Math.pow(789/428,pc/12); // one musical octave mapped onto the visible light "octave", C at red
+const SNDKEY='spectrum-bench-sound-v1';
+const AU={on:false,kind:null,src:'mic',ctx:null,an:null,td:null,fd:null,stream:null,micNode:null,audio:null,media:null,url:null,fileName:'',
+  lvl:0,bass:0,peakR:.01,peakB:.05,chs:new Float32Array(12),ch:new Float32Array(12),pc:-1,thz:0,lam:0,
+  low:0,fm:0,fv:0,kick:0,lastBeat:0,beatSign:1,
+  cfg:{sway:true,swayAmt:20,boost:true,boostAmt:4,bright:true,color:true,sens:1}};
+try{const c=JSON.parse(localStorage.getItem(SNDKEY)||'null');if(c&&typeof c==='object'){for(const k in AU.cfg)if(typeof c[k]===typeof AU.cfg[k])AU.cfg[k]=c[k];if(c.src==='mic'||c.src==='file')AU.src=c.src;}}catch(e){}
+function saveSnd(){try{localStorage.setItem(SNDKEY,JSON.stringify(Object.assign({src:AU.src},AU.cfg)));}catch(e){}}
+const inClaude=!!(window.claude&&typeof window.claude.use==='function');
+
+function liveScene(){
+  const t=performance.now()/1000,c=AU.cfg,CH=[0,4,7];let li=0;
+  const rootPc=AU.thz?12*Math.log(AU.thz/428)/Math.log(789/428):0;
+  return scene.map((el,i)=>{
+    let o=null;const cp=()=>o||(o=Object.assign({},el));
+    if(c.sway&&el.type==='light'){cp().angle=el.angle+c.swayAmt*(.6*AU.lvl*Math.sin(t*2.1+i*1.9)+.4*AU.kick*AU.beatSign*(i%2?-1:1));}
+    if(c.boost&&(el.type==='prism'||(el.type==='lens'&&el.mat!=='ideal')))cp().boost=clamp(el.boost+(c.boostAmt-1)*Math.max(AU.bass*.7,AU.kick),1,8);
+    if(c.color&&el.type==='light'&&el.spectrum==='laser'&&AU.lam){const pc=((rootPc+CH[li++%3])%12+12)%12;cp().laser=Math.round(299792.458/pcTHz(pc));} // several lasers play a chord
+    return o||el;
+  });
+}
+function ensureCtx(){
+  if(!AU.ctx){
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
+    AU.ctx=new AC();AU.an=AU.ctx.createAnalyser();AU.an.fftSize=4096;AU.an.smoothingTimeConstant=.6;
+    AU.td=new Float32Array(AU.an.fftSize);AU.fd=new Uint8Array(AU.an.frequencyBinCount);
+  }
+  if(AU.ctx.state==='suspended')AU.ctx.resume().catch(()=>{});
+  return AU.ctx;
+}
+function analyze(){
+  const an=AU.an,td=AU.td,fd=AU.fd,hz=AU.ctx.sampleRate/an.fftSize;
+  an.getFloatTimeDomainData(td);let s=0;for(let i=0;i<td.length;i++)s+=td[i]*td[i];const rms=Math.sqrt(s/td.length)*AU.cfg.sens;
+  an.getByteFrequencyData(fd);
+  let bass=0,bn=0;for(let i=Math.max(1,Math.floor(30/hz));i<=Math.ceil(160/hz);i++){bass+=fd[i]/255;bn++;}bass/=bn||1;
+  const ch=AU.ch;ch.fill(0);let tot=0;
+  for(let i=Math.ceil(80/hz);i<Math.min(fd.length,4000/hz);i++){const v=fd[i]/255;if(v<.3)continue;const w=v*v,pc=((Math.round(12*Math.log2(i*hz/261.6256))%12)+12)%12;ch[pc]+=w;tot+=w;}
+  AU.peakR=Math.max(rms,AU.peakR*.996,.004);AU.peakB=Math.max(bass,AU.peakB*.996,.03);
+  const gate=rms>.0025?1:0,L=gate*clamp(rms/AU.peakR,0,1),B=gate*clamp((bass/AU.peakB-.35)/.65,0,1);
+  AU.lvl+=(L-AU.lvl)*(L>AU.lvl?.45:.07);AU.bass+=(B-AU.bass)*(B>AU.bass?.55:.1);
+  // beat: a jump in low-band energy well above its recent average
+  const low=bass*AU.cfg.sens,flux=Math.max(0,low-AU.low),now=performance.now();AU.low=low;
+  const dv=flux-AU.fm;AU.fm+=dv*.05;AU.fv=AU.fv*.95+dv*dv*.05;
+  if(gate&&flux>AU.fm+1.6*Math.sqrt(AU.fv)&&flux>.02&&now-AU.lastBeat>260){AU.kick=1;AU.lastBeat=now;AU.beatSign=-AU.beatSign;}
+  else AU.kick*=.86;
+  if(tot>.4){let best=0;for(let k=0;k<12;k++){AU.chs[k]=AU.chs[k]*.88+ch[k]/tot*.12;if(AU.chs[k]>AU.chs[best])best=k;}AU.pc=best;}
+  if(AU.pc>=0){const tgt=pcTHz(AU.pc);AU.thz=AU.thz?AU.thz+(tgt-AU.thz)*.12:tgt;AU.lam=299792.458/AU.thz;}
+}
+function drawMeter(){
+  const cv=$('snd-meter');if(!cv||view!=='snd')return;
+  const w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
+  if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#07080b';g.fillRect(0,0,w,h);
+  const top=24,bot=h-18,L=8,R=w-8,f0=40,f1=8000,lx=f=>L+(R-L)*Math.log(f/f0)/Math.log(f1/f0);
+  g.strokeStyle='rgba(255,255,255,.07)';g.lineWidth=1;
+  for(const f of [100,1000,5000]){const x=Math.round(lx(f))+.5;g.beginPath();g.moveTo(x,top);g.lineTo(x,bot);g.stroke();}
+  if(AU.on&&AU.an){
+    const hz=AU.ctx.sampleRate/AU.an.fftSize,n=48,bw=(R-L)/n;
+    for(let b=0;b<n;b++){
+      const fa=f0*Math.pow(f1/f0,b/n),fb=f0*Math.pow(f1/f0,(b+1)/n);let m=0,c=0;
+      for(let i=Math.floor(fa/hz);i<=Math.ceil(fb/hz);i++){m+=AU.fd[i]||0;c++;}
+      const v=c?m/c/255:0,fc=Math.sqrt(fa*fb),pc=((Math.round(12*Math.log2(fc/261.6256))%12)+12)%12,col=colorOf(299792.458/pcTHz(pc)),y=bot-(bot-top)*v;
+      g.fillStyle=rgba(col,.9);g.fillRect(L+b*bw+1,y,Math.max(1,bw-2),bot-y);
+    }
+  }
+  g.font='10px "IBM Plex Mono",ui-monospace,monospace';g.fillStyle='#8d949f';g.textAlign='center';
+  g.fillText('100 Hz',lx(100),h-5);g.fillText('1 kHz',lx(1000),h-5);g.fillText('5 kHz',lx(5000),h-5);
+  g.textAlign='left';g.font='500 12px "IBM Plex Mono",ui-monospace,monospace';
+  if(AU.on&&AU.pc>=0){g.fillStyle=rgba(colorOf(AU.lam),1);g.fillText(`${NOTE[AU.pc]} → ${Math.round(AU.lam)} nm · ${Math.round(AU.thz)} THz`,L,15);}
+  else{g.fillStyle='#8d949f';g.fillText(AU.on?'Listening…':'Not listening',L,15);}
+  const mw=46,mx=R-mw;g.textAlign='right';g.font='10px "IBM Plex Mono",ui-monospace,monospace';g.fillStyle='#8d949f';
+  g.fillText('loud',mx-6,10);g.fillText('bass',mx-6,20);
+  g.fillStyle='#272c35';g.fillRect(mx,4,mw,6);g.fillRect(mx,14,mw,6);
+  g.fillStyle='#dde1e7';g.fillRect(mx,4,mw*AU.lvl,6);g.fillStyle='#ffb340';g.fillRect(mx,14,mw*AU.bass,6);
+  if(AU.on&&AU.kick>.05){g.fillStyle=`rgba(255,179,64,${AU.kick.toFixed(2)})`;g.beginPath();g.arc(mx-44,12,5,0,TAU);g.fill();}
+}
+let loopRaf=0;
+function loop(){loopRaf=0;if(!AU.on){draw();drawMeter();return;}analyze();draw();drawMeter();loopRaf=requestAnimationFrame(loop);}
+function goLive(kind){AU.on=true;AU.kind=kind;AU.peakR=.01;AU.peakB=.05;AU.low=0;AU.fm=0;AU.fv=0;AU.kick=0;$('b-snd').dataset.live='true';updSnd();if(!loopRaf)loopRaf=requestAnimationFrame(loop);}
+function stopSound(){AU.kick=0;
+  if(AU.stream){AU.stream.getTracks().forEach(t=>t.stop());AU.stream=null;}
+  if(AU.micNode){try{AU.micNode.disconnect();}catch(e){}AU.micNode=null;}
+  if(AU.audio&&!AU.audio.paused)AU.audio.pause();
+  const was=AU.on;AU.on=false;AU.kind=null;AU.lvl=0;AU.bass=0;$('b-snd').dataset.live='false';updSnd();
+  if(was&&!loopRaf)loopRaf=requestAnimationFrame(loop);
+}
+function sndStatus(t){const n=$('snd-status');if(n)n.textContent=t;}
+async function startMic(){
+  stopSound();const ctx=ensureCtx();
+  if(!ctx||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){sndStatus(inClaude?'The microphone isn’t available inside Claude. Choose Music file instead, or open your GitHub copy of the bench.':'This browser can’t share the microphone. Choose Music file instead.');return;}
+  sndStatus('Waiting for microphone permission…');
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    AU.stream=stream;AU.micNode=ctx.createMediaStreamSource(stream);AU.micNode.connect(AU.an);goLive('mic');
+  }catch(e){
+    sndStatus(inClaude?'The microphone isn’t available inside Claude. Choose Music file instead, or open your GitHub copy of the bench.'
+      :e&&e.name==='NotFoundError'?'No microphone was found on this device.'
+      :'Microphone access was turned down. Allow it for this site in your browser’s settings, then try again.');
+  }
+}
+function playFile(){
+  const ctx=ensureCtx();if(!ctx||!AU.audio)return;
+  AU.audio.play().then(()=>goLive('file'),()=>{sndStatus('Tap Play to start the song.');updSnd(true);});
+}
+$('snd-file').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  const ctx=ensureCtx();if(!ctx)return;
+  stopSound();
+  if(!AU.audio){AU.audio=new Audio();AU.audio.loop=true;AU.audio.preload='auto';AU.media=ctx.createMediaElementSource(AU.audio);AU.media.connect(AU.an);AU.media.connect(ctx.destination);}
+  if(AU.url)URL.revokeObjectURL(AU.url);AU.url=URL.createObjectURL(f);AU.audio.src=AU.url;AU.fileName=f.name;e.target.value='';
+  playFile();
+});
+function updSnd(keepStatus){
+  const go=$('snd-go'),pick=$('snd-pick');if(!go)return;
+  if(AU.src==='mic'){go.textContent=AU.on?'Stop listening':'Start listening';pick.hidden=true;
+    if(!keepStatus)sndStatus(AU.on?'Listening to the microphone.':inClaude?'Inside Claude, only music files work. Your GitHub copy can use the microphone.':'Your browser will ask before using the microphone.');}
+  else{const has=!!(AU.audio&&AU.audio.src);go.textContent=AU.on?'Pause':has?'Play':'Choose a song';pick.hidden=!has;
+    if(!keepStatus)sndStatus(AU.on?'Playing '+AU.fileName+'.':has?'Paused: '+AU.fileName+'.':'Pick a song from this device. It plays out loud and drives the light.');}
+}
+function renderSnd(){
+  setView('snd');FM={};
+  const c=AU.cfg,box=$('insp');
+  box.innerHTML=`<div class="insp-head"><h2>Sound</h2><div class="acts"><button type="button" class="ghost" id="snd-done">Done</button></div></div>
+  <p class="lede">Let music or your voice move the light. The microphone works with anything playing in the room, including Spotify or a Bluetooth speaker. Raise Sensitivity if the room is quiet.</p>
+  ${segField('snd-src','src','Source',[['mic','Microphone'],['file','Music file']],AU.src)}
+  <div class="snd-row"><button type="button" class="solid" id="snd-go"></button><button type="button" class="ghost" id="snd-pick" hidden>Choose another song</button></div>
+  <p class="note" id="snd-status" role="status"></p>
+  <canvas class="chart meter" id="snd-meter" aria-label="Live sound spectrum, colored by musical note"></canvas>
+  ${rangeField('snd-sens','sens','Sensitivity',.5,4,.1,c.sens,v=>(+v).toFixed(1)+'×')}
+  <div class="group"><div class="lab"><span>What reacts</span></div>
+    <div class="react"><label class="tog" for="snd-sway"><input type="checkbox" id="snd-sway" data-tk="sway"${c.sway?' checked':''}><span>Loudness and beats sway the beams</span></label>
+      ${rangeField('snd-sway-amt','swayAmt','Sway',5,60,1,c.swayAmt,v=>'±'+v+'°')}</div>
+    <div class="react"><label class="tog" for="snd-boost"><input type="checkbox" id="snd-boost" data-tk="boost"${c.boost?' checked':''}><span>Bass beats pulse the rainbow boost</span></label>
+      ${rangeField('snd-boost-amt','boostAmt','Up to',1.5,6,.5,c.boostAmt,v=>v+'×')}</div>
+    <div class="react"><label class="tog" for="snd-bright"><input type="checkbox" id="snd-bright" data-tk="bright"${c.bright?' checked':''}><span>Volume sets brightness</span></label></div>
+    <div class="react"><label class="tog" for="snd-color"><input type="checkbox" id="snd-color" data-tk="color"${c.color?' checked':''}><span>Pitch picks laser colors</span></label></div>
+  </div>
+  <div class="readout"><div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch-to-color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet.</div>
+  <div>Only lasers change color with pitch, because they make a single frequency. With two or three lasers on the bench, they spread into a chord: the note, a major third up and a fifth up.</div><div>Rainbow boost reacts on prisms and glass lenses. Your saved setups aren’t changed.</div></div>`;
+  $('snd-done').addEventListener('click',()=>renderInspector());
+  $('snd-src').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===AU.src)return;stopSound();AU.src=b.dataset.v;for(const x of $('snd-src').children)x.setAttribute('aria-pressed',String(x===b));saveSnd();updSnd();});
+  $('snd-go').addEventListener('click',()=>{
+    if(AU.on){stopSound();return;}
+    if(AU.src==='mic'){startMic();return;}
+    if(AU.audio&&AU.audio.src){playFile();return;}
+    ensureCtx();$('snd-file').click();
+  });
+  $('snd-pick').addEventListener('click',()=>{ensureCtx();$('snd-file').click();});
+  box.querySelectorAll('input[data-tk]').forEach(n=>n.addEventListener('change',()=>{AU.cfg[n.dataset.tk]=n.checked;saveSnd();request();}));
+  for(const [id,k] of [['snd-sway-amt','swayAmt'],['snd-boost-amt','boostAmt'],['snd-sens','sens']]){const n=$(id);n.addEventListener('input',()=>{const v=parseFloat(n.value);AU.cfg[k]=v;$(id+'-v').textContent=FM[id](v);saveSnd();});}
+  updSnd();drawMeter();$('dock').scrollTop=0;
+}
+$('b-snd').addEventListener('click',()=>{if(view==='snd')renderInspector();else renderSnd();});
 
 /* ================= Autosave of the current bench ================= */
 const KEY='spectrum-bench-v1';let saveT=0;
