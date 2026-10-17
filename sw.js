@@ -1,6 +1,6 @@
 // Spectrum Bench offline support.
 // The page is fetched fresh when you're online (so updates show up) and served from the cache when you're not.
-const CACHE = 'spectrum-bench-v1';
+const CACHE = 'spectrum-bench-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {

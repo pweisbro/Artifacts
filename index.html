@@ -998,7 +998,7 @@ function b64e(s){const b=new TextEncoder().encode(s);let o='';for(let i=0;i<b.le
 function b64d(s){const o=atob(s),b=new Uint8Array(o.length);for(let i=0;i<o.length;i++)b[i]=o.charCodeAt(i);return new TextDecoder().decode(b);}
 function encodeCode(){return 'SB1:'+b64e(JSON.stringify({v:2,name:benchName||'Shared setup',scene:serialScene(scene),bright}));}
 function decodeCode(str){
-  const m=String(str).replace(/\s+/g,'').match(/SB1:([A-Za-z0-9+/=]+)/);if(!m)throw new Error('format');
+  const m=String(str).replace(/\s+/g,'').match(/SB1:([A-Za-z0-9+/=]+)/i);if(!m)throw new Error('format');
   const o=JSON.parse(b64d(m[1]));if(!o||!Array.isArray(o.scene))throw new Error('format');
   return{name:typeof o.name==='string'?o.name.slice(0,60):'Pasted setup',scene:o.scene.slice(0,80),bright:o.bright};
 }
@@ -1094,7 +1094,7 @@ function renderLib(){
     <p class="note">A code holds a whole bench as one line of text. Send it to a friend, or paste it into another copy of this page.</p>
     <button type="button" class="ghost wide" id="lib-copy">Copy code for this bench</button>
     <label class="lab" for="lib-code"><span>Paste a code</span></label>
-    <textarea id="lib-code" rows="3" spellcheck="false" placeholder="SB1:…"></textarea>
+    <textarea id="lib-code" rows="3" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="SB1:…"></textarea>
     <button type="button" class="ghost wide" id="lib-load-code">Load code</button>
     <p class="note" id="lib-code-msg" hidden></p>
   </div>`;
