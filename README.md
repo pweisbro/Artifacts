@@ -38,7 +38,7 @@ Everything is synthesized in the browser, so it works offline. Settings are kept
 
 ### Gravity Wells
 
-`gravity-wells.html` is a multi-touch particle toy. Every finger (or the mouse) becomes a gravity well, and thousands of sparks fall toward it, orbit and slingshot, colored by how fast they move. The longer you hold a well the heavier it gets; let go of a heavy one and it collapses into a shockwave. The dock switches what your fingers do (**Pull**, **Push** or **Swirl**), **Tilt** lets the phone's own tilt pour the particles around (iPhone asks for motion access the first time), and **Big bang** gathers everything into one point and blows it apart.
+`gravity-wells.html` is a multi-touch particle toy. Every finger (or the mouse) becomes a gravity well, and thousands of sparks fall toward it, orbit and slingshot, colored by how fast they move. The longer you hold a well the heavier it gets; let go of a heavy one and it collapses into a shockwave. The dock switches what your fingers do (**Pull**, **Push** or **Swirl**), **Tilt** lets the device's own tilt pour the particles around (iPhone and iPad ask for motion access the first time). Tilt is measured from however you hold the device when you turn it on, and the target button next to it sets a new level from the current position, and **Big bang** gathers everything into one point and blows it apart.
 
 ## Updating
 
