@@ -8,6 +8,7 @@ const CORE = [
   './spectrum-bench.html',
   './resonant-ink.html',
   './drift-pad.html',
+  './gravity-wells.html',
   './resonant-ink.webmanifest',
   './resonant-ink-apple-touch-icon.png',
   './resonant-ink-icon-192.png',

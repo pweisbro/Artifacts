@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#04050b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gravity Wells">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Gravity Wells</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700&family=Instrument+Sans:wght@400;500&display=swap">
+<style>
+/* Layout: a full-bleed particle field with a floating pill dock, in the same family as Resonant Ink.
+   Single dark theme: additive light reads best on black. */
+:root{
+  color-scheme: dark;
+  --void:#04050b;
+  --glass:rgba(12,13,22,.66);
+  --line:rgba(226,228,255,.1);
+  --text:#ecedf6;
+  --muted:#8e90a8;
+  --accent:#ffc56b;
+  --accent-ink:#0a0703;
+  --font-display:'Unbounded', 'Avenir Next', system-ui, sans-serif;
+  --font-body:'Instrument Sans', -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
+}
+html{box-sizing:border-box;height:100%;overflow:hidden;background:var(--void)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  height:100%;overflow:hidden;margin:0;
+  background:var(--void);color:var(--text);
+  font-family:var(--font-body);font-size:14px;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;overscroll-behavior:none;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#field{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+
+.brand{
+  position:fixed;z-index:5;pointer-events:none;
+  top:calc(14px + env(safe-area-inset-top, 0px));
+  left:calc(16px + env(safe-area-inset-left, 0px));
+  text-shadow:0 1px 10px rgba(0,0,0,.6);
+}
+.brand h1{margin:0;font-family:var(--font-display);font-weight:700;font-size:1.05rem;letter-spacing:-.01em;line-height:1}
+.brand p{margin:5px 0 0;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+.hint{
+  position:fixed;z-index:5;left:50%;transform:translateX(-50%);
+  bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+  max-width:calc(100vw - 32px);
+  padding:8px 14px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  font-size:.82rem;color:var(--text);text-align:center;pointer-events:none;
+  transition:opacity .6s;
+}
+.hint.gone{opacity:0}
+
+.dock{
+  position:fixed;z-index:6;left:50%;transform:translateX(-50%);
+  bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+  display:flex;gap:2px;padding:5px;
+  background:var(--glass);border:1px solid var(--line);border-radius:999px;
+  -webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
+}
+.dock button,.dock .home{
+  width:44px;height:44px;border:0;border-radius:999px;background:transparent;
+  display:grid;place-items:center;cursor:pointer;color:var(--text);
+}
+.dock button:hover,.dock .home:hover{background:rgba(255,255,255,.07)}
+/* back to the Artifacts homepage (a home-screen web app has no back button) */
+.dock .home{text-decoration:none}
+.dock .sep{width:1px;margin:10px 3px;background:var(--line)}
+@media (max-width:400px){ .dock button,.dock .home{width:40px} }
+.dock button[aria-pressed="true"]{color:var(--accent)}
+.dock .mode[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.dock svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+@media (prefers-reduced-motion:reduce){ .hint{transition:none} }
+</style>
+</head>
+<body>
+<canvas id="field" aria-label="Particle field. Touch to make gravity wells." role="img"></canvas>
+
+<div class="brand">
+  <h1>Gravity Wells</h1>
+  <p id="modeName">Pull</p>
+</div>
+
+<div class="hint" id="hint">Touch to pull. Hold to grow heavier, then let go.</div>
+
+<nav class="dock" aria-label="Gravity Wells">
+  <a class="home" href="./" aria-label="Back to Artifacts" title="Artifacts">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+  </a>
+  <span class="sep" aria-hidden="true"></span>
+  <button class="mode" data-mode="pull" aria-pressed="true" aria-label="Pull" title="Pull">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M12 3v4.5M12 21v-4.5M3 12h4.5M21 12h-4.5"/><path d="M10.2 5.8 12 7.6l1.8-1.8M10.2 18.2 12 16.4l1.8 1.8M5.8 10.2 7.6 12l-1.8 1.8M18.2 10.2 16.4 12l1.8 1.8"/></svg>
+  </button>
+  <button class="mode" data-mode="push" aria-pressed="false" aria-label="Push" title="Push">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M12 3v4.5M12 21v-4.5M3 12h4.5M21 12h-4.5"/><path d="M10.2 4.8 12 3l1.8 1.8M10.2 19.2 12 21l1.8-1.8M4.8 10.2 3 12l1.8 1.8M19.2 10.2 21 12l-1.8 1.8"/></svg>
+  </button>
+  <button class="mode" data-mode="swirl" aria-pressed="false" aria-label="Swirl" title="Swirl">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 4a8 8 0 0 1 8 8"/><path d="M12 20a8 8 0 0 1-8-8"/><path d="M17.5 9.8 20 12l2-2.6M6.5 14.2 4 12l-2 2.6"/></svg>
+  </button>
+  <span class="sep" aria-hidden="true"></span>
+  <button id="btnTilt" aria-pressed="false" aria-label="Tilt gravity" title="Tilt gravity">
+    <svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5" transform="rotate(-18 12 12)"/><path d="M12 14.5v4M10.3 17l1.7 1.7 1.7-1.7"/></svg>
+  </button>
+  <button id="btnBang" aria-label="Big bang" title="Big bang">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.6"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+  </button>
+</nav>
+
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<script>
+/* ------------------------------------------------------------------
+   Gravity Wells: every finger (or the mouse) is a mass. Particles fall
+   toward it with softened inverse-square gravity, so they orbit and
+   slingshot instead of just sticking. Holding a well makes it heavier;
+   letting go of a heavy one sets off a shockwave.
+   ------------------------------------------------------------------ */
+const canvas = document.getElementById('field');
+const ctx = canvas.getContext('2d', { alpha: false });
+const hint = document.getElementById('hint');
+const modeName = document.getElementById('modeName');
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+const GROUND = '#04050b';
+// speed -> color, slow deep blue through cyan and white to amber
+const PALETTE = ['#2a3cff', '#3d7bff', '#40c4ff', '#7ff0ff', '#e8fbff', '#ffe2a0', '#ffb347', '#ff7a2e'];
+const BUCKETS = PALETTE.length;
+
+let W = 0, H = 0, DPR = 1, M = 1;   // CSS size, pixel ratio, min(W, H)
+let N = 0;
+let px, py, vx, vy;                  // particle state, CSS pixels and px/s
+
+let mode = 'pull';
+const wells = new Map();             // pointerId -> { x, y, born, fading, fade, strength }
+const shocks = [];                   // { x, y, age, power }
+let tilt = { on: false, gx: 0, gy: 0, seen: false };
+
+/* ---------- setup ---------- */
+function resize(){
+  const oldW = W, oldH = H;
+  W = window.innerWidth; H = window.innerHeight; M = Math.min(W, H);
+  // big screens (iPad) draw at 1.5x: the streaks stay crisp and full-screen redraws stay cheap
+  DPR = Math.min(window.devicePixelRatio || 1, W * H > 1e6 ? 1.5 : 2);
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = GROUND; ctx.fillRect(0, 0, W, H);
+  const want = Math.round(Math.min(6000, Math.max(2500, W * H / 140)));
+  if (want !== N){ seed(want); }
+  else if (oldW && oldH){ // keep the particles, just stretch them into the new shape
+    for (let i = 0; i < N; i++){ px[i] *= W / oldW; py[i] *= H / oldH; }
+  }
+}
+function seed(n){
+  N = n;
+  px = new Float32Array(n); py = new Float32Array(n); vx = new Float32Array(n); vy = new Float32Array(n);
+  for (let i = 0; i < n; i++){
+    px[i] = Math.random() * W; py[i] = Math.random() * H;
+    const a = Math.random() * 6.283, s = Math.random() * 20;
+    vx[i] = Math.cos(a) * s; vy[i] = Math.sin(a) * s;
+  }
+}
+
+/* ---------- input: one well per pointer ---------- */
+function toLocal(e){ return [e.clientX, e.clientY]; }
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+  const [x, y] = toLocal(e);
+  wells.set(e.pointerId, { x, y, born: performance.now(), fading: false, fade: 1, mode });
+  hideHint();
+});
+canvas.addEventListener('pointermove', (e) => {
+  const w = wells.get(e.pointerId);
+  if (!w || w.fading) return;
+  const [x, y] = toLocal(e);
+  w.x = x; w.y = y;
+});
+function release(e){
+  const w = wells.get(e.pointerId);
+  if (!w || w.fading) return;
+  const held = (performance.now() - w.born) / 1000;
+  // a well that has been held a while collapses into a shockwave when you let go
+  if (held > 0.9 && w.mode !== 'push') shocks.push({ x: w.x, y: w.y, age: 0, power: Math.min(held, 4) });
+  w.fading = true;
+  // keep it in the map under a fresh key so the pointer id can be reused immediately
+  wells.delete(e.pointerId);
+  wells.set('f' + Math.random(), w);
+}
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', release);
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+function wellMass(w, now){
+  const held = Math.min((now - w.born) / 1000, 4);
+  return (1 + held * 0.9) * w.fade;
+}
+
+/* ---------- dock ---------- */
+const MODE_LABEL = { pull: 'Pull', push: 'Push', swirl: 'Swirl' };
+const HINTS = {
+  pull: 'Touch to pull. Hold to grow heavier, then let go.',
+  push: 'Touch to push everything away.',
+  swirl: 'Touch to stir up a whirlpool.'
+};
+document.querySelectorAll('.dock .mode').forEach((b) => b.addEventListener('click', () => {
+  mode = b.dataset.mode;
+  document.querySelectorAll('.dock .mode').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+  modeName.textContent = MODE_LABEL[mode];
+  showHint(HINTS[mode]);
+}));
+
+document.getElementById('btnBang').addEventListener('click', () => {
+  // gather everything into a hot dot, then let it fly
+  const cx = W / 2, cy = H / 2;
+  for (let i = 0; i < N; i++){
+    const a = Math.random() * 6.283, r = Math.random() * M * .02;
+    px[i] = cx + Math.cos(a) * r; py[i] = cy + Math.sin(a) * r;
+    const s = M * (.2 + Math.pow(Math.random(), 1.6) * 1.6);
+    vx[i] = Math.cos(a) * s; vy[i] = Math.sin(a) * s;
+  }
+  ctx.fillStyle = GROUND; ctx.fillRect(0, 0, W, H);
+  hideHint();
+});
+
+const btnTilt = document.getElementById('btnTilt');
+function onOrient(e){
+  if (e.beta == null || e.gamma == null) return;
+  tilt.seen = true;
+  // device-frame gravity (x right, y down the screen in portrait), then turned to match the screen
+  const dx = Math.sin(e.gamma * Math.PI / 180), dy = Math.sin(e.beta * Math.PI / 180);
+  const ang = ((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0) * Math.PI / 180;
+  tilt.gx = dx * Math.cos(ang) + dy * Math.sin(ang);
+  tilt.gy = -dx * Math.sin(ang) + dy * Math.cos(ang);
+}
+btnTilt.addEventListener('click', async () => {
+  if (tilt.on){
+    tilt.on = false; window.removeEventListener('deviceorientation', onOrient);
+    btnTilt.setAttribute('aria-pressed', 'false'); showHint('Tilt off. Particles float freely.');
+    return;
+  }
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission){
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r !== 'granted'){ showHint('Tilt needs motion access.'); return; }
+    }
+  } catch (err){ showHint('Tilt needs motion access.'); return; }
+  tilt.on = true; tilt.seen = false; tilt.gx = 0; tilt.gy = 0;
+  window.addEventListener('deviceorientation', onOrient);
+  btnTilt.setAttribute('aria-pressed', 'true');
+  showHint('Tilt to pour the particles around.');
+  setTimeout(() => { if (tilt.on && !tilt.seen) showHint('No tilt sensor on this device.'); }, 1500);
+});
+
+let hintTimer = 0;
+function showHint(text){
+  hint.textContent = text; hint.classList.remove('gone');
+  clearTimeout(hintTimer); hintTimer = setTimeout(hideHint, 3200);
+}
+function hideHint(){ hint.classList.add('gone'); }
+
+/* ---------- simulation ---------- */
+// x/y coordinates of each color bucket's line segments, reused every frame
+const segs = Array.from({ length: BUCKETS }, () => []);
+
+function step(dt, now){
+  const list = [];
+  for (const [id, w] of wells){
+    if (w.fading){ w.fade -= dt * 3; if (w.fade <= 0){ wells.delete(id); continue; } }
+    list.push(w);
+  }
+  for (let k = shocks.length - 1; k >= 0; k--){ shocks[k].age += dt; if (shocks[k].age > .9) shocks.splice(k, 1); }
+
+  const G = M * M * 9;                // well strength, scales with the screen so phones and iPads feel alike
+  const soft2 = (M * .035) ** 2;      // softening keeps particles from being flung off at the core
+  const drag = Math.exp(-dt * (tilt.on ? .9 : .35));
+  const gScale = M * 2.2;
+  const tgx = tilt.on ? tilt.gx * gScale : 0, tgy = tilt.on ? tilt.gy * gScale : 0;
+  const t = now / 1000;
+  const wx = [], wy = [], wk = [], wm = [];
+  for (const w of list){
+    wx.push(w.x); wy.push(w.y); wm.push(w.mode);
+    wk.push(G * wellMass(w, now));
+  }
+  const nw = wx.length;
+  const vmax = M * 4;
+  const bucketSpeed = M * 1.6 / BUCKETS;
+  for (let b = 0; b < BUCKETS; b++) segs[b].length = 0;
+
+  for (let i = 0; i < N; i++){
+    let x = px[i], y = py[i], ax = tgx, ay = tgy;
+    // with nothing touching, a slow breeze keeps the field alive
+    if (!nw && !tilt.on && !reduceMotion.matches){
+      ax += Math.sin(y / M * 4 + t * .3) * M * .05;
+      ay += Math.cos(x / M * 4 - t * .25) * M * .05;
+    }
+    for (let k = 0; k < nw; k++){
+      const dx = wx[k] - x, dy = wy[k] - y;
+      const r2 = dx * dx + dy * dy + soft2;
+      const f = wk[k] / (r2 * Math.sqrt(r2));
+      const m = wm[k];
+      if (m === 'pull'){ ax += dx * f; ay += dy * f; }
+      else if (m === 'push'){ ax -= dx * f * 1.4; ay -= dy * f * 1.4; }
+      else { ax += (dy * 1.6 + dx * .55) * f; ay += (-dx * 1.6 + dy * .55) * f; }
+    }
+    for (let k = 0; k < shocks.length; k++){
+      const s = shocks[k], dx = x - s.x, dy = y - s.y, d = Math.sqrt(dx * dx + dy * dy) + 1;
+      const front = M * (.05 + s.age * 1.4);
+      const ring = Math.exp(-(((d - front) / (M * .09)) ** 2)) * (1 - s.age / .9);
+      const kick = ring * s.power * M * 14;
+      ax += dx / d * kick; ay += dy / d * kick;
+    }
+    let u = (vx[i] + ax * dt) * drag, v = (vy[i] + ay * dt) * drag;
+    const sp = Math.sqrt(u * u + v * v);
+    if (sp > vmax){ u *= vmax / sp; v *= vmax / sp; }
+    let nx = x + u * dt, ny = y + v * dt;
+    // soft walls: bounce with some loss
+    if (nx < 0){ nx = -nx; u = -u * .55; } else if (nx > W){ nx = 2 * W - nx; u = -u * .55; }
+    if (ny < 0){ ny = -ny; v = -v * .55; } else if (ny > H){ ny = 2 * H - ny; v = -v * .55; }
+    vx[i] = u; vy[i] = v; px[i] = nx; py[i] = ny;
+
+    let b = (sp / bucketSpeed) | 0; if (b >= BUCKETS) b = BUCKETS - 1;
+    const s = segs[b];
+    // stretch each particle into a short streak along its motion, at least a dot long
+    const lx = Math.abs(x - nx) + Math.abs(y - ny) < 1 ? nx + 1 : x;
+    s.push(lx, y, nx, ny);
+  }
+  return list;
+}
+
+function draw(list, now){
+  // trails: wash the frame toward the ground color
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = tilt.on ? 'rgba(4,5,11,.32)' : 'rgba(4,5,11,.2)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = M > 700 ? 1.8 : 1.5;
+  for (let b = 0; b < BUCKETS; b++){
+    const s = segs[b];
+    if (!s.length) continue;
+    ctx.strokeStyle = PALETTE[b];
+    ctx.globalAlpha = .55 + b * .05;
+    ctx.beginPath();
+    for (let j = 0; j < s.length; j += 4){ ctx.moveTo(s[j], s[j + 1]); ctx.lineTo(s[j + 2], s[j + 3]); }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // the wells themselves: a dark core with a warm halo that swells as it gets heavier
+  for (const w of list){
+    const mass = wellMass(w, now);
+    const r = M * (.018 + mass * .007);
+    const col = w.mode === 'push' ? '255,110,90' : w.mode === 'swirl' ? '150,220,255' : '255,197,107';
+    const g = ctx.createRadialGradient(w.x, w.y, r * .6, w.x, w.y, r * 3.2);
+    g.addColorStop(0, 'rgba(' + col + ',' + (.45 * w.fade) + ')');
+    g.addColorStop(1, 'rgba(' + col + ',0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(w.x, w.y, r * 3.2, 0, 6.2832); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const w of list){
+    const mass = wellMass(w, now);
+    const r = M * (.018 + mass * .007);
+    ctx.fillStyle = 'rgba(4,5,11,' + (.9 * w.fade) + ')';
+    ctx.beginPath(); ctx.arc(w.x, w.y, r * .6, 0, 6.2832); ctx.fill();
+  }
+  // shockwave rings
+  ctx.globalCompositeOperation = 'lighter';
+  for (const s of shocks){
+    ctx.strokeStyle = 'rgba(255,226,160,' + (.5 * (1 - s.age / .9)) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(s.x, s.y, M * (.05 + s.age * 1.4), 0, 6.2832); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- loop ---------- */
+let last = 0, rafId = 0;
+function loop(now){
+  const dt = Math.min(1 / 30, last ? (now - last) / 1000 : 1 / 60);
+  last = now;
+  // two half steps keep fast orbits stable
+  step(dt / 2, now);
+  const list = step(dt / 2, now);
+  draw(list, now);
+  rafId = requestAnimationFrame(loop);
+}
+function start(){ if (!rafId && !document.hidden){ last = 0; rafId = requestAnimationFrame(loop); } }
+function stop(){ cancelAnimationFrame(rafId); rafId = 0; }
+document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
+window.addEventListener('pageshow', () => { stop(); start(); });
+window.addEventListener('resize', resize);
+
+resize();
+if (reduceMotion.matches){ hint.textContent = 'Touch to pull. The field stays calm until you do.'; }
+hintTimer = setTimeout(hideHint, 6000);
+start();
+</script>
+</body>
+</html>
