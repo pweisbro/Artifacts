@@ -1,0 +1,1158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#5d5e9c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Grainfall">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Grainfall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&display=swap">
+<style>
+/* Layout: a full-screen clay bedroom rendered in WebGL; the mint CRT's screen is the play surface; a glass dock floats over the floor. */
+:root{
+  --room:#6f70ad; --ink:#f4f2fc; --muted:#c9cae9; --glass:rgba(54,52,104,.52); --line:rgba(230,232,255,.24);
+  --mint:#a6e3cc; --mint-deep:#7fcfb2; --pink:#f8cfe1; --moon:#cdd6ff;
+  --f-pixel:"Silkscreen", ui-monospace, Menlo, monospace;
+  --f-term:"VT323", ui-monospace, Menlo, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(ellipse 90% 70% at 50% 40%, #8d8fd0, #5d5e9c 75%), var(--room);color:var(--ink);overflow:hidden;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+.loading{position:fixed;inset:0;display:grid;place-items:center;padding-bottom:var(--dockh,200px);font:400 24px/1.2 var(--f-term);color:var(--muted);letter-spacing:.04em;pointer-events:none;transition:opacity .8s ease}
+.loading.done{opacity:0}
+
+/* fallback when 3D can't start: the plain screen in a mint bezel */
+#flat{position:fixed;inset:0;display:grid;place-items:center;padding:56px max(16px, env(safe-area-inset-left,0px)) var(--dockh,220px)}
+.tv2d{padding:16px 16px 30px;border-radius:28px;background:linear-gradient(170deg,#bdeedb,var(--mint-deep));box-shadow:0 24px 50px rgba(30,24,70,.45), inset 0 3px 0 rgba(255,255,255,.5)}
+.tv2d canvas{display:block;width:min(88vw, calc((100vh - var(--dockh,220px) - 140px) * 4 / 3));max-width:100%;aspect-ratio:4/3;border-radius:16px;background:#05070a;image-rendering:crisp-edges;image-rendering:pixelated;touch-action:none;cursor:crosshair}
+
+.badge{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:max(16px, env(safe-area-inset-left,0px));display:flex;align-items:baseline;gap:10px;pointer-events:none;text-shadow:0 1px 10px rgba(40,34,90,.55)}
+/* back to the Stim Lab homepage (a home-screen web app has no back button) */
+.home{position:fixed;z-index:4;top:calc(10px + env(safe-area-inset-top,0px));right:max(16px, env(safe-area-inset-right,0px));width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--line);border-radius:12px;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);color:var(--ink)}
+.home svg{width:20px;height:20px}
+.home:hover{border-color:rgba(230,232,255,.48)}
+.home:focus-visible{outline:2px solid var(--moon);outline-offset:2px}
+.badge h1{margin:0;font:400 14px/1 var(--f-pixel);letter-spacing:.08em}
+.badge span{font:400 19px/1 var(--f-term);color:var(--muted);font-variant-numeric:tabular-nums}
+.badge b{font-weight:400;color:var(--ink)}
+
+.dock{position:fixed;left:max(16px, env(safe-area-inset-left,0px));right:max(16px, env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:1120px;margin-inline:auto;display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:16px;background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25);box-shadow:0 18px 40px rgba(28,22,70,.35)}
+.palette{display:grid;grid-template-columns:repeat(18,minmax(0,1fr));gap:4px}
+.chip{display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;padding:6px 2px 5px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.06);color:var(--ink);font:400 16px/1 var(--f-term);cursor:pointer}
+.chip canvas{display:block;width:100%;height:7px;border-radius:2px;image-rendering:crisp-edges;image-rendering:pixelated}
+.chip span{display:block;white-space:nowrap;overflow:hidden;text-align:center}
+.chip:hover{border-color:rgba(230,232,255,.45)}
+.chip[aria-pressed="true"]{border-color:var(--mint);background:rgba(166,227,204,.2);box-shadow:0 0 14px rgba(166,227,204,.32)}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.note{flex:1 1 280px;min-width:0;margin:0;font:400 18px/1.15 var(--f-term);color:var(--muted)}
+.note b{color:var(--ink);font-weight:400;margin-right:6px}
+.tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.lbl{font:400 10px/1 var(--f-pixel);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#brush{width:104px;accent-color:var(--mint)}
+.val{font:400 19px/1 var(--f-term);min-width:1.2ch;font-variant-numeric:tabular-nums}
+.btn{font:400 10px/1 var(--f-pixel);letter-spacing:.06em;text-transform:uppercase;padding:9px 11px;min-height:34px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.08);color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:rgba(230,232,255,.48)}
+.btn[aria-pressed="true"]{background:var(--mint);color:#1f3b33;border-color:var(--mint)}
+.btn:focus-visible,.chip:focus-visible,#brush:focus-visible{outline:2px solid var(--moon);outline-offset:2px}
+@media (pointer:coarse){.chip{min-height:44px}.btn{min-height:42px}}
+@media (max-width:1060px){.palette{grid-template-columns:repeat(9,minmax(0,1fr))}}
+@media (max-width:560px){.palette{grid-template-columns:repeat(6,minmax(0,1fr))}.note{font-size:16px}.dock{padding:8px;gap:6px}}
+</style>
+</head>
+<body>
+
+<canvas id="gl" aria-label="A clay bedroom with a mint CRT. Draw on the TV screen, drag the room to look around."></canvas>
+<div id="flat" hidden><div class="tv2d"></div></div>
+<div class="loading" id="loading">Building the room…</div>
+
+<a class="home" href="./" aria-label="Back to Stim Lab" title="Stim Lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg></a>
+<header class="badge"><h1>Grainfall</h1><span><b id="dots">0</b> dots</span></header>
+
+<section class="dock" id="dock" aria-label="Materials and tools">
+  <div class="palette" id="palette" role="toolbar" aria-label="Materials"></div>
+  <div class="row">
+    <p class="note" id="note"></p>
+    <div class="tools">
+      <label for="brush" class="lbl">Brush</label>
+      <input type="range" id="brush" min="1" max="8" value="2">
+      <span id="brushVal" class="val">2</span>
+      <button id="pause" class="btn" type="button" aria-pressed="false">Pause</button>
+      <button id="clear" class="btn" type="button">Clear</button>
+      <button id="demo" class="btn" type="button">Demo</button>
+      <button id="air" class="btn" type="button" aria-pressed="false">Air view</button>
+      <button id="zoom" class="btn" type="button" aria-pressed="false">Zoom in</button>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ---------- the sandbox: runs on its own, the 3D room just shows it ---------- */
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+/* ---------- materials ---------- */
+const EMPTY=0,WALL=1,SAND=2,WATER=3,OIL=4,FIRE=5,PLANT=6,POWDER=7,ICE=8,LAVA=9,STONE=10,STEAM=11,SMOKE=12,ACID=13,WIRE=14,SPARK=15,WOOD=16,SPOUT=17;
+const WIND=100,ERASE=101,N=18;
+const SOLID=1,PWD=2,LIQ=3,GAS=4;
+const KIND=new Uint8Array(N),DENS=new Uint8Array(N),FLOW=new Uint8Array(N),FOOD=new Uint8Array(N);
+const MOB=new Float32Array(N),FLAM=new Float32Array(N);
+function def(t,k,d,m,f,fl){KIND[t]=k;DENS[t]=d;MOB[t]=m;FLAM[t]=f;FLOW[t]=fl||0;}
+def(WALL,SOLID,255,0,0); def(WOOD,SOLID,255,0,.035); def(PLANT,SOLID,255,0,.08);
+def(ICE,SOLID,255,0,0); def(WIRE,SOLID,255,0,0); def(SPOUT,SOLID,255,0,0);
+def(SAND,PWD,10,.5,0); def(STONE,PWD,12,.22,0); def(POWDER,PWD,9,.6,.9);
+def(WATER,LIQ,5,.35,0,4); def(OIL,LIQ,3,.42,.12,3); def(ACID,LIQ,6,.35,0,3); def(LAVA,LIQ,8,.08,0,1);
+def(FIRE,GAS,1,1.1,0); def(STEAM,GAS,1,1.2,0); def(SMOKE,GAS,1,1.4,0); def(SPARK,GAS,1,.8,0);
+[SAND,STONE,WOOD,PLANT,WIRE,ICE,POWDER].forEach(t=>FOOD[t]=1);
+
+const TOOLS=[
+  [SAND,'Sand','Falls and piles up. Sinks through water and oil.'],
+  [STONE,'Stone','Heavy grit that piles steeply. Lava turns into it when water hits.'],
+  [POWDER,'Powder','Gunpowder. Explodes near fire, lava or a charged wire and throws a pressure wave.'],
+  [WATER,'Water','Flows and levels out. Douses fire, hardens lava, feeds plants.'],
+  [OIL,'Oil','Floats on water. Burns long once it catches.'],
+  [ACID,'Acid','Eats sand, stone, wood, plants, wire and ice, and gets used up doing it.'],
+  [LAVA,'Lava','Slow and glowing. Lights fuel, melts ice, turns to stone in water.'],
+  [FIRE,'Fire','Rises and burns out. Spreads to wood, plants, oil and gunpowder.'],
+  [SPARK,'Spark','Tap a copper wire to send a pulse along it. Also lights fuel.'],
+  [STEAM,'Steam','Rises and drifts, then condenses back into water.'],
+  [WALL,'Wall','Indestructible. Also blocks the wind.'],
+  [WOOD,'Wood','Solid fuel. Burns from the outside in.'],
+  [PLANT,'Plant','Grows into any water it touches. Burns fast.'],
+  [ICE,'Ice','Slowly freezes water it touches. Melts near heat.'],
+  [WIRE,'Wire','Copper. Carries spark pulses, and closed loops keep pulsing.'],
+  [SPOUT,'Spout','Copies the first loose material that touches it and pours it out forever.'],
+  [WIND,'Wind','Drag across the screen to push the air and everything loose in it. Tap for a puff.'],
+  [ERASE,'Erase','Clears whatever is under the brush.'],
+];
+
+/* ---------- colors ---------- */
+const clamp8=v=>v<0?0:v>255?255:Math.round(v);
+const rgb=(r,g,b)=>((255<<24)|(clamp8(b)<<16)|(clamp8(g)<<8)|clamp8(r))>>>0;
+const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+const BGc=[7,10,14], BG=rgb(...BGc);
+const RAMP={
+  [WALL]:[[84,89,102],[108,113,126]], [SAND]:[[203,162,92],[240,208,142]], [STONE]:[[112,108,104],[150,146,140]],
+  [POWDER]:[[44,43,50],[88,86,94]], [WATER]:[[34,88,206],[72,142,242]], [OIL]:[[96,66,26],[140,104,44]],
+  [ACID]:[[118,214,52],[176,250,96]], [LAVA]:[[205,52,18],[255,170,50]], [PLANT]:[[38,136,58],[102,200,90]],
+  [WOOD]:[[104,66,36],[146,98,58]], [ICE]:[[160,212,238],[206,236,250]], [WIRE]:[[164,96,44],[212,140,78]],
+  [SPOUT]:[[30,96,104],[50,134,142]], [SPARK]:[[255,236,150],[255,252,220]], [STEAM]:[[180,192,206],[214,222,232]],
+  [SMOKE]:[[56,56,64],[84,84,92]], [FIRE]:[[255,120,30],[255,210,90]],
+};
+const PAL=new Uint32Array(N*8), MID=[];
+for(const k in RAMP){
+  const t=+k,[a,b]=RAMP[k];
+  for(let s=0;s<8;s++) PAL[t*8+s]=rgb(...mix(a,b,s/7));
+  MID[t]=mix(a,b,.6);
+}
+const FIRE_LUT=new Uint32Array(48);
+const FST=[[0,[70,12,10]],[12,[176,34,12]],[24,[238,96,22]],[36,[255,184,60]],[47,[255,246,200]]];
+for(let i=0;i<48;i++){
+  let s=0; while(s<FST.length-2&&i>FST[s+1][0]) s++;
+  const [i0,c0]=FST[s],[i1,c1]=FST[s+1];
+  FIRE_LUT[i]=rgb(...mix(c0,c1,(i-i0)/(i1-i0)));
+}
+const STEAM_LUT=new Uint32Array(16), SMOKE_LUT=new Uint32Array(16);
+for(let k=0;k<16;k++){
+  STEAM_LUT[k]=rgb(...mix(BGc,[206,216,228],.12+.7*k/15));
+  SMOKE_LUT[k]=rgb(...mix(BGc,[74,74,84],.15+.8*k/15));
+}
+const WIRE_HEAD=rgb(255,246,204), WIRE_TAIL=rgb(255,166,84);
+const SPOUT_T=new Uint32Array(N*2);
+for(let t=1;t<N;t++){ if(!MID[t]) continue;
+  SPOUT_T[t*2]=rgb(...mix(RAMP[SPOUT][0],MID[t],.45));
+  SPOUT_T[t*2+1]=rgb(...mix(RAMP[SPOUT][1],MID[t],.55));
+}
+
+/* ---------- grid ---------- */
+const W=160,H=120,AW=W>>2,AH=H>>2;
+const type=new Uint8Array(W*H), life=new Uint8Array(W*H), shade=new Uint8Array(W*H), stamp=new Uint16Array(W*H);
+let vx=new Float32Array(AW*AH), vy=new Float32Array(AW*AH), tx=new Float32Array(AW*AH), ty=new Float32Array(AW*AH);
+let p=new Float32Array(AW*AH), tp=new Float32Array(AW*AH);
+const blocked=new Uint8Array(AW*AH), bcount=new Uint8Array(AW*AH), airCol=new Uint32Array(AW*AH);
+const cv=document.createElement('canvas'); cv.width=160; cv.height=120; const ctx=cv.getContext('2d');
+const img=ctx.createImageData(W,H), px=new Uint32Array(img.data.buffer);
+let frame=0,clock=0,renders=0,paused=false,airView=false,tool=SAND,brushR=1;
+
+function setCell(i,t){
+  type[i]=t; shade[i]=Math.random()*8|0; stamp[i]=clock;
+  switch(t){
+    case FIRE: life[i]=18+(Math.random()*22|0); break;
+    case STEAM: life[i]=110+(Math.random()*140|0); break;
+    case SMOKE: life[i]=50+(Math.random()*70|0); break;
+    case SPARK: life[i]=5+(Math.random()*6|0); break;
+    default: life[i]=0;
+  }
+}
+function clear(i){ type[i]=EMPTY; life[i]=0; stamp[i]=clock; }
+function swap(i,j){
+  let a=type[i]; type[i]=type[j]; type[j]=a;
+  a=life[i]; life[i]=life[j]; life[j]=a;
+  a=shade[i]; shade[i]=shade[j]; shade[j]=a;
+  stamp[i]=clock; stamp[j]=clock;
+}
+function enterable(i,j){
+  const tj=type[j];
+  if(tj===EMPTY) return true;
+  if(KIND[tj]===SOLID) return false;
+  if(tj===FIRE&&(life[j]&128)) return false;
+  return DENS[type[i]]>DENS[tj];
+}
+function tryMove(i,x,y){
+  if(x<0||x>=W||y<0||y>=H) return false;
+  const j=y*W+x;
+  if(enterable(i,j)){ swap(i,j); return true; }
+  return false;
+}
+function nbr(x,y,r){
+  if(r===0) x++; else if(r===1) x--; else if(r===2) y++; else y--;
+  if(x<0||x>=W||y<0||y>=H) return -1;
+  return y*W+x;
+}
+function windPush(i,x,y,t){
+  const a=(y>>2)*AW+(x>>2), m=MOB[t];
+  const wx=vx[a]*m; let wy=vy[a]*m;
+  if(wx*wx+wy*wy<0.01) return false;
+  const k=KIND[t];
+  wy+=(k===PWD||k===LIQ)?0.35:(t===SPARK?0:-0.25);
+  let dx=0,dy=0;
+  if(Math.random()<Math.abs(wx)) dx=wx>0?1:-1;
+  if(Math.random()<Math.abs(wy)) dy=wy>0?1:-1;
+  if(!dx&&!dy) return false;
+  if(tryMove(i,x+dx,y+dy)) return true;
+  if(dx&&dy){ if(tryMove(i,x+dx,y)) return true; if(tryMove(i,x,y+dy)) return true; }
+  return false;
+}
+function blast(x,y,s){ const a=(y>>2)*AW+(x>>2); p[a]=Math.min(14,p[a]+s); }
+function ignite(j){
+  const t=type[j];
+  type[j]=FIRE; shade[j]=Math.random()*8|0; stamp[j]=clock;
+  if(t===POWDER){ life[j]=14+(Math.random()*16|0); blast(j%W,(j/W)|0,2.2); }
+  else if(t===WOOD) life[j]=128|(70+(Math.random()*50|0));
+  else if(t===PLANT) life[j]=128|(14+(Math.random()*18|0));
+  else if(t===OIL) life[j]=128|(30+(Math.random()*40|0));
+  else life[j]=20;
+}
+
+/* ---------- behaviours ---------- */
+function powder(i,x,y,t){
+  if(windPush(i,x,y,t)) return;
+  if(tryMove(i,x,y+1)) return;
+  if(t===STONE&&Math.random()<0.65) return;
+  const d=Math.random()<0.5?-1:1;
+  if(tryMove(i,x+d,y+1)) return;
+  tryMove(i,x-d,y+1);
+}
+function spread(i,x,y,d,f){
+  let best=-1;
+  for(let k=1;k<=f;k++){
+    const xx=x+d*k; if(xx<0||xx>=W) break;
+    const j=y*W+xx;
+    if(enterable(i,j)) best=j; else break;
+  }
+  if(best>=0){ swap(i,best); return true; }
+  return false;
+}
+function liquid(i,x,y,t){
+  const j=nbr(x,y,Math.random()*4|0);
+  if(j>=0){
+    const tj=type[j];
+    if(t===WATER){
+      if(tj===LAVA){ setCell(i,STEAM); if(Math.random()<0.5) setCell(j,STONE); return; }
+    } else if(t===LAVA){
+      if(tj===WATER){ setCell(j,STEAM); if(Math.random()<0.5){ setCell(i,STONE); return; } }
+      else if(FLAM[tj]>0){ if(Math.random()<0.5) ignite(j); }
+      else if(tj===ICE){ setCell(j,WATER); }
+    } else if(t===ACID){
+      if(FOOD[tj]&&Math.random()<0.1){
+        if(Math.random()<0.2) setCell(j,SMOKE); else clear(j);
+        if(Math.random()<0.35){ clear(i); return; }
+      }
+    }
+  }
+  if(t===LAVA){
+    if(y>0&&Math.random()<0.004&&type[i-W]===EMPTY) setCell(i-W,FIRE);
+    if(Math.random()<0.55) return;
+  }
+  if(windPush(i,x,y,t)) return;
+  if(tryMove(i,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if(tryMove(i,x+d,y+1)) return;
+  if(tryMove(i,x-d,y+1)) return;
+  if(spread(i,x,y,d,FLOW[t])) return;
+  spread(i,x,y,-d,FLOW[t]);
+}
+function fire(i,x,y){
+  const l=life[i], anch=l&128; let n=l&127;
+  for(let r=0;r<4;r++){
+    const j=nbr(x,y,r); if(j<0) continue;
+    const tj=type[j];
+    if(FLAM[tj]>0){ if(Math.random()<FLAM[tj]) ignite(j); }
+    else if(tj===WATER){ if(Math.random()<0.5) setCell(j,STEAM); clear(i); return; }
+    else if(tj===ICE){ if(Math.random()<0.08) setCell(j,WATER); }
+  }
+  n-=anch?(Math.random()<0.6?1:0):1;
+  if(n<=0){ if(Math.random()<(anch?0.6:0.12)) setCell(i,SMOKE); else clear(i); return; }
+  life[i]=anch|n;
+  vy[(y>>2)*AW+(x>>2)]-=0.001;
+  if(anch){
+    if(y>0&&Math.random()<0.35&&type[i-W]===EMPTY){ setCell(i-W,FIRE); life[i-W]=6+(Math.random()*12|0); }
+    return;
+  }
+  if(windPush(i,x,y,FIRE)) return;
+  const dx=(Math.random()*3|0)-1;
+  if(Math.random()<0.8&&tryMove(i,x+dx,y-1)) return;
+  tryMove(i,x+dx,y);
+}
+function gas(i,x,y,t){
+  let l=life[i]; if(l>0) l--;
+  if(l===0){ if(t===STEAM&&Math.random()<0.45) setCell(i,WATER); else clear(i); return; }
+  life[i]=l;
+  if(windPush(i,x,y,t)) return;
+  const d=Math.random()<0.5?-1:1, r=Math.random();
+  if(r<0.7&&tryMove(i,x+(Math.random()<0.5?0:d),y-1)) return;
+  if(r<0.9) tryMove(i,x+d,y);
+}
+function spark(i,x,y){
+  const hc=20+(frame&1);
+  for(let r=0;r<4;r++){
+    const j=nbr(x,y,r); if(j<0) continue;
+    const tj=type[j];
+    if(tj===WIRE){ if(life[j]===0) life[j]=hc; }
+    else if(FLAM[tj]>0&&Math.random()<0.5) ignite(j);
+  }
+  const l=life[i]-1;
+  if(l<=0){ clear(i); return; }
+  life[i]=l;
+  if(windPush(i,x,y,SPARK)) return;
+  const r=Math.random()*4|0;
+  tryMove(i,x+(r===0?1:r===1?-1:0),y+(r===2?1:r===3?-1:0));
+}
+/* wire pulse heads are stamped with frame parity so a pulse moves one cell per frame */
+function wire(i,x,y,c){
+  const l=life[i], hOld=20+(c^1), hCur=20+c, tOld=30+(c^1), tCur=30+c;
+  if(l===hOld){
+    life[i]=tCur;
+    for(let r=0;r<4;r++){ const j=nbr(x,y,r); if(j>=0&&FLAM[type[j]]>0&&Math.random()<0.7) ignite(j); }
+    return;
+  }
+  if(l===hCur||l===tCur) return;
+  if(l===tOld){ life[i]=3; return; }
+  if(l>0){ life[i]=l-1; return; }
+  for(let dy=-1;dy<=1;dy++){
+    const yy=y+dy; if(yy<0||yy>=H) continue;
+    for(let dx=-1;dx<=1;dx++){
+      if(!dx&&!dy) continue;
+      const xx=x+dx; if(xx<0||xx>=W) continue;
+      const j=yy*W+xx;
+      if(type[j]===WIRE){ const lj=life[j]; if(lj===hOld||lj===tCur){ life[i]=hCur; return; } }
+    }
+  }
+}
+function spout(i,x,y){
+  const c=life[i];
+  if(c===0){
+    for(let r=0;r<4;r++){ const j=nbr(x,y,r); if(j<0) continue; const tj=type[j];
+      if(tj!==EMPTY&&KIND[tj]!==SOLID){ life[i]=tj; return; } }
+    return;
+  }
+  if(Math.random()<0.18){ const j=nbr(x,y,Math.random()*4|0); if(j>=0&&type[j]===EMPTY) setCell(j,c); }
+}
+/* ---------- air ---------- */
+function computeBlocked(){
+  bcount.fill(0);
+  for(let y=0;y<H;y++){ const ar=(y>>2)*AW, row=y*W;
+    for(let x=0;x<W;x++) if(KIND[type[row+x]]===SOLID) bcount[ar+(x>>2)]++; }
+  for(let a=0;a<AW*AH;a++) blocked[a]=bcount[a]>=9?1:0;
+}
+function stepAir(){
+  if((frame&7)===0) computeBlocked();
+  const k=0.25, aw=AW, ah=AH;
+  for(let y=0;y<ah;y++){ const row=y*aw;
+    for(let x=0;x<aw;x++){ const a=row+x;
+      if(blocked[a]){ p[a]=0; continue; }
+      const l=x>0?vx[a-1]:0, r=x<aw-1?vx[a+1]:0, u=y>0?vy[a-aw]:0, d=y<ah-1?vy[a+aw]:0;
+      p[a]-=(r-l+d-u)*k; } }
+  for(let y=0;y<ah;y++){ const row=y*aw;
+    for(let x=0;x<aw;x++){ const a=row+x;
+      if(blocked[a]){ vx[a]=0; vy[a]=0; continue; }
+      const c=p[a];
+      const pl=(x>0&&!blocked[a-1])?p[a-1]:c, pr=(x<aw-1&&!blocked[a+1])?p[a+1]:c;
+      const pu=(y>0&&!blocked[a-aw])?p[a-aw]:c, pd=(y<ah-1&&!blocked[a+aw])?p[a+aw]:c;
+      vx[a]-=(pr-pl)*k; vy[a]-=(pd-pu)*k; } }
+  const mx=aw-1.001, my=ah-1.001;
+  for(let y=0;y<ah;y++){ const row=y*aw;
+    for(let x=0;x<aw;x++){ const a=row+x;
+      if(blocked[a]){ tx[a]=0; ty[a]=0; tp[a]=0; continue; }
+      let bx=x-vx[a]*0.3, by=y-vy[a]*0.3;
+      bx=bx<0?0:bx>mx?mx:bx; by=by<0?0:by>my?my:by;
+      const x0=bx|0, y0=by|0, fx=bx-x0, fy=by-y0;
+      const a00=y0*aw+x0, a10=a00+1, a01=a00+aw, a11=a01+1;
+      const w00=(1-fx)*(1-fy), w10=fx*(1-fy), w01=(1-fx)*fy, w11=fx*fy;
+      let sx=vx[a00]*w00+vx[a10]*w10+vx[a01]*w01+vx[a11]*w11;
+      let sy=vy[a00]*w00+vy[a10]*w10+vy[a01]*w01+vy[a11]*w11;
+      const nl=x>0?a-1:a, nr=x<aw-1?a+1:a, nu=y>0?a-aw:a, nd=y<ah-1?a+aw:a;
+      sx=(sx*0.84+(vx[nl]+vx[nr]+vx[nu]+vx[nd])*0.04)*0.993;
+      sy=(sy*0.84+(vy[nl]+vy[nr]+vy[nu]+vy[nd])*0.04)*0.993;
+      if((x===0&&sx<0)||(x===aw-1&&sx>0)) sx=0;
+      if((y===0&&sy<0)||(y===ah-1&&sy>0)) sy=0;
+      tx[a]=sx>4?4:sx<-4?-4:sx; ty[a]=sy>4?4:sy<-4?-4:sy;
+      const q=(p[a]*0.8+(p[nl]+p[nr]+p[nu]+p[nd])*0.05)*0.985;
+      tp[a]=q>14?14:q<-14?-14:q; } }
+  let s=vx; vx=tx; tx=s; s=vy; vy=ty; ty=s; s=p; p=tp; tp=s;
+}
+
+/* ---------- step ---------- */
+function step(){
+  frame++; clock++;
+  if(clock>65535){ stamp.fill(0); clock=1; }
+  const c=frame&1;
+  stepAir();
+  for(let y=H-1;y>=0;y--){
+    const row=y*W, ltr=Math.random()<0.5;
+    for(let k=0;k<W;k++){
+      const x=ltr?k:W-1-k, i=row+x, t=type[i];
+      if(t===EMPTY||t===WALL||t===WOOD||stamp[i]===clock) continue;
+      switch(t){
+        case SAND: case STONE: case POWDER: powder(i,x,y,t); break;
+        case WATER: case OIL: case ACID: case LAVA: liquid(i,x,y,t); break;
+        case FIRE: fire(i,x,y); break;
+        case STEAM: case SMOKE: gas(i,x,y,t); break;
+        case SPARK: spark(i,x,y); break;
+        case PLANT:
+          if(Math.random()<0.08){ const j=nbr(x,y,Math.random()*4|0); if(j>=0&&type[j]===WATER) setCell(j,PLANT); }
+          break;
+        case ICE:
+          if(Math.random()<0.06){ const j=nbr(x,y,Math.random()*4|0);
+            if(j>=0){ const tj=type[j]; if(tj===WATER){ if(Math.random()<0.15) setCell(j,ICE); } else if(tj===STEAM) setCell(j,WATER); } }
+          break;
+        case WIRE: wire(i,x,y,c); break;
+        case SPOUT: spout(i,x,y); break;
+      }
+    }
+  }
+}
+
+/* ---------- render ---------- */
+const dotsEl=$('dots');
+let spR=80,spG=96,spB=150;
+function render(){
+  let n=0; const av=airView;
+  if(av){
+    for(let a=0;a<AW*AH;a++){
+      if(blocked[a]){ airCol[a]=BG; continue; }
+      const q=p[a], s=Math.min(4,Math.hypot(vx[a],vy[a]));
+      let r=7,g=10,b=14;
+      if(q>0){ r+=q*26; g+=q*9; } else { b-=q*30; g-=q*12; }
+      r+=s*8; g+=s*22; b+=s*30;
+      airCol[a]=rgb(r,g,b);
+    }
+  }
+  for(let y=0;y<H;y++){ const row=y*W, ar=(y>>2)*AW;
+    for(let x=0;x<W;x++){ const i=row+x, t=type[i];
+      if(t===EMPTY){ px[i]=av?airCol[ar+(x>>2)]:BG; continue; }
+      n++;
+      switch(t){
+        case FIRE:{ const l=life[i]; px[i]=(l&128)?FIRE_LUT[20+(Math.random()*26|0)]:FIRE_LUT[Math.min(47,(l&127)+(Math.random()*8|0))]; break; }
+        case STEAM: px[i]=STEAM_LUT[Math.min(15,life[i]>>3)]; break;
+        case SMOKE: px[i]=SMOKE_LUT[Math.min(15,life[i]>>2)]; break;
+        case WIRE:{ const l=life[i]; px[i]=(l===20||l===21)?WIRE_HEAD:(l>=30||(l>0&&l<4))?WIRE_TAIL:PAL[WIRE*8+shade[i]]; break; }
+        case SPOUT:{ const cl=life[i], k=(x+y)&1; px[i]=cl?SPOUT_T[cl*2+k]:PAL[SPOUT*8+k*7]; break; }
+        case LAVA: if(Math.random()<0.03) shade[i]=Math.random()*8|0; px[i]=PAL[LAVA*8+shade[i]]; break;
+        case WATER: if(Math.random()<0.004) shade[i]=Math.random()*8|0; px[i]=PAL[WATER*8+shade[i]]; break;
+        default: px[i]=PAL[t*8+shade[i]];
+      }
+    }
+  }
+  ctx.putImageData(img,0,0);
+  if((renders++&7)===0){ dotsEl.textContent=n.toLocaleString(); spill(); }
+}
+/* the room picks up the screen's average hue, brighter when the screen is busier */
+function spill(){
+  let r=0,g=0,b=0,k=0;
+  for(let i=0;i<W*H;i+=13){ const c=px[i]; r+=c&255; g+=(c>>>8)&255; b+=(c>>>16)&255; k++; }
+  r/=k; g/=k; b/=k;
+  const m=Math.max(r,g,b,1), I=Math.min(190,30+(r+g+b)/3*5);
+  spR+=(Math.min(255,30+r/m*I)-spR)*.4; spG+=(Math.min(255,36+g/m*I)-spG)*.4; spB+=(Math.min(255,62+b/m*I)-spB)*.4;
+  GF.spill[0]=spR/255; GF.spill[1]=spG/255; GF.spill[2]=spB/255;
+}
+
+/* ---------- input on the screen ---------- */
+const ptr={down:false,id:-1,x:0,y:0};
+function paintAt(cx,cy){
+  const r=brushR, r2=r*r+r, t=tool;
+  for(let dy=-r;dy<=r;dy++){ const y=cy+dy; if(y<0||y>=H) continue;
+    for(let dx=-r;dx<=r;dx++){
+      if(dx*dx+dy*dy>r2) continue;
+      const x=cx+dx; if(x<0||x>=W) continue;
+      const i=y*W+x;
+      if(t===ERASE){ type[i]=EMPTY; life[i]=0; continue; }
+      const ti=type[i];
+      if(t===SPARK){
+        if(ti===WIRE){ if(life[i]===0) life[i]=20+(frame&1); }
+        else if(ti===EMPTY&&Math.random()<0.12) setCell(i,SPARK);
+        continue;
+      }
+      if(ti!==EMPTY) continue;
+      if(KIND[t]===SOLID||r===0||Math.random()<(KIND[t]===GAS?0.35:0.28)) setCell(i,t);
+    }
+  }
+}
+function strokeTo(x0,y0,x1,y1){
+  const dx=x1-x0, dy=y1-y0, dist=Math.max(Math.abs(dx),Math.abs(dy));
+  const n=Math.max(1,Math.ceil(dist/Math.max(1,brushR)));
+  for(let s=1;s<=n;s++) paintAt(Math.round(x0+dx*s/n),Math.round(y0+dy*s/n));
+}
+function addWind(gx,gy,dx,dy){
+  const ax=gx/4, ay=gy/4, R=1.3+brushR/4, R2=R*R, k=0.07;
+  const x0=Math.max(0,Math.floor(ax-R)), x1=Math.min(AW-1,Math.ceil(ax+R));
+  const y0=Math.max(0,Math.floor(ay-R)), y1=Math.min(AH-1,Math.ceil(ay+R));
+  for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+    const ddx=x+.5-ax, ddy=y+.5-ay, d2=ddx*ddx+ddy*ddy;
+    if(d2>R2) continue;
+    const a=y*AW+x; if(blocked[a]) continue;
+    const f=1-d2/R2;
+    vx[a]=Math.max(-4,Math.min(4,vx[a]+dx*k*f));
+    vy[a]=Math.max(-4,Math.min(4,vy[a]+dy*k*f));
+  }
+}
+function windStroke(x0,y0,x1,y1){
+  const dx=x1-x0, dy=y1-y0, d=Math.hypot(dx,dy);
+  if(d<0.05) return;
+  const n=Math.max(1,Math.ceil(d/4));
+  for(let s=1;s<=n;s++) addWind(x0+dx*s/n,y0+dy*s/n,dx*2,dy*2);
+}
+function puff(gx,gy){
+  const ax=Math.max(0,Math.min(AW-1,gx>>2)), ay=Math.max(0,Math.min(AH-1,gy>>2));
+  for(let y=ay-1;y<=ay+1;y++) for(let x=ax-1;x<=ax+1;x++){
+    if(x<0||y<0||x>=AW||y>=AH) continue;
+    const a=y*AW+x; if(blocked[a]) continue;
+    p[a]=Math.min(14,p[a]+(x===ax&&y===ay?5:2));
+  }
+}
+
+/* ---------- palette & controls ---------- */
+const palette=$('palette'), note=$('note'), chips={};
+function drawSwatch(c,t){
+  const w=24,h=8; c.width=w; c.height=h;
+  const g=c.getContext('2d'), im=g.createImageData(w,h), u=new Uint32Array(im.data.buffer);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const r=Math.random(); let col;
+    if(t===FIRE) col=FIRE_LUT[Math.max(0,Math.min(47,47-y*5-(r*10|0)))];
+    else if(t===STEAM) col=STEAM_LUT[6+(r*10|0)];
+    else if(t===WIND) col=((y===1&&x%8<5)||(y===4&&(x+3)%8<6)||(y===6&&(x+5)%9<4))?rgb(127,182,230):BG;
+    else if(t===ERASE) col=(((x>>2)+(y>>2))&1)?rgb(40,44,54):rgb(24,27,35);
+    else if(t===SPOUT) col=PAL[SPOUT*8+((((x>>1)+(y>>1))&1)*7)];
+    else if(t===WIRE) col=(y===3||y===4)?PAL[WIRE*8+(r*8|0)]:BG;
+    else if(t===SPARK) col=r<0.2?PAL[SPARK*8+((r*40|0)&7)]:BG;
+    else col=PAL[t*8+(r*8|0)];
+    u[y*w+x]=col;
+  }
+  g.putImageData(im,0,0);
+}
+function describe(t){ const e=TOOLS.find(d=>d[0]===t); note.innerHTML='<b>'+e[1]+'</b>'+e[2]; }
+function select(t,quiet){
+  tool=t;
+  for(const k in chips) chips[k].setAttribute('aria-pressed',String(+k===t));
+  if(!quiet){ describe(t); save(); }
+}
+for(const [t,name,desc] of TOOLS){
+  const b=document.createElement('button');
+  b.type='button'; b.className='chip'; b.id='tool-'+name.toLowerCase(); b.title=desc; b.setAttribute('aria-pressed','false');
+  const c=document.createElement('canvas'); c.setAttribute('aria-hidden','true'); drawSwatch(c,t);
+  const s=document.createElement('span'); s.textContent=name;
+  b.append(c,s); b.addEventListener('click',()=>select(t));
+  palette.append(b); chips[t]=b;
+}
+const pauseBtn=$('pause'), airBtn=$('air'), zoomBtn=$('zoom'), brushIn=$('brush'), brushVal=$('brushVal');
+pauseBtn.addEventListener('click',()=>{ paused=!paused; pauseBtn.textContent=paused?'Run':'Pause'; pauseBtn.setAttribute('aria-pressed',String(paused)); });
+$('clear').addEventListener('click',wipe);
+$('demo').addEventListener('click',()=>{ demo(); showDemoHint(); });
+airBtn.addEventListener('click',()=>{ airView=!airView; airBtn.setAttribute('aria-pressed',String(airView)); });
+brushIn.addEventListener('input',()=>{ brushR=(+brushIn.value)-1; brushVal.textContent=brushIn.value; save(); });
+document.addEventListener('keydown',e=>{ if(e.code==='Space'&&(e.target===document.body||e.target===cv)){ e.preventDefault(); pauseBtn.click(); } });
+
+const KEY='grainfall:prefs';
+let zoomT=0;
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify({tool,brush:brushR+1,zoom:zoomT})); }catch(_){} }
+function load(){
+  try{
+    const s=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(s){
+      if(TOOLS.some(d=>d[0]===s.tool)) tool=s.tool;
+      const b=+s.brush; if(b>=1&&b<=8){ brushR=b-1; brushIn.value=String(b); brushVal.textContent=String(b); }
+      if(s.zoom===1) zoomT=1;
+    }
+  }catch(_){}
+}
+
+/* ---------- scenes ---------- */
+function wipe(){ type.fill(0); life.fill(0); vx.fill(0); vy.fill(0); tx.fill(0); ty.fill(0); p.fill(0); tp.fill(0); blocked.fill(0); }
+function showDemoHint(){ note.innerHTML='<b>Demo</b>Pick Spark and tap the copper wire to set off the gunpowder. Drag the room to look around.'; }
+function demo(){
+  wipe();
+  const X=f=>Math.max(0,Math.min(W-1,Math.round(f*W))), Y=f=>Math.max(0,Math.min(H-1,Math.round(f*H)));
+  const fill=(x0,y0,x1,y1,t)=>{ for(let y=Math.max(0,y0);y<=Math.min(H-1,y1);y++) for(let x=Math.max(0,x0);x<=Math.min(W-1,x1);x++) setCell(y*W+x,t); };
+  const ground=Y(.95);
+  fill(0,ground,W-1,H-1,STONE);
+  const lx0=X(.04), lx1=X(.24), pit=Y(.80);
+  fill(lx0-2,pit,lx0-1,ground-1,WALL); fill(lx1+1,pit,lx1+2,ground-1,WALL);
+  fill(lx0,Y(.86),lx1,ground-1,LAVA);
+  fill(X(.06),Y(.24),X(.21),Y(.27),ICE);
+  const bx0=X(.31), bx1=X(.62), bTop=Y(.50);
+  fill(bx0-2,bTop,bx0-1,ground-1,WALL); fill(bx1+1,bTop,bx1+2,ground-1,WALL);
+  fill(bx0,Y(.62),bx1,ground-1,WATER);
+  fill(bx0,Y(.56),bx1,Y(.62)-1,OIL);
+  fill(bx0,Y(.72),bx0+1,Y(.76),PLANT);
+  const sx=X(.47), sy=Y(.07);
+  fill(sx-1,sy,sx+1,sy+1,SPOUT);
+  for(let y=sy;y<=sy+1;y++) for(let x=sx-1;x<=sx+1;x++) life[y*W+x]=SAND;
+  const wx0=X(.70), wx1=X(.96), shelf=Y(.64);
+  fill(wx0,shelf,wx1,shelf+2,WOOD);
+  fill(wx0+2,shelf+3,wx0+4,ground-1,WOOD); fill(wx1-4,shelf+3,wx1-2,ground-1,WOOD);
+  const cx=(wx0+wx1)>>1, half=(wx1-wx0)>>1, hgt=Math.max(6,Y(.11));
+  for(let k=0;k<hgt;k++){ const w=Math.round(half*(1-k/hgt)); fill(cx-w,shelf-1-k,cx+w,shelf-1-k,POWDER); }
+  const wy=Y(.30);
+  fill(X(.66),wy,X(.98),wy+1,WIRE);
+  fill(cx,wy,cx+1,shelf-1-hgt,WIRE);
+  computeBlocked();
+}
+/* ---------- input API: the 3D room maps touches onto the screen and calls these ---------- */
+function gDown(gx,gy){ ptr.down=true; ptr.x=gx; ptr.y=gy; if(tool===WIND) puff(gx|0,gy|0); else paintAt(gx|0,gy|0); }
+function gMove(gx,gy){ if(!ptr.down) return; if(tool===WIND) windStroke(ptr.x,ptr.y,gx,gy); else strokeTo(ptr.x|0,ptr.y|0,gx|0,gy|0); ptr.x=gx; ptr.y=gy; }
+function gUp(){ ptr.down=false; }
+function held(){ if(ptr.down&&tool!==WIND) paintAt(ptr.x|0,ptr.y|0); }
+function setZoom(z,quiet){ zoomT=z; GF.zoom=z; zoomBtn.textContent=z?'Zoom out':'Zoom in'; zoomBtn.setAttribute('aria-pressed',String(!!z)); if(!quiet) save(); }
+zoomBtn.addEventListener('click',()=>setZoom(zoomT?0:1));
+
+const dock=$('dock'), loadingEl=$('loading'), flat=$('flat');
+const GF = window.GF = {
+  W, H, cv, mode:'pending', zoom:0, spill:[.45,.55,.9],
+  down:gDown, move:gMove, up:gUp,
+  availH(){ return Math.max(200, dock.getBoundingClientRect().top-8); },
+  ready3d(){ if(GF.mode==='2d') return false; GF.mode='3d'; loadingEl.classList.add('done'); return true; },
+  use2d(){
+    if(GF.mode!=='pending') return;
+    GF.mode='2d';
+    $('gl').hidden=true; loadingEl.classList.add('done'); zoomBtn.hidden=true;
+    cv.setAttribute('aria-label','Sandbox screen. Drag to pour the selected material.');
+    flat.querySelector('.tv2d').append(cv); flat.hidden=false;
+    note.innerHTML='<b>Flat mode</b>The 3D room could not start here, so this is the screen on its own.';
+  },
+};
+
+/* flat fallback: plain pointer mapping onto the canvas */
+let flatId=-1;
+const toG=e=>{ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left)/r.width*W,(e.clientY-r.top)/r.height*H]; };
+cv.addEventListener('pointerdown',e=>{ if(GF.mode!=='2d'||flatId!==-1) return; e.preventDefault(); flatId=e.pointerId; try{ cv.setPointerCapture(e.pointerId); }catch(_){} const g=toG(e); gDown(g[0],g[1]); });
+cv.addEventListener('pointermove',e=>{ if(e.pointerId!==flatId) return; const g=toG(e); gMove(g[0],g[1]); });
+const flatUp=e=>{ if(e.pointerId===flatId){ flatId=-1; gUp(); } };
+cv.addEventListener('pointerup',flatUp); cv.addEventListener('pointercancel',flatUp); cv.addEventListener('lostpointercapture',flatUp);
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+function dockVar(){ document.documentElement.style.setProperty('--dockh',(innerHeight-dock.getBoundingClientRect().top+16)+'px'); }
+addEventListener('resize',dockVar);
+if(typeof ResizeObserver!=='undefined') new ResizeObserver(dockVar).observe(dock);
+
+/* ---------- boot ---------- */
+load();
+select(tool,true);
+setZoom(zoomT,true);
+demo();
+showDemoHint();
+dockVar();
+if(!window.WebGLRenderingContext) GF.use2d();
+setTimeout(()=>{ if(GF.mode==='pending') GF.use2d(); },15000);
+let last=performance.now(), acc=0;
+function loop(now){
+  let dt=now-last; last=now; if(dt>100) dt=100; if(dt<0) dt=0;
+  if(!paused){ acc+=dt; let n=0; while(acc>=16.67&&n<3){ held(); step(); acc-=16.67; n++; } if(acc>50) acc=0; } else held();
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const GF = window.GF;
+const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+try {
+  if (!GF || GF.mode === '2d') throw new Error('skip');
+  await Promise.race([document.fonts.load('40px Silkscreen'), new Promise(r => setTimeout(r, 1500))]).catch(() => {});
+  const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gl'), antialias: false, powerPreference: 'high-performance' });
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#2b2d55');
+  scene.fog = new THREE.FogExp2('#b9b7ea', .0072);
+  /* seeded random so every render matches */
+  let seed = 7;
+  const rand = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+
+  /* ---------- clay surface: a tiling height field of lumps, thumbprints and smears, turned into a normal map ---------- */
+  function clayNormalTex() {
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d');
+    g.fillStyle = '#808080'; g.fillRect(0, 0, S, S);
+    const tile = fn => { for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) fn(dx * S, dy * S); };
+    for (let i = 0; i < 240; i++) {
+      const x = rand() * S, y = rand() * S, r = 12 + rand() * 70, v = rand() < .5 ? 255 : 0, a = .04 + rand() * .07;
+      tile((ox, oy) => { const gr = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r); gr.addColorStop(0, `rgba(${v},${v},${v},${a})`); gr.addColorStop(1, `rgba(${v},${v},${v},0)`); g.fillStyle = gr; g.fillRect(x + ox - r, y + oy - r, r * 2, r * 2); });
+    }
+    for (let k = 0; k < 14; k++) {
+      const x = rand() * S, y = rand() * S, a = rand() * 6.28;
+      tile((ox, oy) => { for (let j = 0; j < 9; j++) { const v = j % 2 ? 255 : 0; g.strokeStyle = `rgba(${v},${v},${v},.08)`; g.lineWidth = 1.7; g.beginPath(); g.ellipse(x + ox, y + oy, 5 + j * 3.3, 3.5 + j * 2.5, a, .25, Math.PI * 1.35); g.stroke(); } });
+    }
+    for (let k = 0; k < 50; k++) {
+      const x = rand() * S, y = rand() * S, a = rand() * 6.28, l = 20 + rand() * 60, v = rand() < .5 ? 255 : 0;
+      tile((ox, oy) => { g.strokeStyle = `rgba(${v},${v},${v},.06)`; g.lineWidth = 2 + rand() * 4; g.beginPath(); g.moveTo(x + ox, y + oy); g.quadraticCurveTo(x + ox + Math.cos(a) * l * .5 + 8, y + oy + Math.sin(a) * l * .5 - 8, x + ox + Math.cos(a) * l, y + oy + Math.sin(a) * l); g.stroke(); });
+    }
+    const src = g.getImageData(0, 0, S, S).data, out = g.createImageData(S, S), o = out.data;
+    const h = (x, y) => src[((((y + S) % S) * S) + ((x + S) % S)) * 4] / 255;
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const dx = (h(x + 1, y) - h(x - 1, y)) * 3.2, dy = (h(x, y + 1) - h(x, y - 1)) * 3.2;
+      const l = Math.hypot(dx, dy, 1), i = (y * S + x) * 4;
+      o[i] = (-dx / l * .5 + .5) * 255; o[i + 1] = (dy / l * .5 + .5) * 255; o[i + 2] = (1 / l * .5 + .5) * 255; o[i + 3] = 255;
+    }
+    g.putImageData(out, 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4;
+    return t;
+  }
+  const NT = clayNormalTex();
+  function clay(color, o = {}) {
+    const n = NT.clone(); n.repeat.set(o.rep || 1, o.rep || 1); n.needsUpdate = true;
+    const c = new THREE.Color(color);
+    return new THREE.MeshPhysicalMaterial({
+      color: c, roughness: o.rough ?? .8, metalness: 0,
+      sheen: o.sheen ?? .5, sheenRoughness: .7, sheenColor: c.clone().lerp(new THREE.Color('#ffffff'), .35),
+      normalMap: n, normalScale: new THREE.Vector2(o.bump ?? .75, o.bump ?? .75),
+      emissive: o.emissive ? new THREE.Color(o.emissive) : new THREE.Color(0), emissiveIntensity: o.ei ?? 1,
+      map: o.map || null, side: o.side || THREE.FrontSide,
+    });
+  }
+  /* hand-made wobble: nothing sits perfectly square */
+  const wob = (m, a = .02) => { m.rotation.x += (rand() - .5) * a; m.rotation.y += (rand() - .5) * a * 1.5; m.rotation.z += (rand() - .5) * a; return m; };
+  function add(geo, mat, x, y, z, o = {}) {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
+    if (o.ry) m.rotation.y = o.ry; if (o.rx) m.rotation.x = o.rx; if (o.rz) m.rotation.z = o.rz;
+    if (o.s) m.scale.set(...o.s);
+    m.castShadow = o.cast !== false; m.receiveShadow = true;
+    if (o.wob !== false) wob(m, o.wob || .02);
+    (o.parent || scene).add(m); return m;
+  }
+  /* rounded box centred at x,y,z */
+  const rbox = (w, h, d, r, mat, x, y, z, o = {}) => add(new RoundedBoxGeometry(w, h, d, o.seg || 5, Math.min(r, w / 2 - .001, h / 2 - .001, d / 2 - .001)), mat, x, y, z, o);
+  const lathe = (pts, mat, x, y, z, o = {}) => add(new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 40), mat, x, y, z, o);
+  const sphere = (r, mat, x, y, z, o = {}) => add(new THREE.SphereGeometry(r, 40, 28), mat, x, y, z, o);
+  const capsule = (r, l, mat, x, y, z, o = {}) => add(new THREE.CapsuleGeometry(r, l, 8, 20), mat, x, y, z, o);
+  const tube = (pts, r, mat, o = {}) => add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p))), 160, r, 10, false), mat, 0, 0, 0, { wob: false, ...o });
+  function canvasTex(w, h, draw, srgb = true) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  }
+  /* a material per face of a rounded box: [+x, -x, +y, -y, +z, -z] */
+  const faces = (base, o = {}) => [o.px || base, o.nx || base, o.py || base, o.ny || base, o.pz || base, o.nz || base];
+
+  /* ---------- the room (1 unit = 10 cm, y up, the back wall faces +z) ---------- */
+  const C = { wall:'#a3b2ee', base:'#c6cff7', floor:'#cdb9e0', rug:'#f7c1d4', rugRing:'#fff0f4', shelf:'#fdf8ff', shelfIn:'#ddd6f2', tv:'#a6e3cc', tvDark:'#8ccfb5', recess:'#2a1f33', table:'#ffc9a1', lampBase:'#fff6ea', shade:'#ffdcc8', book:'#a8c0f4', console:'#f0f0f8', cart:'#a5e3cf', tape:'#6e6790', cream:'#fdf9ff', soldier:'#a8dca0', frame:'#fdfcff', slat:'#f8f7ff', outlet:'#fffaf6', cord:'#8d85b0' };
+  const RUG = .1;
+
+  rbox(80, 1, 36, .3, clay(C.floor, { rep: 10, bump: .35 }), 0, -.5, 5, { wob: false, cast: false });
+  const disk = (r, h) => [[0, 0], [r - .12, 0], [r, .03], [r, h - .03], [r - .12, h], [0, h]];
+  lathe(disk(6.4, .06), clay(C.rug, { rep: 3, bump: .7 }), -.4, 0, .8, { s: [1, 1, .62], wob: false, cast: false });
+  lathe(disk(5.2, .08), clay(C.rugRing, { rep: 3, bump: .7 }), -.4, 0, .8, { s: [1, 1, .62], wob: false, cast: false });
+  lathe(disk(3.9, RUG), clay(C.rug, { rep: 3, bump: .7 }), -.4, 0, .8, { s: [1, 1, .62], wob: false, cast: false });
+
+  /* back wall with a window opening, so moonlight really comes through the blinds */
+  const wallM = clay(C.wall, { rep: 6, bump: .35 });
+  for (const [x, y, w, h] of [[-18, 15, 44, 30], [26.5, 15, 27, 30], [8.5, 3.5, 9, 7], [8.5, 23.5, 9, 13]]) add(new THREE.BoxGeometry(w, h, 1), wallM, x, y, -12.5, { wob: false });
+  rbox(80, .9, .42, .16, clay(C.base, { rep: 10 }), 0, .45, -11.8, { wob: false });
+  const frameM = clay(C.frame, { rep: 1.5 });
+  rbox(10.4, .62, .9, .26, frameM, 8.5, 17.3, -11.7);
+  rbox(.62, 10.6, .9, .26, frameM, 3.7, 12, -11.7);
+  rbox(.62, 10.6, .9, .26, frameM, 13.3, 12, -11.7);
+  rbox(11.4, .5, 1.7, .22, frameM, 8.5, 6.75, -11.45);
+  const slatM = clay(C.slat, { emissive: '#cfc6ff', ei: .3, sheen: .2, bump: .3 });
+  for (let i = 0; i < 18; i++) rbox(8.7, .13, .8, .06, slatM, 8.5, 7.5 + i * .55, -12.45, { rx: .6, wob: .012 });
+  tube([[12.55, 16.9, -11.95], [12.6, 12, -11.95], [12.55, 8.1, -11.95]], .045, clay('#dcd8f6'));
+  const sky = canvasTex(64, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#aebdff'); gr.addColorStop(.6, '#d5ddff'); gr.addColorStop(1, '#eef2ff'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const skyM = new THREE.MeshBasicMaterial({ map: sky }); skyM.color.setScalar(1.35);
+  add(new THREE.PlaneGeometry(12, 13), skyM, 8.5, 12, -14.5, { wob: false, cast: false });
+  const cordM = clay(C.cord, { bump: .2 });
+  rbox(.95, 1.45, .22, .12, clay(C.outlet), 7.6, 2.4, -11.85, { wob: .01 });
+  rbox(.5, .42, .5, .12, cordM, 7.6, 2.78, -11.62); rbox(.5, .42, .5, .12, cordM, 7.6, 2.05, -11.62);
+  tube([[7.6, 2.75, -11.35], [7.95, 1.9, -11.2], [7.4, .6, -11.1], [7.0, .1, -10.6], [6.2, .1, -10.2]], .075, cordM);
+  tube([[7.6, 2.03, -11.35], [7.3, 1.2, -11.1], [7.85, .3, -10.8], [7.2, .1, -10.1], [6.1, .1, -9.6]], .075, cordM);
+
+  /* the shelf */
+  const shelfM = clay(C.shelf, { rep: 2, bump: .45 }), shelfIn = clay(C.shelfIn, { rep: 2 });
+  rbox(.46, 4.6, 4.2, .17, shelfM, -5.6, 2.3, -7.4);
+  rbox(.46, 4.6, 4.2, .17, shelfM, 5.6, 2.3, -7.4);
+  rbox(11.8, .46, 4.4, .21, shelfM, 0, 4.8, -7.4);
+  rbox(10.8, .36, 4.0, .15, shelfM, 0, 2.55, -7.45);
+  rbox(10.8, .36, 4.0, .15, shelfM, 0, .55, -7.45);
+  rbox(10.8, 4.3, .2, .08, shelfIn, 0, 2.6, -9.35, { wob: false });
+  const tapeM = clay(C.tape, { bump: .4 });
+  const tapeLabel = canvasTex(256, 64, (g, w, h) => { g.fillStyle = C.tape; g.fillRect(0, 0, w, h); g.fillStyle = '#efe8d8'; g.fillRect(40, 18, 176, 28); g.fillStyle = '#c9a7e8'; g.fillRect(40, 18, 30, 28); });
+  rbox(3.6, .36, 2.4, .12, faces(tapeM, { pz: clay('#fff', { map: tapeLabel, bump: .3 }) }), -2.4, 2.91, -7.0, { ry: .06 });
+  const coverA = canvasTex(256, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#ffc6aa'); gr.addColorStop(.5, '#ffb3cf'); gr.addColorStop(1, '#c6bbff'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(170, 90, 38, 0, 7); g.fill(); g.fillStyle = '#8a7fb0'; g.fillRect(0, 200, w, 56); });
+  rbox(3.8, .42, 2.6, .14, faces(tapeM, { py: clay('#fff', { map: coverA, bump: .25 }) }), 1.9, 2.94, -7.1, { ry: -.08 });
+  ['#ff9fae', '#9cc4ff', '#ffe39a'].forEach((col, i) => {
+    const spine = canvasTex(64, 256, (g, w, h) => { g.fillStyle = C.tape; g.fillRect(0, 0, w, h); g.fillStyle = col; g.fillRect(12, 40, 40, 150); g.fillStyle = '#efe8d8'; g.fillRect(12, 200, 40, 24); });
+    rbox(.52, 1.7, 2.6, .1, faces(tapeM, { pz: clay('#fff', { map: spine, bump: .25 }) }), -4.6 + i * .62, 1.58, -7.2, { wob: .03 });
+  });
+  rbox(3.0, .55, 2.8, .14, clay('#9a8fc4'), 2.2, 1.0, -7.25, { ry: .05 });
+
+  /* the CRT */
+  const tvM = clay(C.tv, { rep: 2, bump: .5 }), tvDarkM = clay(C.tvDark, { rep: 2 });
+  rbox(8, 6.4, 1.5, .62, tvM, 0, 8.23, -6.95, { wob: .008 });
+  rbox(6.6, 5.3, 3.9, .95, tvDarkM, 0, 7.75, -9.3, { wob: .008 });
+  for (let i = 0; i < 6; i++) rbox(3.4, .1, .2, .05, clay('#6bb89c'), 0, 10.38, -8.3 - i * .45, { wob: false });
+  rbox(6.85, 5.25, .36, .6, clay(C.recess, { rough: .6, sheen: .2 }), -.24, 8.47, -6.2, { wob: false });
+  const scrGeo = new THREE.PlaneGeometry(6.32, 4.74, 32, 24);
+  { const p = scrGeo.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i) / 3.16, y = p.getY(i) / 2.37; p.setZ(i, .2 * (1 - x * x * .8) * (1 - y * y * .8)); } scrGeo.computeVertexNormals(); }
+  const screenMat = new THREE.MeshBasicMaterial({ color: 0x111111, transparent: true, alphaTest: .5 });
+  const screenMesh = add(scrGeo, screenMat, -.24, 8.47, -6.02, { wob: false, cast: false });
+  const glass = add(scrGeo, new THREE.MeshPhysicalMaterial({ color: '#000000', roughness: .1, metalness: 0, transparent: true, opacity: .22, clearcoat: .45, clearcoatRoughness: .1 }), -.24, 8.47, -5.98, { wob: false, cast: false });
+  glass.receiveShadow = false;
+  const knobM = clay('#f8d3e6', { rep: .5 }), tickM = clay('#ffffff');
+  for (const [ky, t] of [[8.25, .6], [7.15, -.9]]) {
+    const k = lathe([[0, 0], [.36, 0], [.43, .06], [.45, .18], [.41, .3], [.3, .35], [0, .37]], knobM, 3.45, ky, -6.22, { rx: Math.PI / 2, wob: false });
+    rbox(.08, .07, .28, .03, tickM, Math.sin(t) * .15, .37, Math.cos(t) * .15, { parent: k, ry: t, wob: false });
+  }
+  const grille = canvasTex(64, 160, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#fff'; for (let y = 8; y < h; y += 12) for (let x = 8; x < w; x += 12) { g.beginPath(); g.arc(x, y, 3.2, 0, 7); g.fill(); } });
+  add(new THREE.PlaneGeometry(.7, 1.75), new THREE.MeshStandardMaterial({ color: '#4f9c82', alphaMap: grille, transparent: true, roughness: 1 }), 3.45, 9.95, -6.19, { wob: false, cast: false });
+  const ledM = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, .35, .45) });
+  add(new THREE.SphereGeometry(.1, 16, 12), ledM, 3.45, 5.82, -6.2, { wob: false, cast: false });
+  const brand = canvasTex(512, 64, (g, w, h) => { g.clearRect(0, 0, w, h); g.font = '40px Silkscreen, monospace'; g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.fillText('G R A I N F A L L', 6, h / 2); });
+  add(new THREE.PlaneGeometry(2.6, .33), new THREE.MeshStandardMaterial({ color: '#fff0f7', alphaMap: brand, transparent: true, roughness: .9 }), -2.1, 5.68, -6.19, { wob: false, cast: false });
+
+  /* side table, book and lamp */
+  const tableM = clay(C.table, { rep: 1.5 });
+  rbox(6.2, .5, 4.6, .22, tableM, -13, 5.25, -8.9);
+  for (const [lx, lz] of [[-15.6, -10.8], [-10.4, -10.8], [-15.6, -7.0], [-10.4, -7.0]]) rbox(.44, 5.0, .44, .17, tableM, lx, 2.5, lz, { wob: .03 });
+  const pages = clay('#fff8ee');
+  rbox(1.9, .32, 1.5, .1, faces(clay(C.book), { pz: pages, px: pages }), -11.6, 5.66, -8.0, { ry: .3 });
+  lathe([[0, 0], [.6, 0], [.8, .12], [1.0, .55], [1.06, 1.1], [.92, 1.7], [.55, 2.1], [.28, 2.3], [.24, 2.45], [0, 2.46]], clay(C.lampBase), -13, 5.5, -9.0, { wob: .01 });
+  add(new THREE.CylinderGeometry(.11, .11, .9, 16), clay('#f2e2cc'), -13, 8.4, -9.0, { wob: false });
+  lathe([[2.15, 0], [2.2, .08], [1.22, 2.3], [1.12, 2.28], [2.05, .04], [2.15, 0]], clay(C.shade, { emissive: '#ffb08a', ei: .82, side: THREE.DoubleSide, sheen: .3 }), -13, 8.35, -9.0, { wob: .01 });
+  const bulbM = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.3, 1.5) });
+  add(new THREE.SphereGeometry(.32, 20, 14), bulbM, -13, 9.0, -9.0, { wob: false, cast: false });
+
+  /* on the floor */
+  const conM = clay(C.console, { rep: 1.2 });
+  const con = rbox(5.2, .95, 3.4, .38, conM, -.6, RUG + .475, -1.5, { ry: .07 });
+  rbox(.72, .3, .2, .08, clay('#8d85b0'), -1.7, .05, 1.68, { parent: con, wob: false });
+  rbox(.72, .3, .2, .08, clay('#8d85b0'), -.8, .05, 1.68, { parent: con, wob: false });
+  rbox(4.2, .05, .1, .03, clay('#d4d5ea'), 0, .47, .95, { parent: con, wob: false });
+  add(new THREE.SphereGeometry(.09, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(.4, 2.2, 1.1) }), 1.9, .1, 1.7, { parent: con, wob: false, cast: false });
+  const cartLabel = canvasTex(256, 128, (g, w, h) => { g.fillStyle = C.cart; g.fillRect(0, 0, w, h); const gr = g.createLinearGradient(30, 0, w - 30, 0); gr.addColorStop(0, '#ffd166'); gr.addColorStop(1, '#ff8fab'); g.fillStyle = gr; g.fillRect(28, 20, w - 56, 70); });
+  rbox(2.2, 1.1, .46, .14, faces(clay(C.cart), { pz: clay('#fff', { map: cartLabel, bump: .25 }) }), .2, .68, -.2, { parent: con, wob: .03 });
+  const ctlM = clay(C.cream, { rep: .6 });
+  const ctl = rbox(2.3, .42, 1.15, .2, ctlM, -5.9, RUG + .21, 2.2, { ry: -.35 });
+  capsule(.36, .5, ctlM, -.95, -.02, .42, { parent: ctl, rx: Math.PI / 2, rz: .3, wob: false });
+  capsule(.36, .5, ctlM, .95, -.02, .42, { parent: ctl, rx: Math.PI / 2, rz: -.3, wob: false });
+  rbox(.5, .12, .16, .05, clay('#8d85b0'), -.65, .22, 0, { parent: ctl, wob: false });
+  rbox(.16, .12, .5, .05, clay('#8d85b0'), -.65, .22, 0, { parent: ctl, wob: false });
+  sphere(.11, clay('#ff9fae'), .55, .2, -.08, { parent: ctl, s: [1, .55, 1], wob: false });
+  sphere(.11, clay('#9cc4ff'), .8, .2, .12, { parent: ctl, s: [1, .55, 1], wob: false });
+  tube([[-2.3, .55, .2], [-2.5, RUG + .1, .9], [-3.6, RUG + .08, 1.0], [-4.2, RUG + .08, .2], [-5.1, RUG + .08, .6], [-4.7, RUG + .08, 1.6], [-5.3, RUG + .12, 1.95]], .085, ctlM);
+  const caseM = clay('#7a72a0');
+  const cover1 = canvasTex(256, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffb7a3'); gr.addColorStop(.55, '#ffe2a8'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = '#a99ae0'; g.fillRect(0, 160, w, 96); g.fillStyle = '#fff3d6'; g.beginPath(); g.arc(128, 160, 46, Math.PI, 0); g.fill(); });
+  const cover2 = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#6e6790'; g.fillRect(0, 0, w, h); ['#a5e3cf', '#a9c4ff', '#e6b5f2', '#ffd0a8', '#fff0b3'].forEach((c, i) => { g.fillStyle = c; g.beginPath(); g.arc(128, 128, 110 - i * 20, 0, 7); g.fill(); }); });
+  const cover3 = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#8fa6e8'; g.fillRect(0, 0, w, h); g.fillStyle = '#fffaf0'; for (let i = 0; i < 40; i++) g.fillRect(rand() * w, rand() * h, 3, 3); g.fillStyle = '#ffc2d4'; g.beginPath(); g.moveTo(40, 210); g.lineTo(128, 60); g.lineTo(216, 210); g.fill(); });
+  for (const [x, y, z, ry, tex] of [[-7.6, .12, -1.8, .28, cover1], [5.2, RUG + .12, 2.4, .5, cover2], [1.4, RUG + .12, 4.3, -.16, cover3]]) rbox(3.0, .24, 2.3, .09, faces(caseM, { py: clay('#fff', { map: tex, bump: .2 }) }), x, y, z, { ry });
+  const ballTex = canvasTex(512, 256, (g, w, h) => { ['#fffaf2', '#ff9fae', '#fffaf2', '#9cc4ff', '#fffaf2', '#ffe39a'].forEach((c, i) => { g.fillStyle = c; g.fillRect(i * w / 6, 0, w / 6 + 1, h); }); g.fillStyle = '#fffaf2'; g.fillRect(0, 0, w, 16); g.fillRect(0, h - 16, w, 16); });
+  sphere(.95, clay('#fff', { map: ballTex, rep: .6, bump: .3 }), 6.6, .93, -.5, { rz: .5, rx: .3 });
+  const solM = clay(C.soldier, { rep: .3, bump: .6 });
+  function soldier(x, z, ry) {
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g);
+    add(new THREE.CylinderGeometry(.26, .28, .07, 20), solM, 0, .035, 0, { parent: g, wob: false });
+    capsule(.07, .22, solM, -.08, .25, 0, { parent: g, wob: false }); capsule(.07, .22, solM, .08, .25, 0, { parent: g, wob: false });
+    capsule(.13, .26, solM, 0, .62, 0, { parent: g, wob: false });
+    sphere(.12, solM, 0, .95, 0, { parent: g, wob: false });
+    capsule(.035, .5, solM, .17, .7, .08, { parent: g, rz: .35, wob: false });
+  }
+  soldier(-8.4, 1.2, .4); soldier(-9.8, -2.6, -.3); soldier(8.6, 1.4, 1.2);
+  const spill = new THREE.Color(.45, .55, .9);
+  /* ---------- light ---------- */
+  scene.add(new THREE.HemisphereLight('#d6d9ff', '#e2c3e2', 1.2));
+  const fill = new THREE.DirectionalLight('#fff0f7', .7); fill.position.set(20, 18, 30); scene.add(fill);
+  const lamp = new THREE.PointLight('#ffc39e', 80, 0, 2);
+  lamp.position.set(-13, 9.1, -9.0); lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -.003; lamp.shadow.radius = 4;
+  scene.add(lamp);
+  /* moonlight: a narrow spot aimed through the window, so the blinds cast real stripes and nothing else gets lit */
+  const moon = new THREE.SpotLight('#c9d4ff', 2.3, 0, .3, .6, 0);
+  moon.position.set(19.8, 29.4, -25.9); moon.target.position.set(1, 1.5, -3); scene.add(moon, moon.target);
+  moon.castShadow = true; moon.shadow.mapSize.set(1024, 1024); moon.shadow.camera.near = 5; moon.shadow.camera.far = 90;
+  moon.shadow.bias = -.0004; moon.shadow.normalBias = .02;
+  const scrLight = new THREE.PointLight(spill, 9, 22, 2); scrLight.position.set(-.24, 7.4, -6.45); scene.add(scrLight);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  glass.material.envMap = pmrem.fromScene(new RoomEnvironment(), .04).texture; glass.material.envMapIntensity = .2;
+  /* ---------- the moonbeam: thin additive slices through the window, striped by the slats ---------- */
+  const MD = new THREE.Vector3(-18.8, -27.9, 22.9).normalize();
+  {
+    const pos = [], wv = [], al = [];
+    for (let i = 0; i < 7; i++) {
+      const x = 4.7 + i * 1.27, b = new THREE.Vector3(x, 7.2, -12.3), t = new THREE.Vector3(x, 16.8, -12.3);
+      const b2 = b.clone().addScaledVector(MD, (7.2 - .15) / -MD.y), t2 = t.clone().addScaledVector(MD, (16.8 - .15) / -MD.y);
+      const q = [[b, 0, 0], [t, 1, 0], [t2, 1, 1], [b, 0, 0], [t2, 1, 1], [b2, 0, 1]];
+      for (const [v, w, a] of q) { pos.push(v.x, v.y, v.z); wv.push(w); al.push(a); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('wv', new THREE.Float32BufferAttribute(wv, 1));
+    g.setAttribute('al', new THREE.Float32BufferAttribute(al, 1));
+    const m = new THREE.ShaderMaterial({
+      uniforms: { color: { value: new THREE.Color('#d9e2ff') }, op: { value: .026 } },
+      vertexShader: 'attribute float wv; attribute float al; varying float vW; varying float vA; varying vec3 vP; void main(){ vW=wv; vA=al; vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: `uniform vec3 color; uniform float op; varying float vW; varying float vA; varying vec3 vP;
+        void main(){ float f = fract(vW * 18.2); float stripe = smoothstep(0.0, 0.2, f) * smoothstep(0.75, 0.45, f);
+          float edge = smoothstep(0.0, 0.06, vW) * smoothstep(1.0, 0.94, vW);
+          float a = op * (0.5 + 0.5 * stripe) * edge * smoothstep(0.0, 0.12, vA) * (1.0 - vA * 0.85);
+          /* keep the beam off the play screen */
+          a *= 1.0 - smoothstep(5.0, 3.9, vP.x) * smoothstep(4.3, 5.2, vP.y) * smoothstep(12.4, 11.5, vP.y) * smoothstep(-7.9, -6.9, vP.z);
+          gl_FragColor = vec4(color * a, 1.0); }`,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const beam = new THREE.Mesh(g, m); beam.renderOrder = 2; scene.add(beam);
+  }
+  /* ---------- live CRT texture: the game canvas upscaled with scanlines and a curved-glass vignette ---------- */
+  const crt = document.createElement('canvas'); crt.width = 640; crt.height = 480;
+  const cg = crt.getContext('2d');
+  const over = document.createElement('canvas'); over.width = 640; over.height = 480;
+  {
+    const g = over.getContext('2d');
+    g.fillStyle = 'rgba(0,0,0,.3)'; for (let y = 0; y < 480; y += 4) g.fillRect(0, y + 2, 640, 1.5);
+    const v = g.createRadialGradient(320, 240, 144, 320, 240, 374); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)');
+    g.fillStyle = v; g.fillRect(0, 0, 640, 480);
+  }
+  const clip = new Path2D(); if (clip.roundRect) clip.roundRect(0, 0, 640, 480, 56); else clip.rect(0, 0, 640, 480);
+  const scrTex = new THREE.CanvasTexture(crt);
+  scrTex.colorSpace = THREE.SRGBColorSpace; scrTex.generateMipmaps = false; scrTex.minFilter = THREE.LinearFilter;
+  screenMat.map = scrTex; screenMat.color.setScalar(1.5); screenMat.needsUpdate = true;
+  function paintScreen() {
+    cg.clearRect(0, 0, 640, 480); cg.save(); cg.clip(clip);
+    cg.imageSmoothingEnabled = false; cg.drawImage(GF.cv, 0, 0, 640, 480); cg.drawImage(over, 0, 0);
+    cg.restore(); scrTex.needsUpdate = true;
+  }
+
+  /* ---------- dust motes: drift on the GPU and light up as they float through the moonbeam or near the lamp ---------- */
+  const dustSprite = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.18, 'rgba(255,255,255,.9)'); gr.addColorStop(.45, 'rgba(255,255,255,.25)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+  const dustU = { uTime: { value: 0 }, uScale: { value: 400 }, uTex: { value: dustSprite }, uScr: { value: new THREE.Vector4(9, 9, 9, 9) }, uLamp: { value: new THREE.Vector3(-13, 9.1, -9) }, uMD: { value: MD.clone() } };
+  {
+    const P = [], S = [], Z = [], B = [];
+    const put = (x, y, z, size, bok) => { P.push(x, y, z); S.push(rand()); Z.push(size); B.push(bok); };
+    for (let i = 0; i < 700; i++) put(-20 + rand() * 34, .4 + rand() * 16, -11.5 + rand() * 15, .05 + rand() * .03, 0);
+    for (let i = 0; i < 600; i++) put(1 + rand() * 12, .4 + rand() * 16, -12 + rand() * 9.5, .05 + rand() * .03, 0);
+    for (let i = 0; i < 120; i++) { const a = rand() * 6.283, r = Math.sqrt(rand()) * 3.2; put(-13 + Math.cos(a) * r, 5.5 + rand() * 7.5, -9 + Math.sin(a) * r, .05 + rand() * .02, 0); }
+    for (let i = 0; i < 26; i++) put(-6 + rand() * 20, 4 + rand() * 13, 2 + rand() * 8, .45 + rand() * .3, 1);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('aSeed', new THREE.Float32BufferAttribute(S, 1));
+    g.setAttribute('aSize', new THREE.Float32BufferAttribute(Z, 1));
+    g.setAttribute('aBokeh', new THREE.Float32BufferAttribute(B, 1));
+    const dust = new THREE.Points(g, new THREE.ShaderMaterial({
+      uniforms: dustU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: `attribute float aSeed; attribute float aSize; attribute float aBokeh;
+        uniform float uTime, uScale; uniform vec3 uLamp, uMD; uniform vec4 uScr;
+        varying vec3 vCol; varying float vA;
+        float beam(vec3 p){
+          float s = (p.z + 12.3) / uMD.z; if (s <= 0.0) return 0.0;
+          float wx = p.x - uMD.x * s, wy = p.y - uMD.y * s;
+          if (wx < 4.2 || wx > 12.8 || wy < 7.2 || wy > 16.8) return 0.0;
+          float f = fract((wy - 7.2) / 0.55);
+          return mix(0.35, 1.0, smoothstep(0.0, 0.2, f) * smoothstep(0.75, 0.45, f));
+        }
+        void main(){
+          vec3 p = position;
+          float sp = 0.5 + fract(aSeed * 7.31);
+          p.y = mod(p.y - 0.4 - uTime * 0.05 * sp, 16.0) + 0.4 + sin(uTime * 0.31 * sp + aSeed * 9.7) * 0.12;
+          p.x += sin(uTime * 0.21 * sp + aSeed * 6.283) * 0.45;
+          p.z += cos(uTime * 0.17 * sp + aSeed * 4.13) * 0.45;
+          float m = beam(p), l = max(0.0, 1.0 - distance(p, uLamp) / 6.5);
+          float b = 0.06 + 1.9 * m + 1.2 * l * l;
+          vCol = b * vec3(0.86 * m + 1.0 * l + 0.55, 0.88 * m + 0.84 * l + 0.52, 1.0 * m + 0.72 * l + 0.6);
+          if (aBokeh > 0.5) vCol = vec3(0.16, 0.15, 0.19) * (0.7 + fract(aSeed * 3.7));
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * mv;
+          vec2 n = gl_Position.xy / gl_Position.w;
+          float inScr = step(uScr.x, n.x) * step(n.x, uScr.z) * step(uScr.y, n.y) * step(n.y, uScr.w);
+          vA = (1.0 - inScr * 0.92) * (0.75 + 0.25 * sin(uTime * 1.7 + aSeed * 40.0));
+          gl_PointSize = min(aSize * uScale / -mv.z, 140.0);
+        }`,
+      fragmentShader: `uniform sampler2D uTex; varying vec3 vCol; varying float vA;
+        void main(){ float a = texture2D(uTex, gl_PointCoord).a; gl_FragColor = vec4(vCol * a * vA, 1.0); }`,
+    }));
+    dust.frustumCulled = false; dust.renderOrder = 3; scene.add(dust);
+  }
+
+  /* ---------- camera: a slow orbit around the TV, or square onto the screen when zoomed ---------- */
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
+  const cam = new THREE.PerspectiveCamera(32, 1, .1, 300);
+  const TAN = Math.tan(16 * Math.PI / 180);
+  const SC = new THREE.Vector3(-.24, 8.47, -6.02);
+  const ROOM_DIR = new THREE.Vector3(13.2, 7.3, 28.6).normalize(), Y_AXIS = new THREE.Vector3(0, 1, 0);
+  const look = { yaw: 0, pitch: 0, tYaw: 0, tPitch: 0, last: -1e9 };
+  const roomT = new THREE.Vector3(), roomP = new THREE.Vector3(), zoomP = new THREE.Vector3(), tgt = new THREE.Vector3(), side = new THREE.Vector3(), v3 = new THREE.Vector3();
+  let zoomE = GF.zoom, vw = 1, vh = 1, avail = 1;
+  function placeCamera(now) {
+    const dtc = Math.min(.25, Math.max(0, (now - (placeCamera.t ?? now)) / 1000)); placeCamera.t = now;
+    zoomE += (GF.zoom - zoomE) * (reduce ? 1 : 1 - Math.exp(-dtc / .32));
+    if (Math.abs(GF.zoom - zoomE) < .0005) zoomE = GF.zoom;
+    const e = zoomE * zoomE * (3 - 2 * zoomE), s = now / 1000, dr = reduce ? 0 : 1;
+    if (now - look.last > 3000) { const kd = Math.exp(-dtc / 1.2); look.tYaw *= kd; look.tPitch *= kd; }
+    const kl = 1 - Math.exp(-dtc / .2); look.yaw += (look.tYaw - look.yaw) * kl; look.pitch += (look.tPitch - look.pitch) * kl;
+    const free = 1 - e * .88;
+    const yaw = (look.yaw + dr * Math.sin(s * .21) * 2.2) * free * Math.PI / 180;
+    const pitch = (look.pitch + dr * Math.sin(s * .17 + 1.1) * 1.2) * free * Math.PI / 180;
+    const k = clamp((vw / avail - .8) / .5, 0, 1);
+    roomT.set(lerp(-.24, -1.4, k), lerp(8.0, 7.0, k), -6.4);
+    const d = Math.max((lerp(11.5, 27, k) / 2) / (TAN * vw / vh), 12 * vh / (1.6 * avail * TAN));
+    roomP.copy(ROOM_DIR).applyAxisAngle(Y_AXIS, yaw);
+    side.crossVectors(roomP, Y_AXIS).normalize();
+    roomP.applyAxisAngle(side, pitch).multiplyScalar(d).add(roomT);
+    const ppu = Math.min(.86 * avail / 4.74, .92 * vw / 6.32), dz = (vh / 2) / (ppu * TAN) + .2;
+    zoomP.set(SC.x + Math.sin(yaw) * dz, SC.y + Math.sin(pitch) * dz, SC.z + Math.cos(yaw) * dz);
+    cam.position.lerpVectors(roomP, zoomP, e);
+    tgt.lerpVectors(roomT, SC, e);
+    cam.lookAt(tgt);
+    cam.updateMatrixWorld();
+    return e;
+  }
+
+  /* ---------- post: bloom, tilt-shift focused on the screen, vignette ---------- */
+  let pr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 }));
+  composer.addPass(new RenderPass(scene, cam));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .45, .55, .85);
+  composer.addPass(bloom);
+  const TS = {
+    uniforms: { tDiffuse: { value: null }, dir: { value: new THREE.Vector2(1, 0) }, res: { value: new THREE.Vector2(1, 1) }, focus: { value: .55 }, band: { value: .19 }, fade: { value: .25 }, amt: { value: 3 }, vig: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 dir, res; uniform float focus, band, fade, amt, vig; varying vec2 vUv;
+    void main(){
+      float a = smoothstep(band, band + fade, abs(vUv.y - focus)) * amt;
+      vec2 st = dir / res * a;
+      vec4 c = texture2D(tDiffuse, vUv) * 0.2270270270;
+      c += texture2D(tDiffuse, vUv + st * 1.3846153846) * 0.3162162162; c += texture2D(tDiffuse, vUv - st * 1.3846153846) * 0.3162162162;
+      c += texture2D(tDiffuse, vUv + st * 3.2307692308) * 0.0702702703; c += texture2D(tDiffuse, vUv - st * 3.2307692308) * 0.0702702703;
+      if (vig > 0.5) c.rgb *= mix(1.0, 0.6, smoothstep(0.42, 0.95, length((vUv - 0.5) * vec2(1.15, 1.0))));
+      gl_FragColor = c;
+    }`,
+  };
+  const tsPasses = [[1, 0, 0], [0, 1, 0], [1, 0, 0], [0, 1, 1]].map(([dx, dy, vg]) => { const p = new ShaderPass(TS); p.uniforms.dir.value.set(dx, dy); p.uniforms.vig.value = vg; composer.addPass(p); return p; });
+  composer.addPass(new OutputPass());
+
+  function resize() {
+    vw = innerWidth; vh = innerHeight; avail = Math.min(vh, GF.availH());
+    const fullH = 2 * vh - avail, oy = vh - avail;
+    cam.aspect = vw / fullH; cam.fov = 2 * Math.atan(TAN * fullH / vh) * 180 / Math.PI;
+    cam.setViewOffset(vw, fullH, 0, oy, vw, vh); cam.updateProjectionMatrix();
+    renderer.setPixelRatio(pr); renderer.setSize(vw, vh, false);
+    composer.setPixelRatio(pr); composer.setSize(vw, vh);
+    for (const p of tsPasses) p.uniforms.res.value.set(vw * pr, vh * pr);
+    dustU.uScale.value = vh * pr / 2;
+  }
+  resize();
+  addEventListener('resize', resize);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(document.getElementById('dock'));
+
+  /* ---------- touch: draw where the ray meets the screen, otherwise look around the room ---------- */
+  const canvas = renderer.domElement, ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const dragPlane = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshBasicMaterial());
+  dragPlane.position.set(SC.x, SC.y, -5.85); dragPlane.updateMatrixWorld(); screenMesh.updateMatrixWorld();
+  function hit(e, plane) {
+    ndc.set(e.clientX / vw * 2 - 1, -(e.clientY / vh) * 2 + 1);
+    ray.setFromCamera(ndc, cam);
+    const h = ray.intersectObject(screenMesh, false)[0];
+    if (h && h.uv) return [h.uv.x * GF.W, (1 - h.uv.y) * GF.H];
+    if (plane) { const q = ray.intersectObject(dragPlane, false)[0]; if (q) return [((q.point.x - SC.x) / 6.32 + .5) * GF.W, (.5 - (q.point.y - SC.y) / 4.74) * GF.H]; }
+    return null;
+  }
+  let mode = null, pid = -1, lx = 0, ly = 0, y0 = 0, p0 = 0;
+  canvas.addEventListener('pointerdown', e => {
+    if (pid !== -1) return;
+    e.preventDefault(); pid = e.pointerId;
+    try { canvas.setPointerCapture(pid); } catch (_) {}
+    const g = hit(e, false);
+    if (g) { mode = 'draw'; GF.down(g[0], g[1]); }
+    else { mode = 'look'; lx = e.clientX; ly = e.clientY; y0 = look.tYaw; p0 = look.tPitch; look.last = performance.now(); }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerId === pid) {
+      if (mode === 'draw') { const g = hit(e, true); if (g) GF.move(g[0], g[1]); }
+      else if (mode === 'look') { look.tYaw = clamp(y0 - (e.clientX - lx) * .06, -16, 16); look.tPitch = clamp(p0 + (e.clientY - ly) * .04, -8, 8); look.last = performance.now(); }
+    } else if (pid === -1 && e.pointerType === 'mouse') {
+      const onScreen = !!hit(e, false);
+      canvas.style.cursor = onScreen ? 'crosshair' : 'grab';
+      if (!onScreen) { look.tYaw = -(e.clientX / vw - .5) * 10; look.tPitch = (e.clientY / vh - .5) * 6; look.last = performance.now(); }
+    }
+  });
+  const endPtr = e => { if (e.pointerId !== pid) return; if (mode === 'draw') GF.up(); mode = null; pid = -1; };
+  canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr); canvas.addEventListener('lostpointercapture', endPtr);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* ---------- frame loop, with a step down in quality if the device struggles ---------- */
+  renderer.shadowMap.needsUpdate = true;
+  let first = true, lastT = performance.now(), fc = 0, fAcc = 0, fN = 0, tier = 0;
+  function frame(now) {
+    if (GF.mode === '2d') return;
+    const e = placeCamera(now);
+    let x0 = 9, y0s = 9, x1 = -9, y1 = -9;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      v3.set(SC.x + sx * 3.16, SC.y + sy * 2.37, SC.z).project(cam);
+      x0 = Math.min(x0, v3.x); x1 = Math.max(x1, v3.x); y0s = Math.min(y0s, v3.y); y1 = Math.max(y1, v3.y);
+    }
+    dustU.uScr.value.set(x0, y0s, x1, y1);
+    const fy = (v3.copy(SC).project(cam).y + 1) / 2;
+    for (const p of tsPasses) { p.uniforms.focus.value = fy; p.uniforms.band.value = .19 + .4 * e; p.uniforms.amt.value = 2.6 * pr * (1 - .6 * e); }
+    if (!reduce) dustU.uTime.value = now / 1000;
+    const c = scrLight.color; c.r += (GF.spill[0] - c.r) * .1; c.g += (GF.spill[1] - c.g) * .1; c.b += (GF.spill[2] - c.b) * .1;
+    paintScreen();
+    composer.render();
+    if (first) { first = false; if (!GF.ready3d()) return; }
+    const dt = now - lastT; lastT = now; fc++;
+    if (fc > 40 && dt < 200) {
+      fAcc += dt; fN++;
+      if (fN === 90) {
+        if (fAcc / fN > 24 && tier < 2) {
+          tier++;
+          if (tier === 1 && pr > 1) { pr = 1; resize(); }
+          else { bloom.enabled = false; tsPasses[2].enabled = tsPasses[3].enabled = false; tsPasses[1].uniforms.vig.value = 1; }
+        }
+        fAcc = 0; fN = 0;
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+} catch (err) {
+  if (err && err.message !== 'skip') console.warn('3D room unavailable:', err);
+  if (GF && GF.mode !== '3d') GF.use2d();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

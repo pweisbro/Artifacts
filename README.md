@@ -42,6 +42,18 @@ Everything is synthesized in the browser, so it works offline. Settings are kept
 
 `gravity-wells.html` is a multi-touch particle toy. Every finger (or the mouse) becomes a gravity well, and thousands of sparks fall toward it, orbit and slingshot, colored by how fast they move. The longer you hold a well the heavier it gets; let go of a heavy one and it collapses into a shockwave. The dock switches what your fingers do (**Pull**, **Push** or **Swirl**), **Tilt** lets the device's own tilt pour the particles around (iPhone and iPad ask for motion access the first time). Tilt is measured from however you hold the device when you turn it on, and the target button next to it sets a new level from the current position, and **Big bang** gathers everything into one point and blows it apart.
 
+### Grainfall
+
+`grainfall.html` is a falling-sand sandbox shown on the screen of a mint CRT in a 3D clay bedroom. Draw on the TV screen with eighteen materials: sand, stone, gunpowder, water, oil, acid, lava, fire, spark, steam, wall, wood, plant, ice, copper wire, a spout that pours whatever touches it, wind and an eraser. They react: water douses fire and hardens lava into stone, plants grow into water, acid eats through solids, sparks run along wire, and gunpowder explodes with a pressure wave. **Air view** shows the wind and pressure, **Demo** loads a ready-made scene, and dragging the room looks around it. If 3D can't start, the screen shows on its own.
+
+### Doodle Downhill
+
+`doodle-downhill.html` is a draw-your-own-track ride. Sketch lines on graph paper with the pencil or line tool in road, dirt, ice, mud, boost, bounce, spikes or scenery-only sketch, place start and finish flags, and press **Ride**. Pick a BMX, dirt bike, monster truck, skateboard or sled, then pedal, brake and lean to keep your helmet off the ground. It tracks distance, top speed and best airtime, and the track is kept in the browser.
+
+### Dice Roller
+
+`dice-roller.html` throws a 3D die across a felt table. Choose a d4, d6, d8, d10, d12, d20, d100 or any number of sides up to 1,000, then a color, a surface (smooth, marble, wood, metal, gem or galaxy), number ink and lighting (table lamp, candlelight or neon). Optional glowing numbers, sparks on max and min, a motion trail and a rattle sound. Results come from the browser's cryptographic random number generator, and the last 40 rolls are logged with their average.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.
