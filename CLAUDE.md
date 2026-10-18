@@ -14,4 +14,5 @@ A static site on GitHub Pages (https://pweisbro.github.io/artifacts/), used most
 - Pages are self-contained: inline CSS and JS, fonts only from Google Fonts, no build step.
 - Links between pages are relative (`./`, `name.html`) so the site keeps working if the repo is renamed.
 - Every page registers `sw.js`.
+- An app can also be added to the Home Screen on its own, opening straight to its page: give it a `<name>.webmanifest` (`id` and `start_url` = its page, `scope` = `./`), its own icons, and the `apple-mobile-web-app-*` meta tags plus `<link rel="manifest">` pointing at that manifest, as `resonant-ink.html` does. List the manifest and icons in `sw.js` `CORE`.
 - Check new or changed pages at phone width (393x852) and iPad width (1032x1376) before pushing.

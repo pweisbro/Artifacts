@@ -1,0 +1,17 @@
+{
+  "id": "./resonant-ink.html",
+  "name": "Resonant Ink",
+  "short_name": "Resonant Ink",
+  "description": "A multi-touch fluid simulation with shader styles and audio-reactive dye.",
+  "start_url": "./resonant-ink.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05060a",
+  "theme_color": "#05060a",
+  "icons": [
+    { "src": "resonant-ink-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "resonant-ink-icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "resonant-ink-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

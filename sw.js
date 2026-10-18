@@ -1,12 +1,16 @@
 // Artifacts offline support, shared by the homepage and every app page.
 // Pages are fetched fresh when you're online (so updates show up) and served from the cache when you're not.
 // When you add an app page, list it in CORE and bump the CACHE number.
-const CACHE = 'artifacts-v5';
+const CACHE = 'artifacts-v6';
 const CORE = [
   './',
   './index.html',
   './spectrum-bench.html',
   './resonant-ink.html',
+  './resonant-ink.webmanifest',
+  './resonant-ink-apple-touch-icon.png',
+  './resonant-ink-icon-192.png',
+  './resonant-ink-icon-512.png',
   './manifest.webmanifest',
   './apple-touch-icon.png',
   './icon-192.png',
