@@ -287,12 +287,12 @@ function passColor(el){const s=[0,0,0];for(let l=390;l<=690;l+=6){const t=transO
 
 /* ================= Scene model ================= */
 // Per-piece sound tuning (prisms and liquids): a frequency range whose loudness drives refraction, color spread, reflection and tilt or ripple.
-const SNDDEF={snd:false,sndLo:40,sndHi:160,sndN:.25,sndBoost:3,sndRefl:0,sndSpin:0,sndRip:.8};
+const SNDDEF={snd:false,sndSens:1,sndLo:40,sndHi:160,sndN:.25,sndBoost:3,sndRefl:0,sndSpin:0,sndRip:.8};
 const DEF={
-  light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0,c:0,aWave:true,aStyle:'wave',aAmt:16,aLen:150,aSpd:160,aSway:true,aSwayAmt:20,aBright:true,aColor:true},
+  light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0,c:0,aSens:1,aLo:40,aHi:8000,aWave:true,aStyle:'wave',aAmt:16,aLen:150,aSpd:160,aSway:true,aSwayAmt:20,aBright:true,aColor:true},
   prism:Object.assign({type:'prism',x:0,y:0,angle:0,shape:'eq',size:150,mat:'flint',boost:1},SNDDEF),
   liquid:Object.assign({type:'liquid',x:0,y:0,angle:0,size:200,mat:'water',boost:1,wob:.55,flow:.6},SNDDEF),
-  lens:{type:'lens',x:0,y:0,angle:90,power:'conv',form:'bi',mat:'crown',f:160,ap:140,boost:1},
+  lens:Object.assign({type:'lens',x:0,y:0,angle:90,power:'conv',form:'bi',mat:'crown',f:160,ap:140,boost:1},SNDDEF),
   mirror:{type:'mirror',x:0,y:0,angle:90,len:140},
   curved:{type:'curved',x:0,y:0,angle:90,shape:'sphere',f:120,len:200},
   grating:{type:'grating',x:0,y:0,angle:90,len:130,lpmm:600,mode:'trans',orders:2},
@@ -301,7 +301,7 @@ const DEF={
   slit:{type:'slit',x:0,y:0,angle:90,len:200,gap:10},
   screen:{type:'screen',x:0,y:0,angle:90,len:260}
 };
-const RANGES={c:[0,100000],aAmt:[4,40],aLen:[60,400],aSpd:[40,600],aSwayAmt:[5,60],sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
+const RANGES={c:[0,100000],aSens:[.5,4],aLo:[20,20000],aHi:[20,20000],sndSens:[.5,4],aAmt:[4,40],aLen:[60,400],aSpd:[40,600],aSwayAmt:[5,60],sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
   f:[30,500],ap:[30,260],len:[20,640],lpmm:[100,1500],orders:[1,3],lam:[380,700],bw:[10,200],refl:[5,95],gap:[0,400]};
 const PRISM_SHAPES=['eq','right','hex','block','drop','pipe'];
 function okEnum(t,k,v){
@@ -383,7 +383,7 @@ function prismPieces(el){
 function lensGeom(el){
   const hReq=el.ap/2;
   if(el.mat==='ideal')return{ideal:true,h:hReq,tc:0,sag:0};
-  const nd=nOf(el,589.3),Rs=(el.form==='plano'?1:2)*el.f*(nd-1);
+  const nd=nOf(el,589.3)-(el.dn||0),Rs=(el.form==='plano'?1:2)*el.f*(nd-1);
   const h=Math.min(hReq,Rs*.9),sag=Rs-Math.sqrt(Rs*Rs-h*h),hs=Math.asin(h/Rs),e=4;
   let tc,pieces;
   if(el.power!=='div'){
@@ -561,7 +561,7 @@ function trace(sc,bright,geos,W,sh){
       case 'split':{const R=hs.el.refl/100;go(r.dx,r.dy,r.I*(1-R),r.med,'t');refl(r.I*R);break;}
       case 'filter':{const el=hs.el,T=transOf(el,r.lam);go(r.dx,r.dy,r.I*T,r.med,'t');if(el.mode==='dichroic')refl(r.I*(1-T)*.98);break;}
       case 'thin':{ // ideal thin lens: tan θout = tan θin − x/f
-        const el=hs.el,f=el.power==='div'?-el.f:el.f,x=(ex-el.x)*hs.tx+(ey-el.y)*hs.ty;
+        const el=hs.el,fb=el.f/(1+2*(el.dn||0)),f=el.power==='div'?-fb:fb,x=(ex-el.x)*hs.tx+(ey-el.y)*hs.ty;
         const du=r.dx*hs.tx+r.dy*hs.ty,dv=r.dx*hs.nx+r.dy*hs.ny,sg=dv>=0?1:-1,m=du/Math.max(Math.abs(dv),1e-6)-x/f,k=1/Math.hypot(m,1);
         go((m*hs.tx+sg*hs.nx)*k,(m*hs.ty+sg*hs.ny)*k,r.I*.99,r.med,'t');break;}
       case 'glass':{
@@ -875,7 +875,14 @@ function setView(v){view=v;$('b-lib').setAttribute('aria-pressed',String(v==='li
 
 let lightTab='light';
 function lightAudioHTML(el){
-  return `<div class="group">
+  return `<div class="group"><div class="lab"><span>Listens to</span></div>
+    ${rangeField('f-asens','aSens','Sensitivity',.5,4,.1,el.aSens,sensF)}
+    ${chipsHTML(el,'aLo','aHi')}
+    <div class="fields">${logRange('f-slo','aLo','From',el.aLo)}${logRange('f-shi','aHi','To',el.aHi)}</div>
+    <canvas class="chart bandm" id="f-bandm" aria-label="Live input spectrum, with this light's range highlighted"></canvas>
+    <div class="snd-row"><p class="note" id="f-snd-note"></p><button type="button" class="ghost" id="f-open-snd">Open Sound</button></div>
+  </div>
+  <div class="group"><div class="lab"><span>Reactions</span></div>
     <div class="react"><label class="tog" for="f-aw"><input type="checkbox" id="f-aw" data-k="aWave"${el.aWave?' checked':''}><span>Carry the sound on the beam</span></label>
       <div id="wrap-aw" class="react">${segField('f-ast','aStyle','Style',[['wave','Waveform'],['bars','Spectrum bars']],el.aStyle)}
       ${rangeField('f-aa','aAmt','Size',4,40,1,el.aAmt,v=>'±'+v+' mm')}
@@ -886,10 +893,10 @@ function lightAudioHTML(el){
     <div class="react"><label class="tog" for="f-ab"><input type="checkbox" id="f-ab" data-k="aBright"${el.aBright?' checked':''}><span>Volume sets brightness</span></label></div>
     <div class="react"><label class="tog" for="f-ac"><input type="checkbox" id="f-ac" data-k="aColor"${el.aColor?' checked':''}><span>Pitch picks the laser color</span></label>
       <p class="note" id="f-ac-note">Works when Spectrum is set to Laser, since a laser makes a single frequency.</p></div>
-    <div class="snd-row"><p class="note" id="f-snd-note"></p><button type="button" class="ghost" id="f-open-snd">Open Sound</button></div>
   </div>
-  <div class="readout"><div>The waveform is the microphone’s live signal, about 21 ms of sound stretched across one Length and lined up so a steady note holds still, like an oscilloscope. Spectrum bars sends a running histogram instead: each bar is one slice of the sound, bass to treble, measured as it leaves the light, so beats ride outward as clusters of tall bass bars. Both flow out from the light and follow every bounce and split. A real light wave is far smaller: about half a micron from crest to crest.</div>
-  <div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet. With two or three lasers using pitch color, they spread into a chord: the note, a major third up and a fifth up.</div>
+  <div class="readout"><div>The range sets what this light listens to. Its sway, brightness, spectrum bars and pitch color all come from that slice of the sound, so one light can follow the bass while another follows the vocals. The waveform always shows the whole sound.</div>
+  <div>The waveform is the microphone’s live signal, about 21 ms of sound stretched across one Length and lined up so a steady note holds still, like an oscilloscope. Spectrum bars sends a running histogram instead: each bar is one slice of the sound, bass to treble, measured as it leaves the light, so beats ride outward as clusters of tall bass bars. Both flow out from the light and follow every bounce and split. A real light wave is far smaller: about half a micron from crest to crest.</div>
+  <div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet. Lasers tuned to the same range spread into a chord: the note, a major third up and a fifth up.</div>
   <div>These settings are saved with the setup. They react while Sound is listening.</div></div>`;
 }
 function renderInspector(){
@@ -927,7 +934,7 @@ function renderInspector(){
       h+=rangeField('f-f','f','Focal length',30,500,5,el.f,mmF);
       h+=rangeField('f-ap','ap','Width',30,260,2,el.ap,mmF);
       h+=`<div id="wrap-boost">${rangeField('f-boost','boost','Rainbow boost',1,6,.5,el.boost,boostF)}</div>`;
-      h+=angle+'</div><div class="readout" id="readout"></div>';break;
+      h+=angle+'</div><div class="readout" id="readout"></div>'+sndSection(el);break;
     case 'curved':
       h+=segField('f-cshape','shape','Shape',[['sphere','Spherical'],['para','Parabolic']],el.shape);
       h+=rangeField('f-f','f','Focal length',30,400,5,el.f,mmF);
@@ -962,37 +969,42 @@ function renderInspector(){
   const lt=$('f-ltab');if(lt)lt.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===lightTab)return;lightTab=b.dataset.v;renderInspector();});
   box.querySelectorAll('input[type=range][data-k]').forEach(n=>n.addEventListener('input',()=>{const raw=parseFloat(n.value),v=n.dataset.log?Math.round(logF(raw)):n.dataset.lspd?lspdFromSlider(raw):raw,was=sel[n.dataset.k];sel[n.dataset.k]=v;if(n.dataset.lspd&&!(was>0)&&v>0)regrow(sel.id);$(n.id+'-v').textContent=FM[n.id](v);onField();}));
   box.querySelectorAll('input[type=checkbox][data-k]').forEach(n=>n.addEventListener('change',()=>{sel[n.dataset.k]=n.checked;onField();}));
-  const fb=$('f-bands');if(fb)fb.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel.sndLo=+b.dataset.lo;sel.sndHi=+b.dataset.hi;for(const [id,k] of [['f-slo','sndLo'],['f-shi','sndHi']]){$(id).value=unlogF(sel[k]);$(id+'-v').textContent=hzF(sel[k]);}onField();});
+  const fb=$('f-bands');if(fb)fb.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const klo=fb.dataset.klo,khi=fb.dataset.khi;sel[klo]=+b.dataset.lo;sel[khi]=+b.dataset.hi;for(const [id,k] of [['f-slo',klo],['f-shi',khi]]){$(id).value=unlogF(sel[k]);$(id+'-v').textContent=hzF(sel[k]);}onField();});
   const os=$('f-open-snd');if(os)os.addEventListener('click',()=>renderSnd());
   box.querySelectorAll('select[data-k]').forEach(n=>n.addEventListener('change',()=>{sel[n.dataset.k]=n.value;onField();}));
   box.querySelectorAll('.seg[data-k]').forEach(n=>n.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel[n.dataset.k]=n.dataset.num?Number(b.dataset.v):b.dataset.v;for(const x of n.children)x.setAttribute('aria-pressed',String(x===b));onField();}));
   applyVis();updateReadout();
 }
-const BANDS=[['Bass',40,160],['Low mids',160,600],['Mids',600,2000],['Highs',2000,8000]];
+const BANDS=[['All',40,8000],['Bass',40,160],['Low mids',160,600],['Mids',600,2000],['Highs',2000,8000]];
 const logF=v=>40*Math.pow(250,v/1000),unlogF=f=>Math.round(1000*Math.log(Math.max(40,f)/40)/Math.log(250)),hzF=f=>f<1000?Math.round(f)+' Hz':(f/1000).toFixed(f<10000?1:0)+' kHz';
 function logRange(id,k,label,val){FM[id]=hzF;return `<div class="field"><label class="lab" for="${id}"><span>${label}</span><span class="val" id="${id}-v">${hzF(val)}</span></label><input type="range" id="${id}" data-k="${k}" data-log="1" min="0" max="1000" step="1" value="${unlogF(val)}"></div>`;}
+function chipsHTML(el,klo,khi){return `<div class="chips" id="f-bands" role="group" aria-label="Quick ranges" data-klo="${klo}" data-khi="${khi}">${BANDS.map(([n,lo,hi])=>`<button type="button" class="ghost" data-lo="${lo}" data-hi="${hi}">${n}</button>`).join('')}</div>`;}
+const sensF=v=>(+v).toFixed(1)+'×';
 function sndSection(el){
-  const isP=el.type==='prism';
+  const tilt=el.type!=='liquid';
   return `<div class="group snd-sec"><div class="lab"><span>Sound</span></div>
   <label class="tog" for="f-snd"><input type="checkbox" id="f-snd" data-k="snd"${el.snd?' checked':''}><span>React to a sound range</span></label>
   <div id="wrap-snd" class="react">
-    <div class="chips" id="f-bands" role="group" aria-label="Quick ranges">${BANDS.map(([n,lo,hi])=>`<button type="button" class="ghost" data-lo="${lo}" data-hi="${hi}">${n}</button>`).join('')}</div>
+    ${rangeField('f-ssens','sndSens','Sensitivity',.5,4,.1,el.sndSens,sensF)}
+    ${chipsHTML(el,'sndLo','sndHi')}
     <div class="fields">${logRange('f-slo','sndLo','From',el.sndLo)}${logRange('f-shi','sndHi','To',el.sndHi)}</div>
     <canvas class="chart bandm" id="f-bandm" aria-label="Live level of the chosen sound range"></canvas>
     <div class="fields">
       ${rangeField('f-sn','sndN','Refraction',0,.6,.01,el.sndN,v=>'+'+(+v).toFixed(2)+' index')}
       ${rangeField('f-sb','sndBoost','Color spread',1,8,.5,el.sndBoost,v=>'up to '+v+'×')}
       ${rangeField('f-sr','sndRefl','Reflection',0,.95,.05,el.sndRefl,v=>'up to '+Math.round(v*100)+'%')}
-      ${isP?rangeField('f-ss','sndSpin','Tilt',0,90,1,el.sndSpin,v=>'up to '+v+'°'):rangeField('f-sp','sndRip','Ripple',0,2,.1,el.sndRip,v=>'up to +'+Math.round(v*100)+'%')}
+      ${tilt?rangeField('f-ss','sndSpin','Tilt',0,90,1,el.sndSpin,v=>'up to '+v+'°'):rangeField('f-sp','sndRip','Ripple',0,2,.1,el.sndRip,v=>'up to +'+Math.round(v*100)+'%')}
     </div>
     <div class="snd-row"><p class="note" id="f-snd-note"></p><button type="button" class="ghost" id="f-open-snd">Open Sound</button></div>
   </div></div>`;
 }
 function applyVis(){
   const el=sel;if(!el)return;
-  const ws=$('wrap-snd');if(ws){ws.hidden=!el.snd;for(const b of $('f-bands').children)b.setAttribute('aria-pressed',String(+b.dataset.lo===el.sndLo&&+b.dataset.hi===el.sndHi));sndNote(true);drawBandMeter();}
+  const fbs=$('f-bands');if(fbs)for(const b of fbs.children)b.setAttribute('aria-pressed',String(+b.dataset.lo===el[fbs.dataset.klo]&&+b.dataset.hi===el[fbs.dataset.khi]));
+  const ws=$('wrap-snd');if(ws)ws.hidden=!el.snd;
+  if($('f-snd-note')){sndNote(true);drawBandMeter();}
   const t=$('insp-title');if(t)t.textContent=nameOf(el);
-  if(el.type==='light'){const wl=$('wrap-laser');if(wl)wl.hidden=el.spectrum!=='laser';const aw=$('wrap-aw');if(aw)aw.hidden=!el.aWave;const as=$('wrap-asw');if(as)as.hidden=!el.aSway;const an=$('f-ac-note');if(an)an.hidden=el.spectrum==='laser';if($('f-snd-note'))sndNote(true);}
+  if(el.type==='light'){const wl=$('wrap-laser');if(wl)wl.hidden=el.spectrum!=='laser';const aw=$('wrap-aw');if(aw)aw.hidden=!el.aWave;const as=$('wrap-asw');if(as)as.hidden=!el.aSway;const an=$('f-ac-note');if(an)an.hidden=el.spectrum==='laser';}
   if(el.type==='lens'){const ideal=el.mat==='ideal';$('wrap-form').hidden=ideal;$('wrap-boost').hidden=ideal;}
   if(el.type==='filter'){$('wrap-bw').hidden=el.pass!=='band';$('f-lam-l').textContent=el.pass==='band'?'Center':'Cutoff';}
 }
@@ -1381,48 +1393,81 @@ function saveSnd(){try{localStorage.setItem(SNDKEY,JSON.stringify(Object.assign(
 const inClaude=!!(window.claude&&typeof window.claude.use==='function');
 
 function liveScene(){
-  const t=performance.now()/1000,c=AU.cfg,CH=[0,4,7],ctr={n:0,max:70000};let li=0; // ctr: one point budget shared by every beam decoration
-  const rootPc=AU.thz?12*Math.log(AU.thz/428)/Math.log(789/428):0;
+  const t=performance.now()/1000,CH=[0,4,7],ctr={n:0,max:70000},chord=new Map(); // ctr: one point budget shared by every beam decoration
   return scene.map((el,i)=>{
     let o=null;const cp=()=>o||(o=Object.assign({},el));
     if(el.type==='light'){
-      if(el.aSway)cp().angle=el.angle+el.aSwayAmt*(.6*AU.lvl*Math.sin(t*2.1+i*1.9)+.4*AU.kick*AU.beatSign*(i%2?-1:1));
-      if(el.aBright)cp().bm=.3+1.05*AU.lvl+.45*AU.kick;
+      const A=elAudio(el.id,el.aLo,el.aHi,el.aSens,el.aColor&&el.spectrum==='laser');
+      if(el.aSway)cp().angle=el.angle+el.aSwayAmt*(.6*A.s*Math.sin(t*2.1+i*1.9)+.4*A.kick*A.sg*(i%2?-1:1));
+      if(el.aBright)cp().bm=.3+1.05*A.s+.45*A.kick;
       if(el.aWave){
-        if(el.aStyle==='bars')cp()._W={bars:true,ring:AU.ring,RING:AU.RING,B:16,slot:Math.floor(t*30),now:t,v:el.aSpd,gap:el.aLen/18,A:el.aAmt*1.3,ctr};
-        else if(AU.lvl>.02)cp()._W={tbl:AU.wt,L:el.aLen,A:el.aAmt*Math.min(1,AU.lvl*1.4),phase:t*el.aSpd,step:Math.max(4,el.aLen/22),ctr};
+        if(el.aStyle==='bars')cp()._W={bars:true,ring:lightRing(el),RING:512,B:16,slot:Math.floor(t*30),now:t,v:el.aSpd,gap:el.aLen/18,A:el.aAmt*1.3,ctr};
+        else if(A.s>.02)cp()._W={tbl:AU.wt,L:el.aLen,A:el.aAmt*Math.min(1,A.s*1.4),phase:t*el.aSpd,step:Math.max(4,el.aLen/22),ctr};
+      }
+      if(el.aColor&&el.spectrum==='laser'&&A.thz){ // lasers tuned to the same range play a chord
+        const key=el.aLo+'-'+el.aHi,n=chord.get(key)||0;chord.set(key,n+1);
+        const root=12*Math.log(A.thz/428)/Math.log(789/428),pc=((root+CH[n%3])%12+12)%12;cp().laser=Math.round(299792.458/pcTHz(pc));
       }
     }
-    if(c.boost&&!el.snd&&(el.type==='prism'||el.type==='liquid'||(el.type==='lens'&&el.mat!=='ideal')))cp().boost=clamp(el.boost+(c.boostAmt-1)*Math.max(AU.bass*.7,AU.kick),1,8);
-    if(el.snd&&(el.type==='prism'||el.type==='liquid')){const lv=elLevel(el),q=cp();q.lv=lv;q.dn=el.sndN*lv;q.boost=clamp(el.boost+(el.sndBoost-1)*lv,1,8);q.reflx=el.sndRefl*lv;if(el.type==='prism')q.angle=el.angle+el.sndSpin*lv;else q.rip=el.sndRip*lv;}
-    if(el.type==='light'&&el.aColor&&el.spectrum==='laser'&&AU.lam){const pc=((rootPc+CH[li++%3])%12+12)%12;cp().laser=Math.round(299792.458/pcTHz(pc));} // several lasers play a chord
+    if(el.snd&&(el.type==='prism'||el.type==='liquid'||el.type==='lens')){
+      const lv=elAudio(el.id,el.sndLo,el.sndHi,el.sndSens).s,q=cp();
+      q.lv=lv;q.dn=el.sndN*lv;q.boost=clamp(el.boost+(el.sndBoost-1)*lv,1,8);q.reflx=el.sndRefl*lv;
+      if(el.type==='liquid')q.rip=el.sndRip*lv;else q.angle=el.angle+el.sndSpin*lv;
+    }
     return o||el;
   });
 }
 // Loudness of one frequency range, 0–1, with its own slowly decaying peak so quiet treble ranges still move.
-function bandLevel(lo,hi){
+function bandLevel(lo,hi,sens){
   if(!AU.an)return 0;const hz=AU.ctx.sampleRate/AU.an.fftSize,a=Math.max(1,Math.floor(Math.min(lo,hi)/hz)),b=Math.min(AU.fd.length-1,Math.max(a,Math.ceil(Math.max(lo,hi)/hz)));
   let m=0,c=0;for(let i=a;i<=b;i++){m+=AU.fd[i];c++;}
-  return clamp((m/(c||1)/255+20*Math.log10(AU.cfg.sens)/70-.3)/.7,0,1);
+  return clamp((m/(c||1)/255+20*Math.log10(sens||1)/70-.3)/.7,0,1);
 }
-const ELV=new Map();
-function elLevel(el){
-  const v=bandLevel(el.sndLo,el.sndHi),st=ELV.get(el.id)||{s:0,pk:.2};
-  st.pk=Math.max(v,st.pk*.995,.15);const t=v<.03?0:v/st.pk;st.s+=(t-st.s)*(t>st.s?.5:.12);ELV.set(el.id,st);return st.s;
+// Each piece listens on its own: loudness of its range (with its own slowly decaying peak so quiet treble still moves),
+// its own beat detection, and for lasers the strongest musical note inside that range.
+const ELV=new Map(),RINGS=new Map();
+function elAudio(id,lo,hi,sens,pitch){
+  const v=bandLevel(lo,hi,sens);let st=ELV.get(id);
+  if(!st){st={s:0,pk:.2,pv:0,fm:0,fv:0,kick:0,lb:0,sg:1,chs:null,pc:-1,thz:0};ELV.set(id,st);}
+  st.pk=Math.max(v,st.pk*.995,.15);const t=v<.03?0:v/st.pk;st.s+=(t-st.s)*(t>st.s?.5:.12);
+  const flux=Math.max(0,v-st.pv),now=performance.now();st.pv=v;const dv=flux-st.fm;st.fm+=dv*.05;st.fv=st.fv*.95+dv*dv*.05;
+  if(flux>st.fm+1.6*Math.sqrt(st.fv)&&flux>.02&&now-st.lb>260){st.kick=1;st.lb=now;st.sg=-st.sg;}else st.kick*=.86;
+  if(pitch&&AU.an){
+    if(!st.chs)st.chs=new Float32Array(12);
+    const hz=AU.ctx.sampleRate/AU.an.fftSize,ch=AU.ch;ch.fill(0);let tot=0;
+    const a=Math.max(1,Math.ceil(Math.max(60,Math.min(lo,hi))/hz)),b=Math.min(AU.fd.length-1,Math.floor(Math.min(5000,Math.max(lo,hi))/hz));
+    for(let i=a;i<=b;i++){const x=AU.fd[i]/255;if(x<.3)continue;const w=x*x,pc=((Math.round(12*Math.log2(i*hz/261.6256))%12)+12)%12;ch[pc]+=w;tot+=w;}
+    if(tot>.2){let best=0;for(let k=0;k<12;k++){st.chs[k]=st.chs[k]*.88+ch[k]/tot*.12;if(st.chs[k]>st.chs[best])best=k;}st.pc=best;}
+    if(st.pc>=0){const tg=pcTHz(st.pc);st.thz=st.thz?st.thz+(tg-st.thz)*.12:tg;}
+  }
+  return st;
+}
+// A light's spectrum-bar history: 16 bands spread across its own range, sampled 30 times a second.
+function lightRing(el){
+  let R=RINGS.get(el.id);if(!R){R={ring:new Float32Array(512*16),last:-1e12};RINGS.set(el.id,R);}
+  if(!AU.an)return R.ring;
+  const hz=AU.ctx.sampleRate/AU.an.fftSize,lo=Math.max(30,Math.min(el.aLo,el.aHi)),hi=Math.max(lo*1.5,el.aLo,el.aHi),off=20*Math.log10(el.aSens||1)/70,bd=AU.bands;
+  for(let j=0;j<16;j++){const fa=lo*Math.pow(hi/lo,j/16),fb=lo*Math.pow(hi/lo,(j+1)/16);let m=0,c=0;for(let i=Math.floor(fa/hz);i<=Math.ceil(fb/hz);i++){m+=AU.fd[i]||0;c++;}bd[j]=clamp((m/(c||1)/255+off-.3)/.7,0,1);}
+  const slot=Math.floor(performance.now()/1000*30);if(R.last<slot-512)R.last=slot-512;
+  for(let q=R.last+1;q<=slot;q++){const b0=(q%512)*16;for(let j=0;j<16;j++)R.ring[b0+j]=bd[j];}R.last=slot;
+  return R.ring;
 }
 let sndState=null;
 function sndNote(force){const n=$('f-snd-note'),b=$('f-open-snd');if(!n)return;const st=AU.on?'on':'off';if(!force&&st===sndState)return;sndState=st;const lt=sel&&sel.type==='light';n.textContent=AU.on?(lt?'Listening to sound now.':'Listening. Reacts as this range gets louder. Saved with the setup.'):(lt?'Reacts while Sound is listening.':'Reacts while Sound is listening. Saved with the setup.');b.hidden=AU.on;}
 function drawBandMeter(){
-  sndNote(false);const cv=$('f-bandm');if(!cv||!sel||!sel.snd||view!=='insp')return;
+  sndNote(false);const cv=$('f-bandm');if(!cv||!sel||view!=='insp'||(sel.type!=='light'&&!sel.snd))return;
+  const lt=sel.type==='light',klo=lt?'aLo':'sndLo',khi=lt?'aHi':'sndHi';
   const w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
   if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
   const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#07080b';g.fillRect(0,0,w,h);
-  const L=8,R=w-8,top=6,bot=h-16,f0=40,f1=10000,lx=f=>L+(R-L)*Math.log(f/f0)/Math.log(f1/f0),lo=Math.min(sel.sndLo,sel.sndHi),hi=Math.max(sel.sndLo,sel.sndHi);
+  const L=8,R=w-8,top=6,bot=h-16,f0=40,f1=10000,lx=f=>L+(R-L)*Math.log(f/f0)/Math.log(f1/f0),lo=Math.min(sel[klo],sel[khi]),hi=Math.max(sel[klo],sel[khi]);
   g.fillStyle='rgba(255,179,64,.12)';g.fillRect(lx(lo),top,Math.max(2,lx(hi)-lx(lo)),bot-top);
   if(AU.on&&AU.an){const hz=AU.ctx.sampleRate/AU.an.fftSize,n=60,bw=(R-L)/n;
     for(let b=0;b<n;b++){const fa=f0*Math.pow(f1/f0,b/n),fb=f0*Math.pow(f1/f0,(b+1)/n);let m=0,c=0;for(let i=Math.floor(fa/hz);i<=Math.ceil(fb/hz);i++){m+=AU.fd[i]||0;c++;}
       const v=c?m/c/255:0,y=bot-(bot-top)*v,inR=fb>lo&&fa<hi;g.fillStyle=inR?'#ffb340':'#3b424e';g.fillRect(L+b*bw+1,y,Math.max(1,bw-2),bot-y);}
-    const st=ELV.get(sel.id);g.fillStyle='#dde1e7';g.fillRect(L,h-6,(R-L)*(st?st.s:0),3);}
+    const st=ELV.get(sel.id);g.fillStyle='#dde1e7';g.fillRect(L,h-6,(R-L)*(st?st.s:0),3);
+    if(st&&st.kick>.05){g.fillStyle=`rgba(255,179,64,${st.kick.toFixed(2)})`;g.beginPath();g.arc(R-4,top+6,4,0,TAU);g.fill();}
+    if(lt&&st&&st.pc>=0&&st.thz){const nm=299792.458/st.thz;g.font='500 11px "IBM Plex Mono",ui-monospace,monospace';g.fillStyle=rgba(colorOf(nm),1);g.textAlign='left';g.fillText(`${NOTE[st.pc]} → ${Math.round(nm)} nm`,L+2,top+10);}}
   g.font='10px "IBM Plex Mono",ui-monospace,monospace';g.fillStyle='#8d949f';g.textAlign='center';
   g.fillText('100 Hz',lx(100),h-8);g.fillText('1 kHz',lx(1000),h-8);
   if(!AU.on){g.textAlign='right';g.fillText('Not listening',R,top+10);}
@@ -1494,7 +1539,7 @@ function drawMeter(){
 }
 let loopRaf=0;
 function loop(){loopRaf=0;if(AU.on)analyze();draw();drawMeter();drawBandMeter();if(AU.on||hasFlow()||DELAYING)loopRaf=requestAnimationFrame(loop);}
-function goLive(kind){AU.ring.fill(0);AU.lastSlot=-1e12;AU.on=true;AU.kind=kind;AU.peakR=.01;AU.peakB=.05;AU.low=0;AU.fm=0;AU.fv=0;AU.kick=0;$('b-snd').dataset.live='true';updSnd();if(!loopRaf)loopRaf=requestAnimationFrame(loop);}
+function goLive(kind){AU.ring.fill(0);ELV.clear();RINGS.clear();AU.lastSlot=-1e12;AU.on=true;AU.kind=kind;AU.peakR=.01;AU.peakB=.05;AU.low=0;AU.fm=0;AU.fv=0;AU.kick=0;$('b-snd').dataset.live='true';updSnd();if(!loopRaf)loopRaf=requestAnimationFrame(loop);}
 function stopSound(){AU.kick=0;
   if(AU.stream){AU.stream.getTracks().forEach(t=>t.stop());AU.stream=null;}
   if(AU.micNode){try{AU.micNode.disconnect();}catch(e){}AU.micNode=null;}
@@ -1539,18 +1584,11 @@ function renderSnd(){
   setView('snd');FM={};
   const c=AU.cfg,box=$('insp');
   box.innerHTML=`<div class="insp-head"><h2>Sound</h2><div class="acts"><button type="button" class="ghost" id="snd-done">Done</button></div></div>
-  <p class="lede">Let music or your voice move the light. The microphone works with anything playing in the room, including Spotify or a Bluetooth speaker. Raise Sensitivity if the room is quiet.</p>
+  <p class="lede">Pick where the sound comes from and start listening. The microphone hears anything playing in the room, including Spotify or a Bluetooth speaker.</p>
   ${segField('snd-src','src','Source',[['mic','Microphone'],['file','Music file']],AU.src)}
   <div class="snd-row"><button type="button" class="solid" id="snd-go"></button><button type="button" class="ghost" id="snd-pick" hidden>Choose another song</button></div>
   <p class="note" id="snd-status" role="status"></p>
-  <canvas class="chart meter" id="snd-meter" aria-label="Live sound spectrum, colored by musical note"></canvas>
-  ${rangeField('snd-sens','sens','Sensitivity',.5,4,.1,c.sens,v=>(+v).toFixed(1)+'×')}
-  <div class="group"><div class="lab"><span>Prisms and lenses</span></div>
-    <div class="react"><label class="tog" for="snd-boost"><input type="checkbox" id="snd-boost" data-tk="boost"${c.boost?' checked':''}><span>Bass beats pulse the rainbow boost</span></label>
-      ${rangeField('snd-boost-amt','boostAmt','Up to',1.5,6,.5,c.boostAmt,v=>v+'×')}</div>
-  </div>
-  <div class="readout"><div>Beam reactions live on each light. Tap a light and open its <b>Audio reactive</b> tab to have its beam carry the sound, sway, follow the volume or take its color from pitch.</div>
-  <div>Rainbow boost pulses on prisms, liquids and glass lenses that don’t have their own tuning. To tune a single prism or liquid to its own frequency range, select it and turn on React to a sound range.</div></div>`;
+  <div class="readout"><div>Each piece has its own sound settings. Select a light and open its <b>Audio reactive</b> tab, or select a prism, liquid or lens and use its <b>Sound</b> section, to set its sensitivity, the frequency range it listens to, and what it does.</div></div>`;
   $('snd-done').addEventListener('click',()=>renderInspector());
   $('snd-src').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===AU.src)return;stopSound();AU.src=b.dataset.v;for(const x of $('snd-src').children)x.setAttribute('aria-pressed',String(x===b));saveSnd();updSnd();});
   $('snd-go').addEventListener('click',()=>{
@@ -1560,8 +1598,6 @@ function renderSnd(){
     ensureCtx();$('snd-file').click();
   });
   $('snd-pick').addEventListener('click',()=>{ensureCtx();$('snd-file').click();});
-  box.querySelectorAll('input[data-tk]').forEach(n=>n.addEventListener('change',()=>{AU.cfg[n.dataset.tk]=n.checked;saveSnd();request();}));
-  for(const [id,k] of [['snd-boost-amt','boostAmt'],['snd-sens','sens']]){const n=$(id);n.addEventListener('input',()=>{const v=parseFloat(n.value);AU.cfg[k]=v;$(id+'-v').textContent=FM[id](v);saveSnd();});}
   updSnd();drawMeter();$('dock').scrollTop=0;
 }
 $('b-snd').addEventListener('click',()=>{if(view==='snd')renderInspector();else renderSnd();});
@@ -1572,7 +1608,7 @@ function saveSoon(){clearTimeout(saveT);saveT=setTimeout(saveCurrent,400);}
 function saveCurrent(){try{localStorage.setItem(KEY,JSON.stringify({scene:serialScene(scene),bright,name:benchName}));}catch(e){}}
 function loadCurrent(){
   try{const s=JSON.parse(localStorage.getItem(KEY)||'null');
-    if(s&&Array.isArray(s.scene)&&s.scene.length){if(+s.c>0)for(const o of s.scene)if(o&&o.type==='light'&&o.c===undefined)o.c=+s.c;const g=AU.cfg;for(const o of s.scene)if(o&&o.type==='light'&&o.aWave===undefined)Object.assign(o,{aWave:g.wave,aStyle:g.waveStyle,aAmt:g.waveAmt,aLen:g.waveLen,aSpd:g.waveSpd,aSway:g.sway,aSwayAmt:g.swayAmt,aBright:g.bright,aColor:g.color});const sc=s.scene.map(sanitize).filter(Boolean);if(sc.length){scene=sc;bright=clamp(+s.bright||1,.4,2.5);benchName=typeof s.name==='string'?s.name:null;return true;}}
+    if(s&&Array.isArray(s.scene)&&s.scene.length){if(+s.c>0)for(const o of s.scene)if(o&&o.type==='light'&&o.c===undefined)o.c=+s.c;const g=AU.cfg;for(const o of s.scene){if(!o)continue;if(o.type==='light'&&o.aSens===undefined)o.aSens=g.sens;if((o.type==='prism'||o.type==='liquid')&&o.sndSens===undefined)o.sndSens=g.sens;}for(const o of s.scene)if(o&&o.type==='light'&&o.aWave===undefined)Object.assign(o,{aWave:g.wave,aStyle:g.waveStyle,aAmt:g.waveAmt,aLen:g.waveLen,aSpd:g.waveSpd,aSway:g.sway,aSwayAmt:g.swayAmt,aBright:g.bright,aColor:g.color});const sc=s.scene.map(sanitize).filter(Boolean);if(sc.length){scene=sc;bright=clamp(+s.bright||1,.4,2.5);benchName=typeof s.name==='string'?s.name:null;return true;}}
   }catch(e){}
   return false;
 }
