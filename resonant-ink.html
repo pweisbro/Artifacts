@@ -156,10 +156,10 @@ button{font:inherit;color:inherit}
 .chip:hover{border-color:var(--track)}
 .chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 
-.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:3px;border-radius:12px;background:rgba(0,0,0,.28)}
+.tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:3px;border-radius:12px;background:rgba(0,0,0,.28)}
 .tab{
   height:34px;border:0;border-radius:9px;background:transparent;cursor:pointer;
-  font-size:.8rem;font-weight:600;color:var(--muted);letter-spacing:.01em;
+  font-size:.76rem;font-weight:600;color:var(--muted);letter-spacing:0;padding:0 2px;
 }
 .tab[aria-selected="true"]{background:rgba(255,255,255,.09);color:var(--text)}
 
@@ -335,6 +335,7 @@ input[type=color]::-moz-color-swatch{border:0;border-radius:6px}
     <div class="tabs" role="tablist" aria-label="Control groups">
       <button class="tab" role="tab" id="tab-fluid" aria-controls="pane-fluid" aria-selected="true">Fluid</button>
       <button class="tab" role="tab" id="tab-color" aria-controls="pane-color" aria-selected="false">Color</button>
+      <button class="tab" role="tab" id="tab-effects" aria-controls="pane-effects" aria-selected="false">Effects</button>
       <button class="tab" role="tab" id="tab-audio" aria-controls="pane-audio" aria-selected="false">Audio</button>
       <button class="tab" role="tab" id="tab-touch" aria-controls="pane-touch" aria-selected="false">Touch</button>
       <button class="tab" role="tab" id="tab-presets" aria-controls="pane-presets" aria-selected="false">Presets</button>
@@ -343,6 +344,7 @@ input[type=color]::-moz-color-swatch{border:0;border-radius:6px}
   <div class="sheet-body" id="sheetBody">
     <div class="pane" id="pane-fluid" role="tabpanel" aria-labelledby="tab-fluid"></div>
     <div class="pane" id="pane-color" role="tabpanel" aria-labelledby="tab-color" hidden></div>
+    <div class="pane" id="pane-effects" role="tabpanel" aria-labelledby="tab-effects" hidden></div>
     <div class="pane" id="pane-audio" role="tabpanel" aria-labelledby="tab-audio" hidden>
       <div class="src-row">
         <button class="src" id="srcDemo" aria-pressed="false">
@@ -437,6 +439,8 @@ const VISUAL_DEFAULTS = {
   splatRadius: 0.25, splatForce: 6000, symmetry: 'off', tapBurst: true,
   timeScale: 1, buoyancy: 0, whirlpool: 0, turbulence: 0, turbScale: 3, autoStir: 0,
   colorJitter: 0, colorMap: 'dye', speedGlow: 0, chroma: 0, vignette: 0, brushMode: 'both',
+  fxStyle: 'none', fxMix: 1, fxSize: 3, celBands: 4, celOutline: 0.8, wcEdges: 0.7, wcGrain: 0.5,
+  pixelGap: 0.25, ditherLevels: 3, crtCurve: 0.5, embossColor: 0.6, edgeFill: 0.15, chromeTint: 0.35,
 };
 const AUDIO_DEFAULTS = {
   bandLow: 40, bandHigh: 140, sensitivity: 0.6, autoGain: true, react: 'burst',
@@ -471,6 +475,10 @@ const PRESETS = {
   Maelstrom: { palette: 'ocean', whirlpool: 0.6, vorticity: 35, dyeDiss: 0.4, velDiss: 0.3, speedGlow: 0.5, bloomIntensity: 0.9, vignette: 0.4 },
   Drift: { palette: 'aurora', turbulence: 0.5, turbScale: 3, autoStir: 0.4, vorticity: 15, dyeDiss: 0.5, velDiss: 0.6, timeScale: 0.7, bloomIntensity: 0.7 },
   Prism: { palette: 'rainbow', colorMap: 'flow', chroma: 0.6, speedGlow: 0.4, vorticity: 30, bloomIntensity: 1 },
+  Comic: { palette: 'sunset', bg: '#f6f1e4', fxStyle: 'cel', celBands: 3, celOutline: 1, fxSize: 3, vorticity: 25, bloom: false, shading: false, dyeAmount: 1.4, dyeDiss: 0.6 },
+  Mercury: { palette: 'mono', monoColor: '#c9d3e0', fxStyle: 'chrome', chromeTint: 0.15, fxSize: 3, vorticity: 20, velDiss: 0.4, dyeDiss: 0.3, viscosity: 0.3, bloom: false, shading: false, splatRadius: 0.4, dyeAmount: 1.6 },
+  Arcade: { palette: 'neon', fxStyle: 'crt', crtCurve: 0.6, fxSize: 3, vorticity: 40, dyeDiss: 1.1, bloomIntensity: 1.2, symmetry: '4' },
+  Gallery: { palette: 'sunset', fxStyle: 'oil', fxSize: 4, vorticity: 30, dyeDiss: 0.3, velDiss: 0.3, bloomIntensity: 0.4 },
 };
 const BLURBS = {
   Classic: 'Rainbow dye, glow and shading.',
@@ -485,6 +493,10 @@ const BLURBS = {
   Maelstrom: 'A whirlpool spins the whole tank.',
   Drift: 'Stirs itself. Good for leaving on a screen.',
   Prism: 'Colored by flow direction, with chromatic fringes.',
+  Comic: 'Cel shading with ink outlines on cream paper.',
+  Mercury: 'Liquid metal, through the chrome shader.',
+  Arcade: 'Neon on a curved CRT with scanlines.',
+  Gallery: 'Painterly strokes from the oil paint filter.',
 };
 let activePreset = null;
 let activeName = '';
@@ -877,6 +889,209 @@ const SRC = {
     }`,
 };
 
+// Shader styles: one full-screen pass over the finished image. Each is compiled the first time it's picked.
+// uScale is in device pixels; uA and uB are the style's own two settings.
+const STYLE_HEAD = `
+  precision highp float; precision highp sampler2D;
+  varying vec2 vUv;
+  uniform sampler2D uTexture;
+  uniform vec2 uRes;
+  uniform float uMix, uScale, uTime, uLight, uA, uB;
+  vec3 src (vec2 uv) { return texture2D(uTexture, uv).rgb; }
+  float lum (vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+  float hash (vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+  float vnoise (vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
+  vec3 sobel3 (vec2 uv, vec2 d) {
+    vec3 tl = src(uv + vec2(-d.x, d.y)), t = src(uv + vec2(0.0, d.y)), tr = src(uv + d);
+    vec3 ml = src(uv - vec2(d.x, 0.0)), mr = src(uv + vec2(d.x, 0.0));
+    vec3 bl = src(uv - d), b = src(uv - vec2(0.0, d.y)), br = src(uv + vec2(d.x, -d.y));
+    vec3 gx = -tl - 2.0 * ml - bl + tr + 2.0 * mr + br;
+    vec3 gy = -bl - 2.0 * b - br + tl + 2.0 * t + tr;
+    return sqrt(gx * gx + gy * gy);
+  }
+  vec3 blur9 (vec2 uv, vec2 d) {
+    vec3 s = src(uv) * 2.0;
+    s += src(uv + vec2(d.x, 0.0)) + src(uv - vec2(d.x, 0.0)) + src(uv + vec2(0.0, d.y)) + src(uv - vec2(0.0, d.y));
+    s += src(uv + d) + src(uv - d) + src(uv + vec2(d.x, -d.y)) + src(uv + vec2(-d.x, d.y));
+    return s / 10.0;
+  }
+`;
+const STYLES = {
+  // Toon shading: luminance snapped to a few tone bands, plus Sobel ink outlines.
+  cel: `
+    void main () {
+      vec2 px = 1.0 / uRes;
+      vec3 c = src(vUv);
+      float l = lum(c), bands = max(uA, 2.0);
+      float q = floor(l * bands + 0.5) / bands;
+      vec3 cel = c * (q / max(l, 0.0001));
+      float e = smoothstep(0.18, 0.5, lum(sobel3(vUv, px * max(uScale * 0.5, 1.0))));
+      cel = mix(cel, uLight > 0.5 ? vec3(0.07) : vec3(0.0), e * uB);
+      gl_FragColor = vec4(mix(c, cel, uMix), 1.0);
+    }`,
+  // Kuwahara filter: each pixel takes the average of its calmest quadrant, which reads as brush strokes.
+  oil: `
+    vec4 quad (vec2 uv, vec2 dir, vec2 st) {
+      vec3 sum = vec3(0.0), sq = vec3(0.0);
+      for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++) {
+          vec3 c = src(uv + dir * vec2(float(i), float(j)) * st);
+          sum += c; sq += c * c;
+        }
+      }
+      vec3 mean = sum / 16.0, v = sq / 16.0 - mean * mean;
+      return vec4(mean, v.r + v.g + v.b);
+    }
+    void main () {
+      vec2 st = (1.0 / uRes) * max(uScale, 1.0) / 3.0;
+      vec4 m = quad(vUv, vec2(-1.0, -1.0), st);
+      vec4 b = quad(vUv, vec2(1.0, -1.0), st);
+      vec4 c = quad(vUv, vec2(-1.0, 1.0), st);
+      vec4 d = quad(vUv, vec2(1.0, 1.0), st);
+      if (b.w < m.w) m = b;
+      if (c.w < m.w) m = c;
+      if (d.w < m.w) m = d;
+      gl_FragColor = vec4(mix(src(vUv), m.rgb, uMix), 1.0);
+    }`,
+  // Wobbly soft washes, darker pigment where a wash ends, and paper grain.
+  watercolor: `
+    void main () {
+      vec2 px = 1.0 / uRes, fc = gl_FragCoord.xy;
+      float s = max(uScale, 1.0);
+      vec2 w = (vec2(vnoise(fc / (s * 9.0)), vnoise(fc / (s * 9.0) + 19.7)) - 0.5) * s * 2.0 * px;
+      vec3 c = blur9(vUv + w, px * s);
+      vec3 wide = blur9(vUv + w, px * s * 3.0);
+      float edge = clamp(length(c - wide) * 3.0, 0.0, 1.0);
+      vec3 wc = mix(c, c * c * 0.8, edge * uA);
+      float grain = vnoise(fc * 0.45) * 0.55 + vnoise(fc * 0.11) * 0.45;
+      wc *= 1.0 - uB * 0.22 * grain;
+      gl_FragColor = vec4(mix(src(vUv), wc, uMix), 1.0);
+    }`,
+  // Print-style dot screens, one rotated grid per channel. Light dots on dark grounds, CMY ink on light ones.
+  halftone: `
+    float ht (vec2 fc, float a, float cell, vec3 m) {
+      float ca = cos(a), sa = sin(a);
+      vec2 p = vec2(ca * fc.x - sa * fc.y, sa * fc.x + ca * fc.y);
+      vec2 cc = (floor(p / cell) + 0.5) * cell;
+      vec2 back = vec2(ca * cc.x + sa * cc.y, -sa * cc.x + ca * cc.y);
+      float v = dot(src(back / uRes), m);
+      if (uLight > 0.5) v = 1.0 - v;
+      float rad = sqrt(clamp(v, 0.0, 1.0)) * cell * 0.62;
+      float cov = 1.0 - smoothstep(rad - 0.75, rad + 0.75, length(p - cc));
+      return uLight > 0.5 ? 1.0 - cov : cov;
+    }
+    void main () {
+      vec2 fc = gl_FragCoord.xy;
+      float cell = max(uScale * 2.0, 3.0);
+      vec3 h = vec3(ht(fc, 0.2618, cell, vec3(1.0, 0.0, 0.0)), ht(fc, 1.309, cell, vec3(0.0, 1.0, 0.0)), ht(fc, 0.0, cell, vec3(0.0, 0.0, 1.0)));
+      gl_FragColor = vec4(mix(src(vUv), h, uMix), 1.0);
+    }`,
+  // Mosaic blocks, with an optional dark gap between them like an LED panel.
+  pixel: `
+    void main () {
+      vec2 fc = gl_FragCoord.xy;
+      float cell = max(uScale * 2.0, 2.0);
+      vec3 c = src((floor(fc / cell) + 0.5) * cell / uRes);
+      if (uA > 0.001) {
+        vec2 f = abs(fract(fc / cell) - 0.5) * 2.0;
+        float g = 1.0 - uA * 0.6;
+        c *= mix(0.08, 1.0, 1.0 - smoothstep(g - 0.12, g, max(f.x, f.y)));
+      }
+      gl_FragColor = vec4(mix(src(vUv), c, uMix), 1.0);
+    }`,
+  // Ordered (Bayer 4x4) dithering down to a few levels per channel.
+  dither: `
+    float bayer4 (vec2 p) {
+      p = mod(p, 4.0);
+      vec2 a = mod(p, 2.0), b = floor(p / 2.0);
+      float lo = 2.0 * a.x + 3.0 * a.y - 4.0 * a.x * a.y;
+      float hi = 2.0 * b.x + 3.0 * b.y - 4.0 * b.x * b.y;
+      return (4.0 * lo + hi + 0.5) / 16.0;
+    }
+    void main () {
+      vec2 fc = gl_FragCoord.xy;
+      float cell = max(uScale, 1.0);
+      vec2 cp = floor(fc / cell);
+      vec3 c = src((cp + 0.5) * cell / uRes);
+      float lv = max(uA - 1.0, 1.0);
+      vec3 dq = clamp(floor(c * lv + bayer4(cp)) / lv, 0.0, 1.0);
+      gl_FragColor = vec4(mix(src(vUv), dq, uMix), 1.0);
+    }`,
+  // A curved tube with scanlines, an RGB aperture grille and a little phosphor glow.
+  crt: `
+    void main () {
+      vec2 cc = vUv * 2.0 - 1.0;
+      cc *= 1.0 + uA * 0.16 * dot(cc, cc);
+      vec3 c = vec3(0.0);
+      if (abs(cc.x) <= 1.0 && abs(cc.y) <= 1.0) {
+        vec2 uv = cc * 0.5 + 0.5, px = 1.0 / uRes;
+        c = src(uv);
+        vec3 g = (src(uv + vec2(px.x * 2.0, 0.0)) + src(uv - vec2(px.x * 2.0, 0.0)) + src(uv + vec2(0.0, px.y * 2.0)) + src(uv - vec2(0.0, px.y * 2.0))) * 0.25;
+        c = c * 0.85 + g * 0.3;
+        vec2 fc = gl_FragCoord.xy;
+        float pitch = max(uScale, 2.0);
+        float scan = 0.62 + 0.38 * abs(sin(fc.y * 3.14159 / pitch));
+        float tri = mod(floor(fc.x / max(pitch / 3.0, 1.0)), 3.0);
+        vec3 mask = tri < 0.5 ? vec3(1.25, 0.7, 0.7) : tri < 1.5 ? vec3(0.7, 1.25, 0.7) : vec3(0.7, 0.7, 1.25);
+        c *= scan * mask * 1.15;
+        c *= 1.0 - 0.3 * dot(cc, cc) * 0.5;
+      }
+      gl_FragColor = vec4(mix(src(vUv), c, uMix), 1.0);
+    }`,
+  // Relief lit from the upper left; uA mixes from plain stone gray to full color.
+  emboss: `
+    void main () {
+      vec2 d = vec2(-0.7071, 0.7071) * (1.0 / uRes) * max(uScale * 0.7, 1.0);
+      vec3 c = src(vUv);
+      float diff = (lum(src(vUv - d)) - lum(src(vUv + d))) * 3.0;
+      vec3 em = mix(vec3(0.5 + diff), c * 0.85 + vec3(diff) * 0.9, uA);
+      gl_FragColor = vec4(mix(c, clamp(em, 0.0, 1.0), uMix), 1.0);
+    }`,
+  // Sobel edges drawn as glowing lines (dark lines on light grounds).
+  edges: `
+    void main () {
+      vec3 c = src(vUv);
+      vec3 e = sobel3(vUv, (1.0 / uRes) * max(uScale * 0.5, 1.0));
+      vec3 o = uLight > 0.5 ? mix(vec3(1.0), c, uA) - e * 1.3 : c * uA + e * 1.6;
+      gl_FragColor = vec4(mix(c, clamp(o, 0.0, 1.0), uMix), 1.0);
+    }`,
+  // Liquid metal: the dye becomes a height field that reflects a simple studio environment.
+  chrome: `
+    void main () {
+      vec2 d = (1.0 / uRes) * max(uScale, 1.0);
+      vec3 c = src(vUv);
+      float hx = lum(src(vUv + vec2(d.x, 0.0))) - lum(src(vUv - vec2(d.x, 0.0)));
+      float hy = lum(src(vUv + vec2(0.0, d.y))) - lum(src(vUv - vec2(0.0, d.y)));
+      vec3 n = normalize(vec3(-hx * 6.0, -hy * 6.0, 1.0));
+      vec3 r = reflect(vec3(0.0, 0.0, -1.0), n);
+      float y = r.y + 0.25;
+      vec3 sky = mix(vec3(0.5, 0.57, 0.68), vec3(0.96, 0.97, 1.0), smoothstep(0.0, 0.9, y));
+      vec3 gnd = mix(vec3(0.04, 0.04, 0.05), vec3(0.26, 0.25, 0.23), smoothstep(-0.8, 0.0, y));
+      vec3 env = (y > 0.0 ? sky : gnd) + smoothstep(0.04, 0.0, abs(y)) * 0.5;
+      float spec = pow(max(dot(r, normalize(vec3(-0.4, 0.6, 0.7))), 0.0), 40.0);
+      vec3 metal = env + spec * 1.4;
+      metal *= mix(vec3(1.0), c / max(max(c.r, max(c.g, c.b)), 0.001), uA);
+      float mask = smoothstep(0.02, 0.18, lum(c));
+      gl_FragColor = vec4(mix(c, mix(c, metal, mask), uMix), 1.0);
+    }`,
+};
+const STYLE_PARAMS = {
+  cel: () => [P.celBands, P.celOutline],
+  watercolor: () => [P.wcEdges, P.wcGrain],
+  pixel: () => [P.pixelGap, 0],
+  dither: () => [P.ditherLevels, 0],
+  crt: () => [P.crtCurve, 0],
+  emboss: () => [P.embossColor, 0],
+  edges: () => [P.edgeFill, 0],
+  chrome: () => [P.chromeTint, 0],
+};
+const STYLE_SIZE = { cel: 3, oil: 4, watercolor: 3, halftone: 4, pixel: 5, dither: 2, crt: 3, emboss: 3, edges: 2, chrome: 3 };
+const HEAVY_STYLES = new Set(['oil']); // drawn at half resolution so phones keep up
+
 function compile(type, src, keywords) {
   if (keywords && keywords.length) src = keywords.map((k) => `#define ${k}\n`).join('') + src;
   const s = gl.createShader(type);
@@ -892,14 +1107,15 @@ function program(fsSrc, keywords) {
   gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc, keywords));
   gl.bindAttribLocation(p, 0, 'aPosition');
   gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  const ok = !!gl.getProgramParameter(p, gl.LINK_STATUS);
+  if (!ok) console.error(gl.getProgramInfoLog(p));
   const u = {};
   const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < n; i++) {
     const name = gl.getActiveUniform(p, i).name;
     u[name] = gl.getUniformLocation(p, name);
   }
-  return { u, bind() { gl.useProgram(p); } };
+  return { u, ok, bind() { gl.useProgram(p); } };
 }
 const prog = {
   copy: program(SRC.copy),
@@ -940,7 +1156,7 @@ function blit(target) {
 /* ------------------------------------------------------------------ */
 /* Framebuffers                                                        */
 /* ------------------------------------------------------------------ */
-function createFBO(w, h, f, filter) {
+function createFBO(w, h, f, filter, type = ext.halfFloatType) {
   gl.activeTexture(gl.TEXTURE0);
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -948,7 +1164,7 @@ function createFBO(w, h, f, filter) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, f.internalFormat, w, h, 0, f.format, ext.halfFloatType, null);
+  gl.texImage2D(gl.TEXTURE_2D, 0, f.internalFormat, w, h, 0, f.format, type, null);
   const fbo = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
@@ -1201,7 +1417,7 @@ function clearAll() {
 function applyBloom(source, dest) {
   if (bloomChain.length < 2) return;
   gl.disable(gl.BLEND);
-  const knee = 0.7, thr = P.bloomThreshold;
+  const knee = 0.45, thr = P.bloomThreshold;
   const pf = prog.bloomPrefilter;
   pf.bind();
   gl.uniform3f(pf.u.curve, thr - knee, knee * 2, 0.25 / knee);
@@ -1246,8 +1462,26 @@ function colorize() {
   blit(mapped);
   return mapped;
 }
+const BLOOM_GAIN = 0.45; // bloom slider value 1 = this much glow; keeps the effect subtle by default
+let post = null, lightGround = false;
+const styleProgs = {};
+function activeStyle() {
+  if (P.fxStyle === 'none' || P.fxMix <= 0.001 || !STYLES[P.fxStyle]) return null;
+  const sp = styleProgs[P.fxStyle] || (styleProgs[P.fxStyle] = program(STYLE_HEAD + STYLES[P.fxStyle]));
+  return sp.ok ? sp : null;
+}
+function ensurePost(scale) {
+  const w = Math.max(1, Math.round(canvas.width * scale)), h = Math.max(1, Math.round(canvas.height * scale));
+  if (!post || post.width !== w || post.height !== h) {
+    destroyFBO(post);
+    post = createFBO(w, h, { internalFormat: gl.RGBA, format: gl.RGBA }, gl.LINEAR, gl.UNSIGNED_BYTE);
+  }
+  return post;
+}
 function render(dt) {
   gl.disable(gl.BLEND);
+  const sp = activeStyle();
+  const target = sp ? ensurePost(HEAVY_STYLES.has(P.fxStyle) ? 0.5 : 1) : null;
   const src = (P.colorMap !== 'dye' || P.speedGlow > 0.001 || P.chroma > 0.001) ? colorize() : dye.read;
   if (P.bloom) applyBloom(src, bloom);
   gl.disable(gl.BLEND);
@@ -1258,7 +1492,7 @@ function render(dt) {
   gl.uniform1i(d.u.uTexture, src.attach(0));
   gl.uniform1i(d.u.uBloom, bloom.attach(1));
   gl.uniform1f(d.u.uShading, P.shading ? 1 : 0);
-  gl.uniform1f(d.u.uBloomIntensity, P.bloom ? P.bloomIntensity : 0);
+  gl.uniform1f(d.u.uBloomIntensity, P.bloom ? P.bloomIntensity * BLOOM_GAIN : 0);
   gl.uniform1f(d.u.uHue, hueAngle);
   gl.uniform1f(d.u.uSaturation, P.saturation);
   gl.uniform1f(d.u.uExposure, P.exposure);
@@ -1268,6 +1502,18 @@ function render(dt) {
   gl.uniform1f(d.u.uAspect, canvas.width / canvas.height);
   const bg = hexToRgb(P.bg);
   gl.uniform3f(d.u.uBg, bg.r, bg.g, bg.b);
+  blit(target);
+  if (!sp) return;
+  sp.bind();
+  gl.uniform1i(sp.u.uTexture, target.attach(0));
+  gl.uniform2f(sp.u.uRes, gl.drawingBufferWidth, gl.drawingBufferHeight);
+  gl.uniform1f(sp.u.uMix, P.fxMix);
+  gl.uniform1f(sp.u.uScale, P.fxSize * (canvas.width / Math.max(1, canvas.clientWidth)));
+  gl.uniform1f(sp.u.uTime, simTime);
+  gl.uniform1f(sp.u.uLight, lightGround ? 1 : 0);
+  const pr = STYLE_PARAMS[P.fxStyle] ? STYLE_PARAMS[P.fxStyle]() : [0, 0];
+  gl.uniform1f(sp.u.uA, pr[0]);
+  gl.uniform1f(sp.u.uB, pr[1]);
   blit(null);
 }
 
@@ -1757,20 +2003,38 @@ const CONTROLS = {
     { k: 'colorJitter', label: 'Color jitter', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Scatters each stroke and spot across nearby palette colors.' },
     { group: 'Color map' },
     { k: 'colorMap', label: 'Map', type: 'seg', options: [['dye', 'Dye'], ['heat', 'Heat'], ['spectral', 'Spectral'], ['flow', 'Flow']], help: 'Dye shows the colors you put in. Heat and Spectral recolor by density, Flow by the direction the fluid moves.' },
-    { k: 'speedGlow', label: 'Speed glow', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Fast-moving fluid lights up.' },
-    { k: 'chroma', label: 'Chromatic split', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Pulls red and blue apart along the flow for rainbow fringes.' },
     { group: 'Ground' },
     { k: 'blend', label: 'Blend', type: 'seg', options: [['glow', 'Glow (light on dark)'], ['ink', 'Ink (absorbs light)']] },
     { k: 'bg', label: 'Background', type: 'color' },
-    { group: 'Post effects' },
-    { k: 'shading', label: '3D shading', type: 'toggle' },
-    { k: 'bloom', label: 'Bloom', type: 'toggle' },
-    { k: 'bloomIntensity', label: 'Bloom intensity', min: 0, max: 2, step: 0.05, fmt: fx.n2 },
-    { k: 'bloomThreshold', label: 'Bloom threshold', min: 0, max: 1, step: 0.01, fmt: fx.n2 },
+    { group: 'Tone' },
     { k: 'hueSpin', label: 'Hue drift', min: -0.5, max: 0.5, step: 0.01, fmt: (v) => (v === 0 ? 'off' : `${Math.round(v * 360)}°/s`), help: 'Rotates every color on screen over time.' },
     { k: 'saturation', label: 'Saturation', min: 0, max: 2, step: 0.01, fmt: fx.pct },
     { k: 'exposure', label: 'Exposure', min: 0.2, max: 3, step: 0.05, fmt: fx.mult },
-    { k: 'posterize', label: 'Posterize', min: 0, max: 12, step: 1, fmt: (v) => (v === 0 ? 'off' : `${v} bands`), help: 'Quantizes color into flat cel-shaded bands.' },
+  ],
+  effects: [
+    { group: 'Bloom' },
+    { k: 'bloom', label: 'Bloom', type: 'toggle', help: 'Soft glow around the brightest dye.' },
+    { k: 'bloomIntensity', label: 'Bloom intensity', min: 0, max: 3, step: 0.05, fmt: fx.n2, showIf: () => P.bloom },
+    { k: 'bloomThreshold', label: 'Bloom threshold', min: 0, max: 1, step: 0.01, fmt: fx.n2, showIf: () => P.bloom, help: 'Only dye brighter than this glows. Raise it to keep the glow on the hottest spots.' },
+    { group: 'Shader style' },
+    { k: 'fxStyle', label: 'Style', type: 'seg', options: [['none', 'Off'], ['cel', 'Cel'], ['oil', 'Oil paint'], ['watercolor', 'Watercolor'], ['halftone', 'Halftone'], ['pixel', 'Pixel'], ['dither', 'Dither'], ['crt', 'CRT'], ['emboss', 'Emboss'], ['edges', 'Neon edges'], ['chrome', 'Chrome']], help: 'A full-screen GLSL pass over the finished image. Combine with any palette, map or preset.' },
+    { k: 'fxMix', label: 'Strength', min: 0, max: 1, step: 0.01, fmt: fx.pct, showIf: () => P.fxStyle !== 'none' },
+    { k: 'fxSize', label: 'Size', min: 1, max: 12, step: 0.5, fmt: (v) => `${v.toFixed(1)} px`, showIf: () => P.fxStyle !== 'none', help: 'Outline width, brush radius, or dot, pixel or scanline size, depending on the style.' },
+    { k: 'celBands', label: 'Tone bands', min: 2, max: 8, step: 1, fmt: fx.n0, showIf: () => P.fxStyle === 'cel', help: 'How many flat shades each color breaks into.' },
+    { k: 'celOutline', label: 'Ink outlines', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), showIf: () => P.fxStyle === 'cel' },
+    { k: 'wcEdges', label: 'Pigment edges', min: 0, max: 1, step: 0.01, fmt: fx.pct, showIf: () => P.fxStyle === 'watercolor', help: 'Paint pooling darker where each wash ends. Looks best with the Ink blend on a light background.' },
+    { k: 'wcGrain', label: 'Paper grain', min: 0, max: 1, step: 0.01, fmt: fx.pct, showIf: () => P.fxStyle === 'watercolor' },
+    { k: 'pixelGap', label: 'Grid gap', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), showIf: () => P.fxStyle === 'pixel', help: 'Dark gaps between pixels, like an LED panel.' },
+    { k: 'ditherLevels', label: 'Levels per channel', min: 2, max: 8, step: 1, fmt: fx.n0, showIf: () => P.fxStyle === 'dither', help: 'Two gives an 8-color retro palette.' },
+    { k: 'crtCurve', label: 'Screen curve', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'flat' : fx.pct(v)), showIf: () => P.fxStyle === 'crt' },
+    { k: 'embossColor', label: 'Color', min: 0, max: 1, step: 0.01, fmt: fx.pct, showIf: () => P.fxStyle === 'emboss', help: 'At zero the relief is plain stone gray.' },
+    { k: 'edgeFill', label: 'Fill', min: 0, max: 1, step: 0.01, fmt: fx.pct, showIf: () => P.fxStyle === 'edges', help: 'How much color shows between the lines.' },
+    { k: 'chromeTint', label: 'Tint', min: 0, max: 1, step: 0.01, fmt: fx.pct, showIf: () => P.fxStyle === 'chrome', help: 'How much the dye colors the metal.' },
+    { group: 'Light and detail' },
+    { k: 'shading', label: '3D shading', type: 'toggle' },
+    { k: 'speedGlow', label: 'Speed glow', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Fast-moving fluid lights up.' },
+    { k: 'chroma', label: 'Chromatic split', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Pulls red and blue apart along the flow for rainbow fringes.' },
+    { k: 'posterize', label: 'Posterize', min: 0, max: 12, step: 1, fmt: (v) => (v === 0 ? 'off' : `${v} bands`), help: 'Quantizes every channel into flat bands. This is what the Toon preset uses.' },
     { k: 'vignette', label: 'Vignette', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Darkens the corners to frame the tank.' },
   ],
   touch: [
@@ -1871,9 +2135,10 @@ function buildControl(c, parent) {
     h.textContent = c.help;
     row.appendChild(h);
   }
+  if (c.showIf) syncers.push(() => { row.hidden = !c.showIf(); });
   parent.appendChild(row);
 }
-for (const tab of ['fluid', 'color', 'touch']) CONTROLS[tab].forEach((c) => buildControl(c, $(`#pane-${tab}`)));
+for (const tab of ['fluid', 'color', 'effects', 'touch']) CONTROLS[tab].forEach((c) => buildControl(c, $(`#pane-${tab}`)));
 CONTROLS.audio.forEach((c) => buildControl(c, $('#audioCtls')));
 
 const BAND_PRESETS = [['Kick', 40, 140], ['Bass', 60, 250], ['Snare', 1200, 3500], ['Vocals', 300, 3000], ['Hats', 7000, 15000], ['Full', 20, 16000]];
@@ -2264,6 +2529,7 @@ $('#libLoadCode').addEventListener('click', () => {
 function changed(k) {
   if (k in VISUAL_DEFAULTS && k !== 'quality') activePreset = null;
   if (k === 'quality') initFramebuffers();
+  if (k === 'fxStyle' && STYLE_SIZE[P.fxStyle]) P.fxSize = STYLE_SIZE[P.fxStyle]; // each style starts at a size that suits it
   if (k === 'monitor' && A.monitor && A.mode !== 'mic') A.monitor.gain.value = P.monitor;
   if (k === 'palette' || k === 'monoColor' || k === 'blend' || k === 'bg') onLookChange();
   syncAll(); save();
@@ -2271,12 +2537,13 @@ function changed(k) {
 function onLookChange() {
   const bg = hexToRgb(P.bg);
   const lum = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
-  document.body.classList.toggle('light-ground', lum > 0.55);
+  lightGround = lum > 0.55;
+  document.body.classList.toggle('light-ground', lightGround);
   lastAccent = -1;
 }
 
 // Tabs
-const tabs = ['fluid', 'color', 'audio', 'touch', 'presets'];
+const tabs = ['fluid', 'color', 'effects', 'audio', 'touch', 'presets'];
 let currentTab = 'fluid';
 function showTab(t) {
   currentTab = t;
