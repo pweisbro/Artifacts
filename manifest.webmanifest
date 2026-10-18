@@ -1,6 +1,6 @@
 {
-  "name": "Artifacts",
-  "short_name": "Artifacts",
+  "name": "Stim Lab",
+  "short_name": "Stim Lab",
   "description": "A home for small interactive apps: an optics bench, a fluid simulation, and whatever comes next.",
   "start_url": "./",
   "scope": "./",

@@ -1,4 +1,4 @@
-# Artifacts
+# Stim Lab
 
 A home for small interactive web apps. The homepage (`index.html`) shows every app with a live preview; tap one to open it, and the grid button inside each app brings you back.
 
