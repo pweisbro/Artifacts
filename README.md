@@ -10,6 +10,8 @@ Open https://pweisbro.github.io/artifacts/ in Safari, then use **Share → Add t
 
 `spectrum-bench.html` is a playable optics bench: light sources, prisms, lenses, flat and curved mirrors, diffraction gratings, color filters, beam splitters, slits and screens.
 
+**Sound** makes the bench react to the microphone or a song file. Each beam can carry the live sound wave like an oscilloscope trace, flowing out from the light and through every bounce and split. Loudness and beats sway the beams, bass pulses rainbow boost, volume sets brightness, and pitch picks laser colors.
+
 ### Resonant Ink
 
 `resonant-ink.html` is a multi-touch fluid simulation. Stir the dye with as many fingers as you like, and tune vorticity, viscosity, dye density, fade and diffusion. Colors, bloom and a kaleidoscope mirror are adjustable. Audio-reactive spots fire from a frequency band you pick on the live spectrum, with an adjustable sensitivity. The sound can come from the built-in demo beat, a song file, or the microphone.

@@ -419,11 +419,21 @@ function emit(el,stack){
   const gi=n===1?0:Math.min(7,Math.round(Math.log2(n))); // many parallel rays: fade each ray's glow so the beam doesn't fill in solid
   for(let i=0;i<n;i++){
     const f=n===1?0:i/(n-1)-.5,a=F.a+el.spread*f*D2R,dx=Math.cos(a),dy=Math.sin(a),o=F.L(23,el.width*f);
-    for(const [l,w] of sp.samples)stack.push({x:o[0],y:o[1],dx,dy,lam:l,I:w,base:sp.base,depth:0,med:null,skip:null,col:colorOf(l),ck:Math.round(l*2),gi});
+    for(const [l,w] of sp.samples)stack.push({x:o[0],y:o[1],dx,dy,lam:l,I:w,base:sp.base,depth:0,med:null,skip:null,col:colorOf(l),ck:Math.round(l*2),gi,d:0});
   }
 }
 
-function trace(sc,bright,geos){
+// Sound wave drawn along a beam: the ray's path stays straight; the wiggle is the live microphone waveform riding on it.
+function waveSeg(p,r,len,W){
+  const L=Math.min(len,1800),nx=-r.dy,ny=r.dx,tb=W.tbl,N=tb.length,st=W.step*(1+r.gi*.6),n=Math.max(1,Math.ceil(L/st));
+  W.used+=n;
+  for(let k=0;k<=n;k++){
+    const s=Math.min(L,k*st),d=r.d+s,u=(d-W.phase)/W.L,v=tb[((u-Math.floor(u))*N)|0]*W.A*Math.min(1,d/40);
+    const x=r.x+r.dx*s+nx*v,y=r.y+r.dy*s+ny*v;
+    if(k)p.lineTo(x,y);else p.moveTo(x,y);
+  }
+}
+function trace(sc,bright,geos,W){
   const S=[];for(const g of geos)for(const p of g.prims)S.push(p);
   const beams=new Map(),splats=new Map(),hits=new Map(),stack=[];
   for(const el of sc)if(el.type==='light')emit(el,stack);
@@ -468,10 +478,10 @@ function trace(sc,bright,geos){
     }
     const ex=r.x+r.dx*best,ey=r.y+r.dy*best;
     const a=clamp(bright*r.base*Math.pow(r.I,.6),0,1);
-    if(a>=.02){const p=bucket(beams,r,a);p.moveTo(r.x,r.y);p.lineTo(ex,ey);}
+    if(a>=.02){const p=bucket(beams,r,a);if(W&&W.used<W.budget)waveSeg(p,r,best,W);else{p.moveTo(r.x,r.y);p.lineTo(ex,ey);}}
     segs++;
     if(!hs)continue;
-    const go=(dx,dy,I,med)=>{if(I>=IMIN)stack.push({x:ex,y:ey,dx,dy,lam:r.lam,I,base:r.base,depth:r.depth+1,med,skip:hs,col:r.col,ck:r.ck,gi:r.gi});};
+    const go=(dx,dy,I,med)=>{if(I>=IMIN)stack.push({x:ex,y:ey,dx,dy,lam:r.lam,I,base:r.base,depth:r.depth+1,med,skip:hs,col:r.col,ck:r.ck,gi:r.gi,d:r.d+best});};
     const refl=(I)=>{const d=r.dx*hnx+r.dy*hny;go(r.dx-2*d*hnx,r.dy-2*d*hny,I,r.med);};
     switch(hs.kind){
       case 'mirror':refl(r.I*.95);break;
@@ -597,7 +607,7 @@ function drawEl(g,el,geo,px){
 function drawScreen(g,geo,px){const [A,B]=geo.ends;g.strokeStyle='#30353e';g.lineWidth=8*px;pathLine(g,A,B);g.strokeStyle='#c7cbd1';g.lineWidth=4*px;pathLine(g,A,B);}
 
 function render(g,sc,v,o){
-  const geos=sc.map(geomOf),T=trace(sc,o.bright,geos),px=(o.lw||1)/v.scale;
+  const geos=sc.map(geomOf),T=trace(sc,o.bright,geos,o.wave||null),px=(o.lw||1)/v.scale;
   g.setTransform(v.dpr*v.scale,0,0,v.dpr*v.scale,v.dpr*v.cx,v.dpr*v.cy);
   g.lineCap='round';g.lineJoin='round';
   sc.forEach((el,i)=>{if(el.type==='screen')drawScreen(g,geos[i],px);});
@@ -642,7 +652,8 @@ function draw(){
   ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='source-over';
   if(bgc)ctx.drawImage(bgc,0,0);else{ctx.fillStyle='#0a0c10';ctx.fillRect(0,0,canvas.width,canvas.height);}
   const sc=AU.on?liveScene():scene,br=AU.on&&AU.cfg.bright?bright*(.3+1.05*AU.lvl+.45*AU.kick):bright;
-  last=render(ctx,sc,{dpr,scale,cx,cy},{bright:br,lw:1});
+  const c=AU.cfg,W=AU.on&&c.wave&&AU.lvl>.02?{tbl:AU.wt,L:c.waveLen,A:c.waveAmt*Math.min(1,AU.lvl*1.4),phase:performance.now()/1000*c.waveLen*.6,step:Math.max(4,c.waveLen/22),used:0,budget:70000}:null;
+  last=render(ctx,sc,{dpr,scale,cx,cy},{bright:br,lw:1,wave:W});
   if(sel){const i=scene.indexOf(sel);if(i>=0)drawSelection(sc[i],last.geos[i]);}
   if(sel&&sel.type==='screen')drawStrip();
 }
@@ -1159,7 +1170,8 @@ const SNDKEY='spectrum-bench-sound-v1';
 const AU={on:false,kind:null,src:'mic',ctx:null,an:null,td:null,fd:null,stream:null,micNode:null,audio:null,media:null,url:null,fileName:'',
   lvl:0,bass:0,peakR:.01,peakB:.05,chs:new Float32Array(12),ch:new Float32Array(12),pc:-1,thz:0,lam:0,
   low:0,fm:0,fv:0,kick:0,lastBeat:0,beatSign:1,
-  cfg:{sway:true,swayAmt:20,boost:true,boostAmt:4,bright:true,color:true,sens:1}};
+  wt:new Float32Array(256),
+  cfg:{wave:true,waveAmt:16,waveLen:150,sway:true,swayAmt:20,boost:true,boostAmt:4,bright:true,color:true,sens:1}};
 try{const c=JSON.parse(localStorage.getItem(SNDKEY)||'null');if(c&&typeof c==='object'){for(const k in AU.cfg)if(typeof c[k]===typeof AU.cfg[k])AU.cfg[k]=c[k];if(c.src==='mic'||c.src==='file')AU.src=c.src;}}catch(e){}
 function saveSnd(){try{localStorage.setItem(SNDKEY,JSON.stringify(Object.assign({src:AU.src},AU.cfg)));}catch(e){}}
 const inClaude=!!(window.claude&&typeof window.claude.use==='function');
@@ -1194,6 +1206,12 @@ function analyze(){
   AU.peakR=Math.max(rms,AU.peakR*.996,.004);AU.peakB=Math.max(bass,AU.peakB*.996,.03);
   const gate=rms>.0025?1:0,L=gate*clamp(rms/AU.peakR,0,1),B=gate*clamp((bass/AU.peakB-.35)/.65,0,1);
   AU.lvl+=(L-AU.lvl)*(L>AU.lvl?.45:.07);AU.bass+=(B-AU.bass)*(B>AU.bass?.55:.1);
+  if(AU.cfg.wave){
+    const M=AU.wt.length,dec=4,lim=Math.min(1024,td.length-M*dec);let st=0;
+    for(let i=1;i<lim;i++){if(td[i-1]<0&&td[i]>=0){st=i;break;}}
+    let mx=0;for(let j=0;j<M;j++){let a=0;for(let q=0;q<dec;q++)a+=td[st+j*dec+q];a/=dec;AU.wt[j]=a;const b=a<0?-a:a;if(b>mx)mx=b;}
+    const gn=1/Math.max(mx,.02);for(let j=0;j<M;j++)AU.wt[j]*=gn;
+  }
   // beat: a jump in low-band energy well above its recent average
   const low=bass*AU.cfg.sens,flux=Math.max(0,low-AU.low),now=performance.now();AU.low=low;
   const dv=flux-AU.fm;AU.fm+=dv*.05;AU.fv=AU.fv*.95+dv*dv*.05;
@@ -1284,6 +1302,9 @@ function renderSnd(){
   <canvas class="chart meter" id="snd-meter" aria-label="Live sound spectrum, colored by musical note"></canvas>
   ${rangeField('snd-sens','sens','Sensitivity',.5,4,.1,c.sens,v=>(+v).toFixed(1)+'×')}
   <div class="group"><div class="lab"><span>What reacts</span></div>
+    <div class="react"><label class="tog" for="snd-wave"><input type="checkbox" id="snd-wave" data-tk="wave"${c.wave?' checked':''}><span>Beams carry the sound wave</span></label>
+      ${rangeField('snd-wave-amt','waveAmt','Wave size',4,40,1,c.waveAmt,v=>'±'+v+' mm')}
+      ${rangeField('snd-wave-len','waveLen','Wave length',60,400,10,c.waveLen,v=>v+' mm')}</div>
     <div class="react"><label class="tog" for="snd-sway"><input type="checkbox" id="snd-sway" data-tk="sway"${c.sway?' checked':''}><span>Loudness and beats sway the beams</span></label>
       ${rangeField('snd-sway-amt','swayAmt','Sway',5,60,1,c.swayAmt,v=>'±'+v+'°')}</div>
     <div class="react"><label class="tog" for="snd-boost"><input type="checkbox" id="snd-boost" data-tk="boost"${c.boost?' checked':''}><span>Bass beats pulse the rainbow boost</span></label>
@@ -1291,7 +1312,8 @@ function renderSnd(){
     <div class="react"><label class="tog" for="snd-bright"><input type="checkbox" id="snd-bright" data-tk="bright"${c.bright?' checked':''}><span>Volume sets brightness</span></label></div>
     <div class="react"><label class="tog" for="snd-color"><input type="checkbox" id="snd-color" data-tk="color"${c.color?' checked':''}><span>Pitch picks laser colors</span></label></div>
   </div>
-  <div class="readout"><div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch-to-color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet.</div>
+  <div class="readout"><div>The wave on each beam is the microphone’s live signal, about 21 ms of sound stretched across one wave length and lined up so a steady note holds still, like an oscilloscope. It flows out from the light and follows every bounce and split. A real light wave is far smaller: about half a micron from crest to crest.</div>
+  <div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch-to-color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet.</div>
   <div>Only lasers change color with pitch, because they make a single frequency. With two or three lasers on the bench, they spread into a chord: the note, a major third up and a fifth up.</div><div>Rainbow boost reacts on prisms and glass lenses. Your saved setups aren’t changed.</div></div>`;
   $('snd-done').addEventListener('click',()=>renderInspector());
   $('snd-src').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===AU.src)return;stopSound();AU.src=b.dataset.v;for(const x of $('snd-src').children)x.setAttribute('aria-pressed',String(x===b));saveSnd();updSnd();});
@@ -1303,7 +1325,7 @@ function renderSnd(){
   });
   $('snd-pick').addEventListener('click',()=>{ensureCtx();$('snd-file').click();});
   box.querySelectorAll('input[data-tk]').forEach(n=>n.addEventListener('change',()=>{AU.cfg[n.dataset.tk]=n.checked;saveSnd();request();}));
-  for(const [id,k] of [['snd-sway-amt','swayAmt'],['snd-boost-amt','boostAmt'],['snd-sens','sens']]){const n=$(id);n.addEventListener('input',()=>{const v=parseFloat(n.value);AU.cfg[k]=v;$(id+'-v').textContent=FM[id](v);saveSnd();});}
+  for(const [id,k] of [['snd-wave-amt','waveAmt'],['snd-wave-len','waveLen'],['snd-sway-amt','swayAmt'],['snd-boost-amt','boostAmt'],['snd-sens','sens']]){const n=$(id);n.addEventListener('input',()=>{const v=parseFloat(n.value);AU.cfg[k]=v;$(id+'-v').textContent=FM[id](v);saveSnd();});}
   updSnd();drawMeter();$('dock').scrollTop=0;
 }
 $('b-snd').addEventListener('click',()=>{if(view==='snd')renderInspector();else renderSnd();});
