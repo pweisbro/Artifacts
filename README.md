@@ -28,6 +28,14 @@ Resonant Ink can also go on the Home Screen as its own app, with its own icon: o
 
 The microphone needs a secure (https) host such as GitHub Pages and your permission. Songs play locally and are never uploaded. Settings and saved presets are kept in the browser on each device.
 
+### Drift Pad
+
+`drift-pad.html` is an ambient sound pad: twenty glowing pads tuned to a scale, low notes at the bottom left rising to the top right. Tap a pad to play it, hold to let a note swell, or drag across to strum. Pick a voice (Glass, Pad or Kalimba), a scale (pentatonic, minor pentatonic, Dorian, Lydian or Hirajoshi) and a key, and set reverb, echo and volume.
+
+Two things make it play itself. **Loop** sets pads repeating: each looping pad gets its own length, from about 5 to 20 seconds, so they drift in and out of step like tape loops, and a small ring on the pad sweeps once per loop. **Drift** wanders over the pads on its own, at the pace and density you set. Both can run together, and the sound pauses while the app is in the background.
+
+Everything is synthesized in the browser, so it works offline. Settings are kept in the browser on each device.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.

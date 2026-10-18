@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0a12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Drift Pad">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Drift Pad</title>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=DM+Mono:wght@400;500&display=swap">
+<style>
+[hidden]{display:none!important}
+/* Layout: a full-screen grid of glowing pads over a ripple canvas, a floating pill dock, and a glass
+   settings sheet (bottom on phones, side on wide screens). Low notes sit bottom-left in deep teal,
+   high notes top-right in rose; each pad's hue comes from --h. */
+:root{
+  color-scheme: dark;
+  --ground:#0b0a12;
+  --pad:#15131f;
+  --glass:rgba(18,16,28,.68);
+  --glass-strong:rgba(19,17,30,.92);
+  --line:rgba(232,226,255,.09);
+  --track:rgba(232,226,255,.15);
+  --text:#efecf7;
+  --muted:#958fac;
+  --accent:#c9b8ff;
+  --accent-ink:#0e0b18;
+  --font-display:'Syne','Avenir Next','Segoe UI',system-ui,sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,system-ui,sans-serif;
+  --font-mono:'DM Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --top:calc(env(safe-area-inset-top,0px) + 58px);
+  --bottom:calc(env(safe-area-inset-bottom,0px) + 82px);
+}
+html{box-sizing:border-box;height:100%;overflow:hidden;background:var(--ground)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  height:100%;overflow:hidden;margin:0;
+  background:var(--ground);color:var(--text);
+  font-family:var(--font-body);font-size:14px;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;overscroll-behavior:none;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#sky{position:fixed;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+
+.brand{
+  position:fixed;z-index:5;pointer-events:none;margin:0;
+  top:calc(16px + env(safe-area-inset-top,0px));
+  left:max(18px, env(safe-area-inset-left,0px));
+  font:800 21px/1 var(--font-display);letter-spacing:-.01em;
+}
+.brand span{color:var(--accent)}
+.status{
+  position:fixed;z-index:5;pointer-events:none;margin:0;
+  top:calc(19px + env(safe-area-inset-top,0px));
+  right:max(18px, env(safe-area-inset-right,0px));
+  font:400 11px/1 var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+}
+
+/* The pads */
+#pads{
+  position:fixed;z-index:2;
+  top:var(--top);bottom:var(--bottom);
+  left:max(16px, env(safe-area-inset-left,0px));right:max(16px, env(safe-area-inset-right,0px));
+  max-width:1120px;margin:0 auto;
+  display:grid;gap:clamp(8px,1.4vmin,14px);
+  grid-template-columns:repeat(var(--cols,4),minmax(0,1fr));
+  grid-template-rows:repeat(var(--rows,5),minmax(0,1fr));
+  touch-action:none;
+}
+.pad{
+  --h:260;
+  position:relative;overflow:hidden;border:0;padding:0;margin:0;cursor:pointer;
+  border-radius:clamp(14px,2.4vmin,22px);
+  background:
+    radial-gradient(120% 90% at 30% 0%, hsla(var(--h),70%,60%,.10), transparent 70%),
+    var(--pad);
+  box-shadow:inset 0 0 0 1px hsla(var(--h),80%,80%,.10);
+  touch-action:none;
+}
+.pad .lit{
+  position:absolute;inset:0;border-radius:inherit;opacity:0;pointer-events:none;
+  background:
+    radial-gradient(90% 80% at 50% 55%, hsla(var(--h),95%,72%,.95), hsla(var(--h),90%,55%,.55) 55%, hsla(var(--h),90%,45%,.15) 100%);
+  box-shadow:inset 0 0 0 1px hsla(var(--h),100%,88%,.55), 0 0 28px hsla(var(--h),100%,65%,.5);
+}
+.pad.held .lit{opacity:1;transition:opacity .25s}
+.pad .nm{
+  position:absolute;left:11px;bottom:9px;pointer-events:none;
+  font:500 11px/1 var(--font-mono);letter-spacing:.04em;color:hsla(var(--h),40%,85%,.42);
+}
+/* a looping pad shows a ring that sweeps once per loop */
+.pad .ring{
+  position:absolute;top:9px;right:9px;width:18px;height:18px;border-radius:50%;pointer-events:none;
+  --p:0;
+  background:conic-gradient(hsl(var(--h),95%,75%) calc(var(--p) * 1turn), hsla(var(--h),60%,80%,.16) 0);
+  -webkit-mask:radial-gradient(circle, transparent 5px, #000 5.5px);mask:radial-gradient(circle, transparent 5px, #000 5.5px);
+}
+.pad.looping{box-shadow:inset 0 0 0 1.5px hsla(var(--h),95%,75%,.5)}
+.loop-mode .pad{box-shadow:inset 0 0 0 1px hsla(var(--h),80%,80%,.22)}
+
+.hint{
+  position:fixed;z-index:4;left:50%;transform:translateX(-50%);pointer-events:none;
+  bottom:calc(76px + env(safe-area-inset-bottom,0px));
+  padding:7px 13px;border-radius:999px;background:var(--glass);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  font-size:.82rem;color:var(--text);white-space:nowrap;transition:opacity .4s;
+}
+.hint.gone{opacity:0}
+
+/* Dock */
+.dock{
+  position:fixed;z-index:6;left:50%;transform:translateX(-50%);
+  bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  display:flex;gap:2px;padding:5px;
+  background:var(--glass);border:1px solid var(--line);border-radius:999px;
+  -webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
+  transition:opacity .25s;
+}
+.dock button,.dock .home{
+  height:44px;min-width:44px;border:0;border-radius:999px;background:transparent;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;color:var(--text);
+}
+.dock .labeled{padding:0 14px 0 11px;font-size:.84rem;font-weight:600}
+.dock button:hover,.dock .home:hover{background:rgba(255,255,255,.07)}
+/* back to the Stim Lab homepage (a home-screen web app has no back button) */
+.dock .home{text-decoration:none}
+.dock .sep{width:1px;margin:10px 3px;background:var(--line)}
+.dock button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.dock svg,.icon-btn svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@media (max-width:380px){ .dock .labeled{padding:0 11px 0 9px} }
+
+/* Settings sheet */
+.sheet{
+  position:fixed;z-index:8;left:0;right:0;bottom:0;
+  max-height:min(70vh,640px);max-height:min(70dvh,640px);
+  display:flex;flex-direction:column;
+  background:var(--glass-strong);
+  -webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3);
+  border-top:1px solid var(--line);border-radius:22px 22px 0 0;
+  padding-left:max(18px, env(safe-area-inset-left,0px));
+  padding-right:max(18px, env(safe-area-inset-right,0px));
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  transform:translateY(104%);visibility:hidden;
+  transition:transform .34s cubic-bezier(.2,.8,.2,1), visibility 0s .34s;
+}
+.sheet.open{transform:none;visibility:visible;transition:transform .34s cubic-bezier(.2,.8,.2,1)}
+@media (max-width:899px){ .sheet-open .dock,.sheet-open .hint{opacity:0;pointer-events:none} }
+@media (min-width:900px){
+  .sheet{
+    left:auto;width:360px;max-height:none;
+    top:calc(16px + env(safe-area-inset-top,0px));
+    bottom:calc(16px + env(safe-area-inset-bottom,0px));
+    right:max(16px, env(safe-area-inset-right,0px));
+    border:1px solid var(--line);border-radius:20px;padding:0 20px;
+    transform:translateX(calc(100% + 48px));
+  }
+  .grab{display:none}
+  .sheet-open #pads{right:calc(392px + env(safe-area-inset-right,0px))}
+  .sheet-open .status{right:calc(410px + env(safe-area-inset-right,0px))}
+  .sheet-open .dock,.sheet-open .hint{left:calc((100% - 392px) / 2)}
+}
+.sheet-head{display:flex;flex-direction:column;gap:10px;padding:10px 0 12px;border-bottom:1px solid var(--line)}
+.grab{width:38px;height:4px;border-radius:4px;background:var(--track);align-self:center}
+.head-row{display:flex;align-items:center;gap:8px}
+.head-row h2{margin:0;font:600 1.05rem/1.2 var(--font-display);flex:1}
+.icon-btn{width:36px;height:36px;border-radius:10px;border:0;background:rgba(255,255,255,.06);display:grid;place-items:center;cursor:pointer;color:var(--text)}
+.icon-btn svg{width:18px;height:18px}
+.sheet-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:18px}
+.group-label{margin:18px 0 2px;font:400 .66rem/1.2 var(--font-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 12px;padding-block:9px;border-bottom:1px solid var(--line)}
+.ctl:last-child{border-bottom:0}
+.ctl label,.ctl .lbl{font-size:.87rem;font-weight:500}
+.ctl output{font:400 .75rem/1 var(--font-mono);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl .help{grid-column:1/-1;margin:0;font-size:.74rem;line-height:1.4;color:var(--muted)}
+.ctl input[type=range]{grid-column:1/-1}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;margin:0;background:transparent;cursor:pointer;--fill:50%}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:linear-gradient(to right, var(--accent) var(--fill), var(--track) var(--fill))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;border:0;background:var(--text);box-shadow:0 0 0 4px rgba(0,0,0,.28)}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:4px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;border:0;background:var(--text)}
+.seg{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;padding-top:6px}
+.seg button{
+  flex:1 1 auto;min-width:46px;height:34px;padding:0 11px;border-radius:10px;
+  border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:.79rem;font-weight:500;cursor:pointer;
+}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.seg.keys{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.seg.keys button{min-width:0;padding:0 4px;font-family:var(--font-mono)}
+.text-btn{width:100%;height:42px;margin-top:12px;border-radius:10px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:.84rem;font-weight:500}
+.text-btn:hover{background:rgba(255,255,255,.06)}
+.text-btn:disabled{opacity:.45;cursor:default}
+
+@media (prefers-reduced-motion: reduce){ .sheet,.dock,.hint{transition:none} }
+</style>
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<h1 class="brand">Drift <span>Pad</span></h1>
+<p class="status" id="status" aria-live="polite"></p>
+
+<div id="pads" role="group" aria-label="Sound pads"></div>
+<div class="hint" id="hint">Tap a pad. Drag across to strum.</div>
+
+<nav class="dock" id="dock" aria-label="Sound pad">
+  <a class="home" href="./" aria-label="Back to Stim Lab" title="Stim Lab">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+  </a>
+  <span class="sep" aria-hidden="true"></span>
+  <button id="btnDrift" class="labeled" aria-pressed="false" title="Drift: the pad plays itself (D)">
+    <svg viewBox="0 0 24 24"><path d="M3 14c2.5 0 2.5-4 5-4s2.5 4 5 4 2.5-4 5-4 2.5 2 3 2"/><circle cx="8" cy="10" r=".6"/><circle cx="18" cy="10" r=".6"/></svg>Drift
+  </button>
+  <button id="btnLoop" class="labeled" aria-pressed="false" title="Loop: tap pads to set them repeating (L)">
+    <svg viewBox="0 0 24 24"><path d="M17 4l3 3-3 3"/><path d="M20 7H9a5 5 0 0 0 0 10h1"/><path d="M14 17h1a5 5 0 0 0 3.5-1.5"/></svg>Loop
+  </button>
+  <button id="btnPanel" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="sheet">
+    <svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+  </button>
+</nav>
+
+<section class="sheet" id="sheet" aria-label="Settings">
+  <div class="sheet-head">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="head-row">
+      <h2>Settings</h2>
+      <button class="icon-btn" id="btnClose" aria-label="Close settings">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="sheet-body">
+    <p class="group-label">Sound</p>
+    <div class="ctl"><span class="lbl">Voice</span><div class="seg" id="segVoice"></div></div>
+    <div class="ctl"><span class="lbl">Scale</span><div class="seg" id="segScale"></div></div>
+    <div class="ctl"><span class="lbl">Key</span><div class="seg keys" id="segKey"></div></div>
+
+    <p class="group-label">Space</p>
+    <div class="ctl"><label for="rReverb">Reverb</label><output id="oReverb"></output><input type="range" id="rReverb" min="0" max="100" step="1"></div>
+    <div class="ctl"><label for="rEcho">Echo</label><output id="oEcho"></output><input type="range" id="rEcho" min="0" max="100" step="1"></div>
+    <div class="ctl"><label for="rVolume">Volume</label><output id="oVolume"></output><input type="range" id="rVolume" min="0" max="100" step="1"></div>
+
+    <p class="group-label">Drift</p>
+    <div class="ctl"><label for="rTempo">Pace</label><output id="oTempo"></output><input type="range" id="rTempo" min="30" max="140" step="1">
+      <p class="help">How often Drift considers playing a note, in beats per minute.</p></div>
+    <div class="ctl"><label for="rDensity">Density</label><output id="oDensity"></output><input type="range" id="rDensity" min="5" max="100" step="1">
+      <p class="help">How many of those beats get a note. Low is sparse and calm.</p></div>
+
+    <p class="group-label">Loops</p>
+    <div class="ctl"><label for="rLoopLen">Loop length</label><output id="oLoopLen"></output><input type="range" id="rLoopLen" min="50" max="200" step="5">
+      <p class="help">Each looping pad repeats on its own length, so loops drift in and out of step. This scales all of them.</p></div>
+    <button class="text-btn" id="btnClear" disabled>Stop all loops</button>
+  </div>
+</section>
+
+<script>
+/* ---------- music ---------- */
+const NOTE_NAMES = ['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
+const SCALES = {
+  pent:  { name: 'Pentatonic', steps: [0, 2, 4, 7, 9] },
+  minor: { name: 'Minor pent.', steps: [0, 3, 5, 7, 10] },
+  dorian:{ name: 'Dorian', steps: [0, 2, 3, 5, 7, 9, 10] },
+  lydian:{ name: 'Lydian', steps: [0, 2, 4, 6, 7, 9, 11] },
+  hira:  { name: 'Hirajoshi', steps: [0, 2, 3, 7, 8] }
+};
+const VOICES = { glass: 'Glass', pad: 'Pad', kalimba: 'Kalimba' };
+const N = 20; // pads: 4x5 upright, 5x4 sideways
+// Loop lengths in seconds, chosen not to line up, like tape loops of different lengths.
+const LOOP_LENGTHS = [4.7, 5.9, 7.3, 8.6, 9.7, 11.3, 12.8, 14.1, 15.7, 17.2, 19.9];
+
+const DEFAULTS = { voice: 'glass', scale: 'pent', key: 2, reverb: 55, echo: 30, volume: 80, tempo: 72, density: 45, loopLen: 100 };
+const STORE = 'drift-pad-v1';
+const S = Object.assign({}, DEFAULTS);
+try { Object.assign(S, JSON.parse(localStorage.getItem(STORE) || '{}')); } catch (e) {}
+if (!SCALES[S.scale]) S.scale = DEFAULTS.scale;
+if (!VOICES[S.voice]) S.voice = DEFAULTS.voice;
+function save(){ try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
+
+// The lowest pad is the key's root, somewhere between E2 and E♭3, so every key sits in the same range.
+function midiOf(i){
+  const st = SCALES[S.scale].steps;
+  const base = 40 + ((S.key - 4 + 12) % 12);
+  return base + 12 * Math.floor(i / st.length) + st[i % st.length];
+}
+const freqOf = (i) => 440 * Math.pow(2, (midiOf(i) - 69) / 12);
+const nameOf = (i) => { const m = midiOf(i); return NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1); };
+const hueOf = (i) => 190 + 145 * i / (N - 1);
+
+/* ---------- audio engine ---------- */
+let ac = null, bus, revSend, echoSend, master;
+const voices = [];
+
+function impulse(seconds){
+  const rate = ac.sampleRate, len = Math.floor(rate * seconds);
+  const buf = ac.createBuffer(2, len, rate);
+  for (let c = 0; c < 2; c++){
+    const d = buf.getChannelData(c);
+    let lp = 0;
+    for (let i = 0; i < len; i++){
+      const t = i / len;
+      lp += (Math.random() * 2 - 1 - lp) * (.5 - .35 * t); // darker as it fades
+      d[i] = lp * Math.pow(1 - t, 2.6) * (i < rate * .02 ? i / (rate * .02) : 1);
+    }
+  }
+  return buf;
+}
+
+function ensureAudio(){
+  if (ac){ if (ac.state !== 'running') ac.resume(); return true; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC){ setStatus('No Web Audio here'); return false; }
+  // Play through the ringer switch on iPhone, like a music app.
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+  ac = new AC({ latencyHint: 'interactive' });
+
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = .005; comp.release.value = .25;
+  master = ac.createGain();
+  comp.connect(master); master.connect(ac.destination);
+
+  bus = ac.createGain();
+  bus.connect(comp);
+
+  const verb = ac.createConvolver();
+  verb.buffer = impulse(4.2);
+  revSend = ac.createGain();
+  bus.connect(revSend); revSend.connect(verb); verb.connect(comp);
+
+  // ping-pong echo, darkening on every repeat
+  echoSend = ac.createGain();
+  const dl = ac.createDelay(2), dr = ac.createDelay(2);
+  dl.delayTime.value = .41; dr.delayTime.value = .41;
+  const tone = ac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 2400;
+  const fb = ac.createGain(); fb.gain.value = .46;
+  const pl = ac.createStereoPanner(), pr = ac.createStereoPanner();
+  pl.pan.value = -.75; pr.pan.value = .75;
+  bus.connect(echoSend); echoSend.connect(dl);
+  dl.connect(dr); dr.connect(tone); tone.connect(fb); fb.connect(dl);
+  dl.connect(pl); dr.connect(pr); pl.connect(comp); pr.connect(verb); pr.connect(comp);
+
+  applyMix();
+  return true;
+}
+function applyMix(){
+  if (!ac) return;
+  const t = ac.currentTime;
+  revSend.gain.setTargetAtTime(Math.pow(S.reverb / 100, 1.3) * 1.1, t, .05);
+  echoSend.gain.setTargetAtTime(S.echo / 100 * .55, t, .05);
+  master.gain.setTargetAtTime(Math.pow(S.volume / 100, 1.6) * 1.2, t, .05);
+}
+
+// Starts one note at `when`. Held notes (Pad voice under a finger) sustain until release().
+function noteOn(i, when, vel, held){
+  if (!ac) return null;
+  while (voices.length > 26) voices[0].kill();
+  const f = freqOf(i), pos = i / (N - 1);
+  const out = ac.createGain(); out.gain.value = 0;
+  const pan = ac.createStereoPanner();
+  pan.pan.value = ((i % cols) / (cols - 1) - .5) * .9 + (Math.random() - .5) * .1;
+  out.connect(pan); pan.connect(bus);
+  const amp = vel * (1 - .5 * pos);
+  const oscs = [];
+  function osc(type, freq, gain, detune){
+    const o = ac.createOscillator(); o.type = type; o.frequency.value = freq;
+    if (detune) o.detune.value = detune;
+    const g = ac.createGain(); g.gain.value = gain;
+    o.connect(g); oscs.push(o);
+    return g;
+  }
+  const g = out.gain;
+  let end = null, sustains = false;
+  g.setValueAtTime(0, when);
+
+  if (S.voice === 'glass'){
+    const decay = 4.4 - 2.6 * pos;
+    osc('sine', f, 1).connect(out);
+    osc('sine', f * 2, .16, 4).connect(out);
+    const shine = ac.createGain(); shine.connect(out);
+    osc('sine', f * 3.01, .1).connect(shine);
+    osc('sine', f * 4.97, .04).connect(shine);
+    shine.gain.setValueAtTime(1, when); shine.gain.setTargetAtTime(0, when, decay / 9);
+    g.linearRampToValueAtTime(.3 * amp, when + .012);
+    g.setTargetAtTime(0, when + .012, decay / 4.5);
+    end = when + decay * 1.5;
+  } else if (S.voice === 'kalimba'){
+    const decay = 2 - 1.1 * pos;
+    osc('sine', f, 1).connect(out);
+    osc('triangle', f, .22).connect(out);
+    const tine = ac.createGain(); tine.connect(out);
+    osc('sine', f * 5.95, .32).connect(tine);
+    tine.gain.setValueAtTime(1, when); tine.gain.setTargetAtTime(0, when, .03);
+    g.linearRampToValueAtTime(.38 * amp, when + .004);
+    g.setTargetAtTime(0, when + .004, decay / 5);
+    end = when + decay * 1.4;
+  } else { // pad: soft detuned saws through an opening filter
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = .4; lp.connect(out);
+    lp.frequency.setValueAtTime(Math.min(f * 1.4, 9000), when);
+    lp.frequency.linearRampToValueAtTime(Math.min(f * 4.5, 9000), when + 1.4);
+    osc('sawtooth', f, .2, -9).connect(lp);
+    osc('sawtooth', f, .2, 9).connect(lp);
+    osc('triangle', f / 2, .45).connect(lp);
+    g.linearRampToValueAtTime(.2 * amp, when + .5);
+    sustains = true;
+  }
+
+  const v = {
+    i, out, oscs, done: false,
+    release(at){
+      if (v.done || !v.sustaining) return;
+      v.sustaining = false;
+      const now = ac.currentTime;
+      if (at && at > now + .01){ g.setTargetAtTime(0, at, .9); oscs.forEach((o) => o.stop(at + 5)); return; }
+      // a finger lifting: fade from wherever the swell has got to
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(Math.max(g.value, .0001), now);
+      g.setTargetAtTime(0, now, .9);
+      oscs.forEach((o) => o.stop(now + 5));
+    },
+    kill(){
+      if (v.done) return;
+      const t = ac.currentTime;
+      g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + .05);
+      oscs.forEach((o) => { try { o.stop(t + .06); } catch (e) {} });
+      finish();
+    },
+    sustaining: sustains
+  };
+  function finish(){
+    if (v.done) return;
+    v.done = true;
+    const k = voices.indexOf(v); if (k >= 0) voices.splice(k, 1);
+  }
+  oscs.forEach((o) => o.start(when));
+  oscs[0].onended = () => { finish(); out.disconnect(); };
+  if (end) oscs.forEach((o) => o.stop(end));
+  else if (!held) v.release(when + 1.6); // a drifting or looping Pad note swells and fades on its own
+  voices.push(v);
+  return v;
+}
+
+/* ---------- pads ---------- */
+const padsEl = document.getElementById('pads');
+const pads = []; // by note index: { el, lit, nm, ring }
+let cols = 0, rows = 0;
+
+function layout(){
+  const wide = innerWidth > innerHeight;
+  const c = wide ? 5 : 4, r = wide ? 4 : 5;
+  if (c === cols && r === rows) return;
+  cols = c; rows = r;
+  padsEl.style.setProperty('--cols', cols);
+  padsEl.style.setProperty('--rows', rows);
+  // low notes bottom-left, rising to the right and upward, like a keyboard on its side
+  const order = [];
+  for (let row = rows - 1; row >= 0; row--) for (let col = 0; col < cols; col++) order.push(row * cols + col);
+  order.forEach((slot, i) => {
+    const p = pads[i];
+    p.el.style.gridRow = String(Math.floor(slot / cols) + 1);
+    p.el.style.gridColumn = String(slot % cols + 1);
+  });
+}
+for (let i = 0; i < N; i++){
+  const el = document.createElement('button');
+  el.className = 'pad';
+  el.type = 'button';
+  el.dataset.i = i;
+  el.style.setProperty('--h', hueOf(i).toFixed(1));
+  const lit = document.createElement('span'); lit.className = 'lit';
+  const nm = document.createElement('span'); nm.className = 'nm';
+  const ring = document.createElement('span'); ring.className = 'ring'; ring.hidden = true;
+  el.append(lit, nm, ring);
+  padsEl.appendChild(el);
+  pads.push({ el, lit, nm, ring });
+}
+function labelPads(){
+  pads.forEach((p, i) => { p.nm.textContent = nameOf(i); p.el.setAttribute('aria-label', nameOf(i)); });
+}
+layout(); labelPads();
+addEventListener('resize', () => { layout(); sizeSky(); });
+
+/* ---------- visuals: pad flashes and ripples on the sky ---------- */
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const sky = document.getElementById('sky'), sx = sky.getContext('2d');
+let W = 0, H = 0;
+const ripples = [];
+function sizeSky(){
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  sky.width = Math.round(W * dpr); sky.height = Math.round(H * dpr);
+  sx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+sizeSky();
+
+function flash(i, vel){
+  const p = pads[i];
+  p.lit.animate([{ opacity: Math.min(1, .45 + vel * .7) }, { opacity: 0 }],
+    { duration: reduceMotion.matches ? 500 : (S.voice === 'pad' ? 2200 : 1500), easing: 'cubic-bezier(.2,.6,.3,1)' });
+  if (reduceMotion.matches) return;
+  const r = p.el.getBoundingClientRect();
+  ripples.push({ x: r.left + r.width / 2, y: r.top + r.height / 2, h: hueOf(i), v: vel, t: 0, size: Math.max(r.width, r.height) });
+  if (ripples.length > 40) ripples.shift();
+  wake();
+}
+// Shows a note on its pad at the moment it actually sounds.
+function showAt(i, when, vel){
+  const ms = Math.max(0, (when - ac.currentTime) * 1000);
+  if (ms < 8) flash(i, vel); else setTimeout(() => flash(i, vel), ms);
+}
+
+let raf = 0, lastT = 0;
+function wake(){ if (!raf && !document.hidden) { lastT = 0; raf = requestAnimationFrame(frame); } }
+function frame(now){
+  const dt = Math.min(.05, lastT ? (now - lastT) / 1000 : 1 / 60); lastT = now;
+  sx.clearRect(0, 0, W, H);
+  sx.globalCompositeOperation = 'lighter';
+  for (let k = ripples.length - 1; k >= 0; k--){
+    const rp = ripples[k];
+    rp.t += dt;
+    const life = 3.2, u = rp.t / life;
+    if (u >= 1){ ripples.splice(k, 1); continue; }
+    const rad = rp.size * (.45 + u * 2.6);
+    const a = (1 - u) * (1 - u) * (.18 + rp.v * .22);
+    const g = sx.createRadialGradient(rp.x, rp.y, rad * .55, rp.x, rp.y, rad);
+    g.addColorStop(0, 'hsla(' + rp.h + ',90%,65%,0)');
+    g.addColorStop(.82, 'hsla(' + rp.h + ',90%,68%,' + a.toFixed(3) + ')');
+    g.addColorStop(1, 'hsla(' + rp.h + ',90%,68%,0)');
+    sx.fillStyle = g;
+    sx.beginPath(); sx.arc(rp.x, rp.y, rad, 0, 6.2832); sx.fill();
+  }
+  // loop rings sweep once per loop
+  if (ac) for (const [i, L] of loops){
+    const p = ((ac.currentTime - L.start) / L.period) % 1;
+    pads[i].ring.style.setProperty('--p', Math.max(0, p).toFixed(3));
+  }
+  if (ripples.length || loops.size) raf = requestAnimationFrame(frame);
+  else raf = 0;
+}
+
+/* ---------- playing by touch ---------- */
+const touches = new Map(); // pointerId -> { i, voice }
+let loopMode = false;
+const hint = document.getElementById('hint');
+function firstPlay(){ hint.classList.add('gone'); }
+
+function padAt(x, y){
+  const el = document.elementFromPoint(x, y);
+  const pad = el && el.closest && el.closest('.pad');
+  return pad ? +pad.dataset.i : -1;
+}
+function press(i, vel){
+  const v = noteOn(i, ac.currentTime, vel, true);
+  if (S.voice === 'pad') pads[i].el.classList.add('held');
+  flash(i, vel);
+  firstPlay();
+  return v;
+}
+function lift(t){
+  if (!t) return;
+  if (t.voice) t.voice.release();
+  if (t.i >= 0 && ![...touches.values()].some((o) => o !== t && o.i === t.i)) pads[t.i].el.classList.remove('held');
+}
+// A firmer, faster tap plays louder where the browser reports pressure; otherwise a gentle random spread.
+const velOf = (e) => e.pressure && e.pressure !== .5 && e.pointerType !== 'mouse' ? .45 + e.pressure * .55 : .62 + Math.random() * .25;
+
+padsEl.addEventListener('pointerdown', (e) => {
+  const i = padAt(e.clientX, e.clientY);
+  if (i < 0 || !ensureAudio()) return;
+  e.preventDefault();
+  if (loopMode){ toggleLoop(i); return; }
+  try { padsEl.setPointerCapture(e.pointerId); } catch (err) {}
+  touches.set(e.pointerId, { i, voice: press(i, velOf(e)) });
+});
+padsEl.addEventListener('pointermove', (e) => {
+  const t = touches.get(e.pointerId);
+  if (!t) return;
+  const i = padAt(e.clientX, e.clientY);
+  if (i === t.i) return;
+  lift(t);
+  t.i = i; t.voice = i >= 0 ? press(i, .5 + Math.random() * .25) : null;
+});
+function endTouch(e){ const t = touches.get(e.pointerId); if (t){ touches.delete(e.pointerId); lift(t); } }
+padsEl.addEventListener('pointerup', endTouch);
+padsEl.addEventListener('pointercancel', endTouch);
+padsEl.addEventListener('contextmenu', (e) => e.preventDefault());
+// keyboard: Enter or Space on a focused pad
+padsEl.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('pad')){
+    e.preventDefault();
+    if (e.repeat || !ensureAudio()) return;
+    const i = +e.target.dataset.i;
+    if (loopMode) toggleLoop(i);
+    else { const v = press(i, .7); setTimeout(() => lift({ i, voice: v }), 400); }
+  }
+});
+
+/* ---------- generative: loops and drift ---------- */
+const loops = new Map(); // note index -> { period, next, start, vel }
+const btnClear = document.getElementById('btnClear');
+function toggleLoop(i){
+  const p = pads[i];
+  if (loops.has(i)){
+    loops.delete(i);
+    p.el.classList.remove('looping'); p.ring.hidden = true;
+  } else {
+    // pick a length no other loop is using, so the loops keep shifting against each other
+    const used = new Set([...loops.values()].map((L) => L.base));
+    const free = LOOP_LENGTHS.filter((x) => !used.has(x));
+    const base = (free.length ? free : LOOP_LENGTHS)[Math.floor(Math.random() * (free.length || LOOP_LENGTHS.length))];
+    const period = base * S.loopLen / 100;
+    const now = ac.currentTime, vel = .55 + Math.random() * .2;
+    loops.set(i, { base, period, start: now, next: now + period, vel });
+    noteOn(i, now, vel, false); flash(i, vel);
+    p.el.classList.add('looping'); p.ring.hidden = false;
+    firstPlay();
+  }
+  btnClear.disabled = !loops.size;
+  updateStatus(); wake();
+}
+function clearLoops(){
+  for (const i of [...loops.keys()]) toggleLoop(i);
+}
+function rescaleLoops(){
+  if (!ac) return;
+  const now = ac.currentTime;
+  for (const L of loops.values()){
+    const p = ((now - L.start) / L.period) % 1;
+    L.period = L.base * S.loopLen / 100;
+    L.start = now - p * L.period;
+    L.next = L.start + L.period * Math.ceil((now - L.start) / L.period + 1e-6);
+  }
+}
+
+let drift = false, driftNext = 0, walk = 7;
+// Drift wanders: each beat it may play a note a small step from the last one, sometimes with a harmony.
+function driftStep(when){
+  if (Math.random() > S.density / 100) return;
+  walk += [-3, -2, -1, -1, 1, 1, 2, 3][Math.floor(Math.random() * 8)];
+  if (walk < 0) walk = 1; if (walk > N - 1) walk = N - 3;
+  if (Math.random() < .12) walk = Math.floor(Math.random() * N);
+  const vel = .35 + Math.random() * .4;
+  noteOn(walk, when, vel, false); showAt(walk, when, vel);
+  if (Math.random() < .22){
+    const j = walk + (Math.random() < .5 ? 2 : -3);
+    if (j >= 0 && j < N){ const v2 = vel * .7; noteOn(j, when + .02, v2, false); showAt(j, when + .02, v2); }
+  }
+}
+
+// Look a little ahead and schedule on the audio clock, so timing stays steady even if a frame drops.
+const AHEAD = .18;
+setInterval(() => {
+  if (!ac || ac.state !== 'running') return;
+  const now = ac.currentTime;
+  for (const [i, L] of loops){
+    while (L.next < now + AHEAD){
+      const vel = L.vel * (.85 + Math.random() * .3);
+      noteOn(i, Math.max(L.next, now), vel, false); showAt(i, Math.max(L.next, now), vel);
+      L.next += L.period;
+    }
+  }
+  if (drift){
+    if (driftNext < now) driftNext = now + .05;
+    while (driftNext < now + AHEAD){
+      driftStep(driftNext);
+      driftNext += 60 / S.tempo * (Math.random() < .15 ? 1.5 : 1); // a little swing keeps it from ticking
+    }
+  }
+}, 40);
+
+const btnDrift = document.getElementById('btnDrift'), btnLoop = document.getElementById('btnLoop');
+function setDrift(on){
+  if (on && !ensureAudio()) return;
+  drift = on;
+  btnDrift.setAttribute('aria-pressed', String(on));
+  if (on){ driftNext = ac.currentTime + .1; firstPlay(); }
+  updateStatus();
+}
+function setLoopMode(on){
+  loopMode = on;
+  btnLoop.setAttribute('aria-pressed', String(on));
+  document.body.classList.toggle('loop-mode', on);
+  hint.textContent = on ? 'Tap pads to start or stop their loops.' : 'Tap a pad. Drag across to strum.';
+  if (on) hint.classList.remove('gone');
+  else if (loops.size || drift) hint.classList.add('gone');
+  updateStatus();
+}
+btnDrift.addEventListener('click', () => setDrift(!drift));
+btnLoop.addEventListener('click', () => setLoopMode(!loopMode));
+btnClear.addEventListener('click', clearLoops);
+
+const statusEl = document.getElementById('status');
+function setStatus(t){ statusEl.textContent = t; }
+function updateStatus(){
+  const bits = [];
+  if (drift) bits.push('Drifting');
+  if (loops.size) bits.push(loops.size + (loops.size === 1 ? ' loop' : ' loops'));
+  setStatus(bits.join(' · '));
+}
+
+/* ---------- settings sheet ---------- */
+const sheet = document.getElementById('sheet'), btnPanel = document.getElementById('btnPanel');
+function openSheet(on){
+  sheet.classList.toggle('open', on);
+  document.body.classList.toggle('sheet-open', on);
+  btnPanel.setAttribute('aria-expanded', String(on));
+  if (on) document.getElementById('btnClose').focus({ preventScroll: true });
+}
+btnPanel.addEventListener('click', () => openSheet(!sheet.classList.contains('open')));
+document.getElementById('btnClose').addEventListener('click', () => { openSheet(false); btnPanel.focus(); });
+
+function seg(id, entries, key, after){
+  const box = document.getElementById(id);
+  const btns = entries.map(([value, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label;
+    b.addEventListener('click', () => { S[key] = value; save(); sync(); after && after(); });
+    box.appendChild(b);
+    return [value, b];
+  });
+  const sync = () => btns.forEach(([value, b]) => b.setAttribute('aria-pressed', String(S[key] === value)));
+  sync();
+}
+function onNotesChanged(){ voices.slice().forEach((v) => v.release && v.release()); labelPads(); }
+seg('segVoice', Object.entries(VOICES), 'voice');
+seg('segScale', Object.entries(SCALES).map(([k, v]) => [k, v.name]), 'scale', onNotesChanged);
+seg('segKey', NOTE_NAMES.map((n, k) => [k, n]), 'key', onNotesChanged);
+
+function slider(id, key, fmt, after){
+  const r = document.getElementById('r' + id), o = document.getElementById('o' + id);
+  const paint = () => {
+    r.style.setProperty('--fill', ((r.value - r.min) / (r.max - r.min) * 100) + '%');
+    o.textContent = fmt(+r.value);
+  };
+  r.value = S[key]; paint();
+  r.addEventListener('input', () => { S[key] = +r.value; paint(); save(); after && after(); });
+}
+slider('Reverb', 'reverb', (v) => v + '%', applyMix);
+slider('Echo', 'echo', (v) => v + '%', applyMix);
+slider('Volume', 'volume', (v) => v + '%', applyMix);
+slider('Tempo', 'tempo', (v) => v + ' bpm');
+slider('Density', 'density', (v) => v + '%');
+slider('LoopLen', 'loopLen', (v) => '×' + (v / 100).toFixed(2), rescaleLoops);
+
+addEventListener('keydown', (e) => {
+  if (e.target.closest && e.target.closest('input')) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'd') setDrift(!drift);
+  else if (k === 'l') setLoopMode(!loopMode);
+  else if (k === 'escape' && sheet.classList.contains('open')) { openSheet(false); btnPanel.focus(); }
+});
+
+// Pause sound while the app is in the background, and pick up again on return.
+document.addEventListener('visibilitychange', () => {
+  if (!ac) return;
+  if (document.hidden) ac.suspend();
+  else { ac.resume(); wake(); }
+});
+// iOS can interrupt audio (a call, another app); the next touch resumes it via ensureAudio().
+</script>
+</body>
+</html>

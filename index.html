@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="A home for small interactive apps: an optics bench, a fluid simulation, and whatever comes next.">
+<meta name="description" content="A home for small interactive apps: an optics bench, a fluid simulation, an ambient sound pad, and whatever comes next.">
 <meta name="theme-color" content="#1b1b1e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -80,6 +80,8 @@ body{
   background:linear-gradient(90deg,#6a00b0,#2a2aff,#00c8ff,#00ff40,#ffff00,#ff8000,#ff0000)}
 /* Resonant Ink's own wordmark */
 .label h2.t-ink{font:800 24px/1.05 "Bricolage Grotesque","Avenir Next",system-ui,sans-serif;letter-spacing:-.015em}
+/* Drift Pad's own wordmark */
+.label h2.t-pad{font:800 23px/1.05 "Syne","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
 .foot a{color:var(--muted);text-underline-offset:3px}
@@ -102,6 +104,7 @@ body{
       <ul class="shelf">
         <li><a class="tile" href="spectrum-bench.html"><div class="label"><h2>Spectrum Bench</h2></div></a></li>
         <li><a class="tile" href="resonant-ink.html"><div class="label"><h2>Resonant Ink</h2></div></a></li>
+        <li><a class="tile" href="drift-pad.html"><div class="label"><h2>Drift Pad</h2></div></a></li>
       </ul>
     </noscript>
   </main>
@@ -133,6 +136,15 @@ const APPS = [
     accent: '#9fdcff',
     titleClass: 't-ink',
     art: 'ink'
+  },
+  {
+    name: 'Drift Pad',
+    href: 'drift-pad.html',
+    blurb: 'Tap glowing pads to play soft ambient tones. Set some looping, or let it drift and play itself.',
+    ground: '#0b0a12',
+    accent: '#c9b8ff',
+    titleClass: 't-pad',
+    art: 'pad'
   }
 ];
 
@@ -350,6 +362,54 @@ ARTS.ink = {
       ctx.strokeStyle = 'hsla(' + (this.hues[i % 4] + drift + p[o + 2]) + ',95%,' + (55 + glow * 20) + '%,' + (.2 + glow * .25) + ')';
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(nx, ny); ctx.stroke();
       p[o] = nx; p[o + 1] = ny;
+    }
+  }
+};
+
+// A small grid of pads that a wandering melody lights up one by one, each note sending out a soft ripple.
+ARTS.pad = {
+  init(s, w, h){
+    s.cols = 6; s.rows = 3;
+    s.lit = new Float32Array(s.cols * s.rows);
+    s.ripples = []; s.walk = 8; s.next = .3;
+  },
+  frame(ctx, s, w, h, t, dt){
+    const { cols, rows } = s;
+    if (t > s.next || s.next - t > 5){
+      s.next = t + .42 + Math.random() * .55;
+      s.walk = Math.max(0, Math.min(cols * rows - 1, s.walk + [-2, -1, -1, 1, 1, 2, cols, -cols][Math.floor(Math.random() * 8)]));
+      s.lit[s.walk] = 1; s.ripples.push({ i: s.walk, age: 0 });
+      if (s.ripples.length > 12) s.ripples.shift();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, w, h);
+    const pad = Math.min(w, h) * .09, gap = Math.min(w, h) * .045;
+    const cw = (w - pad * 2 - gap * (cols - 1)) / cols, ch = (h - pad * 2 - gap * (rows - 1)) / rows;
+    // note index 0 is bottom-left, rising rightward then upward, as in the app
+    const cell = (i) => [pad + (i % cols) * (cw + gap), pad + (rows - 1 - Math.floor(i / cols)) * (ch + gap)];
+    const hue = (i) => 190 + 145 * i / (cols * rows - 1);
+    ctx.globalCompositeOperation = 'lighter';
+    for (const r of s.ripples){
+      r.age += dt;
+      const [x, y] = cell(r.i), cx = x + cw / 2, cy = y + ch / 2, u = r.age / 2.6;
+      if (u >= 1) continue;
+      const rad = Math.max(cw, ch) * (.5 + u * 2.4);
+      const g = ctx.createRadialGradient(cx, cy, rad * .55, cx, cy, rad);
+      g.addColorStop(0, 'hsla(' + hue(r.i) + ',90%,65%,0)');
+      g.addColorStop(.82, 'hsla(' + hue(r.i) + ',90%,68%,' + (.22 * (1 - u) * (1 - u)).toFixed(3) + ')');
+      g.addColorStop(1, 'hsla(' + hue(r.i) + ',90%,68%,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 6.2832); ctx.fill();
+    }
+    s.ripples = s.ripples.filter((r) => r.age < 2.6);
+    ctx.globalCompositeOperation = 'source-over';
+    const rr = Math.min(cw, ch) * .2;
+    for (let i = 0; i < cols * rows; i++){
+      const [x, y] = cell(i), L = s.lit[i];
+      s.lit[i] = Math.max(0, L - dt * .75);
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, cw, ch, rr) : ctx.rect(x, y, cw, ch);
+      ctx.fillStyle = '#15131f'; ctx.fill();
+      if (L > 0){ ctx.fillStyle = 'hsla(' + hue(i) + ',95%,68%,' + (L * L * .9).toFixed(3) + ')'; ctx.fill(); }
+      ctx.strokeStyle = 'hsla(' + hue(i) + ',80%,80%,' + (.1 + L * .4).toFixed(3) + ')'; ctx.lineWidth = 1; ctx.stroke();
     }
   }
 };
