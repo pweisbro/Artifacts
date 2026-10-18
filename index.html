@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Unbounded:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Big+Shoulders+Display:wght@900&family=Bowlby+One&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Silkscreen&family=Syne:wght@800&family=Unbounded:wght@700&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -84,6 +84,12 @@ body{
 .label h2.t-pad{font:800 23px/1.05 "Syne","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
 /* Gravity Wells' own wordmark */
 .label h2.t-wells{font:700 21px/1.1 "Unbounded","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
+/* Grainfall's own wordmark: pixel caps */
+.label h2.t-grain{font:400 18px/1.2 "Silkscreen",ui-monospace,Menlo,monospace;letter-spacing:.08em}
+/* Doodle Downhill's own wordmark: heavy condensed caps */
+.label h2.t-doodle{font:900 26px/1 "Big Shoulders Display","Arial Narrow",Impact,sans-serif;letter-spacing:.02em;text-transform:uppercase}
+/* Dice Roller's own wordmark */
+.label h2.t-dice{font:400 23px/1.05 "Bowlby One","Arial Black",Impact,sans-serif;letter-spacing:.01em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
 .foot a{color:var(--muted);text-underline-offset:3px}
@@ -108,6 +114,9 @@ body{
         <li><a class="tile" href="resonant-ink.html"><div class="label"><h2>Resonant Ink</h2></div></a></li>
         <li><a class="tile" href="drift-pad.html"><div class="label"><h2>Drift Pad</h2></div></a></li>
         <li><a class="tile" href="gravity-wells.html"><div class="label"><h2>Gravity Wells</h2></div></a></li>
+        <li><a class="tile" href="grainfall.html"><div class="label"><h2>Grainfall</h2></div></a></li>
+        <li><a class="tile" href="doodle-downhill.html"><div class="label"><h2>Doodle Downhill</h2></div></a></li>
+        <li><a class="tile" href="dice-roller.html"><div class="label"><h2>Dice Roller</h2></div></a></li>
       </ul>
     </noscript>
   </main>
@@ -157,6 +166,30 @@ const APPS = [
     accent: '#ffc56b',
     titleClass: 't-wells',
     art: 'wells'
+  },
+  {
+    name: 'Grainfall',
+    href: 'grainfall.html',
+    blurb: 'A falling-sand sandbox on a mint CRT in a clay bedroom. Pour sand, water, lava, fire and gunpowder, and watch them react.',
+    ground: '#2b2d55',
+    accent: '#a6e3cc',
+    titleClass: 't-grain'
+  },
+  {
+    name: 'Doodle Downhill',
+    href: 'doodle-downhill.html',
+    blurb: 'Draw a track on graph paper with road, ice, mud, boost pads and spikes, then ride it on a BMX, dirt bike, monster truck, skateboard or sled.',
+    ground: '#0e1a23',
+    accent: '#7fa3ff',
+    titleClass: 't-doodle'
+  },
+  {
+    name: 'Dice Roller',
+    href: 'dice-roller.html',
+    blurb: 'Throw a 3D die across a felt table. Pick from d4 to d100 or any number of sides, and dress it in marble, wood, metal, gem or galaxy.',
+    ground: '#0f2a25',
+    accent: '#eac56c',
+    titleClass: 't-dice'
   }
 ];
 
