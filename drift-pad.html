@@ -195,6 +195,11 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bor
   border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:.79rem;font-weight:500;cursor:pointer;
 }
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.seg.voices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.seg.voices button{min-width:0;padding:0 6px}
+.text-btn.span{grid-column:1/-1;margin-top:10px}
+.seg + .help{margin-top:8px}
+.group-label.sub{margin-top:14px;color:var(--accent);opacity:.8}
 .seg.keys{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
 .seg.keys button{min-width:0;padding:0 4px;font-family:var(--font-mono)}
 .text-btn{width:100%;height:42px;margin-top:12px;border-radius:10px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:.84rem;font-weight:500}
@@ -240,9 +245,21 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bor
   </div>
   <div class="sheet-body">
     <p class="group-label">Sound</p>
-    <div class="ctl"><span class="lbl">Voice</span><div class="seg" id="segVoice"></div></div>
+    <div class="ctl"><span class="lbl">Instrument</span><div class="seg voices" id="segVoice"></div>
+      <button class="text-btn span" id="btnCustomize">Customize this sound</button></div>
     <div class="ctl"><span class="lbl">Scale</span><div class="seg" id="segScale"></div></div>
     <div class="ctl"><span class="lbl">Key</span><div class="seg keys" id="segKey"></div></div>
+
+    <div id="customBox" hidden>
+      <p class="group-label">Custom instrument</p>
+      <div class="ctl"><span class="lbl">Start from</span><div class="seg voices" id="segFrom"></div>
+        <p class="help">Copies an instrument's settings here, to tune from.</p></div>
+      <div class="ctl"><span class="lbl">Wave</span><div class="seg" id="segWave"></div></div>
+      <div class="ctl"><span class="lbl">Overtones</span><div class="seg" id="segOt"></div>
+        <p class="help">The extra pitches that ring above each note and give it its character.</p></div>
+      <div class="ctl"><span class="lbl">Octave</span><div class="seg" id="segOct"></div></div>
+      <div id="customSliders"></div>
+    </div>
 
     <p class="group-label">Space</p>
     <div class="ctl"><label for="rReverb">Reverb</label><output id="oReverb"></output><input type="range" id="rReverb" min="0" max="100" step="1"></div>
@@ -272,10 +289,54 @@ const SCALES = {
   lydian:{ name: 'Lydian', steps: [0, 2, 4, 6, 7, 9, 11] },
   hira:  { name: 'Hirajoshi', steps: [0, 2, 3, 7, 8] }
 };
-const VOICES = { glass: 'Glass', pad: 'Pad', kalimba: 'Kalimba' };
 const N = 20; // pads: 4x5 upright, 5x4 sideways
 // Loop lengths in seconds, chosen not to line up, like tape loops of different lengths.
 const LOOP_LENGTHS = [4.7, 5.9, 7.3, 8.6, 9.7, 11.3, 12.8, 14.1, 15.7, 17.2, 19.9];
+
+/* ---------- instruments ----------
+   Every instrument is a patch: a waveform, a set of overtones ([ratio to the note, level, ring time
+   relative to the body]), an envelope, a brightness filter, an optional strike of tuned noise, and a
+   few motions (pitch drop, shimmer, vibrato). Custom is one more patch whose numbers you set. */
+const BASE_PATCH = {
+  wave: 'sine', partials: [[1, 1, 1]], octave: 0, level: .3,
+  attack: .005, decay: 2, sustain: 0, release: 1, highDamp: .5,
+  bright: 40, q: .7, fenv: 0,
+  noise: 0, ntone: 3, nq: 1.5, nDecay: .04,
+  drop: 0, dropTime: .05, detune: 0, vibDepth: 0, vibRate: 5,
+  otLevel: 1, otDecay: 1
+};
+const OVERTONES = {
+  pure:     { name: 'Pure',     partials: [[1, 1, 1]] },
+  harmonic: { name: 'Harmonic', partials: [[1, 1, 1], [2, .5, .8], [3, .33, .6], [4, .25, .5], [5, .2, .4]] },
+  hollow:   { name: 'Hollow',   partials: [[1, 1, 1], [3, .33, .6], [5, .2, .4], [7, .14, .3]] },
+  bell:     { name: 'Bell',     partials: [[1, 1, 1], [2.76, .5, .5], [5.4, .25, .3], [8.93, .12, .2]] },
+  metal:    { name: 'Metal',    partials: [[1, 1, 1], [1.48, .6, 1.2], [1.98, .5, .9], [2.42, .45, 1.1], [2.94, .3, .8], [3.67, .25, .7], [4.51, .15, .5]] }
+};
+const INSTRUMENTS = {
+  glass:    { name: 'Glass', partials: [[1, 1, 1], [2, .16, .6], [3.01, .1, .12], [4.97, .04, .1]], attack: .012, decay: 4.4, highDamp: .6, detune: 2 },
+  pad:      { name: 'Pad', wave: 'sawtooth', partials: [[1, .7, 1], [.5, .5, 1]], level: .32, attack: .5, decay: 2.5, sustain: .9, release: 3.2, bright: 3.5, q: .4, detune: 9, highDamp: .3 },
+  kalimba:  { name: 'Kalimba', partials: [[1, 1, 1], [2, .12, .5], [5.95, .32, .06]], level: .38, attack: .004, decay: 2, highDamp: .55, noise: .05, ntone: 4, nq: 2 },
+  wood:     { name: 'Wood blocks', partials: [[1, 1, 1], [2.76, .3, .5], [5.4, .12, .3]], level: .55, attack: .001, decay: .3, highDamp: .3, bright: 12, fenv: .5, noise: .35, ntone: 2.5, nq: 3, nDecay: .03, drop: 1.5, dropTime: .02 },
+  steel:    { name: 'Steel drum', partials: [[1, 1, 1], [2, .55, .7], [3, .3, .5], [4.01, .15, .35], [5.98, .06, .2]], level: .3, attack: .005, decay: 2.2, highDamp: .45, bright: 10, fenv: .6, noise: .06, ntone: 3, detune: 6, drop: .3, dropTime: .04 },
+  gong:     { name: 'Gong', partials: OVERTONES.metal.partials, octave: -1, level: .3, attack: .02, decay: 9, highDamp: .5, bright: 8, fenv: .3, noise: .12, ntone: 1.5, nq: .8, nDecay: .08, detune: 4, vibDepth: 3, vibRate: .6 },
+  bowl:     { name: 'Singing bowl', partials: [[1, 1, 1], [2.71, .45, .9], [5.1, .18, .6]], level: .3, attack: .25, decay: 10, highDamp: .5, detune: 2.5, vibDepth: 2, vibRate: 3 },
+  marimba:  { name: 'Marimba', partials: [[1, 1, 1], [4, .25, .15], [9.9, .08, .05]], level: .45, attack: .002, decay: 1.4, highDamp: .5, bright: 20, fenv: .4, noise: .1, ntone: 3, nq: 1.5, nDecay: .02 },
+  musicbox: { name: 'Music box', partials: [[1, 1, 1], [3, .12, .35], [6.1, .2, .08]], octave: 1, level: .26, attack: .002, decay: 1.8, highDamp: .45, noise: .04, ntone: 6 },
+  harp:     { name: 'Harp', wave: 'triangle', partials: [[1, 1, 1], [2, .3, .6], [3, .15, .4]], level: .38, attack: .003, decay: 3, highDamp: .5, bright: 6, fenv: .8, noise: .03, ntone: 4 },
+  choir:    { name: 'Choir', wave: 'sawtooth', partials: [[1, .8, 1]], level: .4, attack: .7, decay: 2, sustain: .85, release: 2.4, highDamp: .2, bright: 3, q: 5, detune: 12, vibDepth: 4, vibRate: 4.5 }
+};
+const VOICES = Object.assign({}, ...Object.entries(INSTRUMENTS).map(([k, v]) => ({ [k]: v.name })), { custom: 'Custom' });
+function patch(){
+  return Object.assign({}, BASE_PATCH, S.voice === 'custom' ? S.custom : INSTRUMENTS[S.voice]);
+}
+// copies an instrument into Custom, as a starting point to tune from
+function customFrom(key){
+  const p = Object.assign({}, BASE_PATCH, INSTRUMENTS[key]);
+  delete p.name;
+  p.partials = p.partials.map((x) => x.slice());
+  p.from = key; p.otSet = null;
+  return p;
+}
 
 const DEFAULTS = { voice: 'glass', scale: 'pent', key: 2, reverb: 55, echo: 30, volume: 80, tempo: 72, density: 45, loopLen: 100 };
 const STORE = 'drift-pad-v1';
@@ -283,6 +344,7 @@ const S = Object.assign({}, DEFAULTS);
 try { Object.assign(S, JSON.parse(localStorage.getItem(STORE) || '{}')); } catch (e) {}
 if (!SCALES[S.scale]) S.scale = DEFAULTS.scale;
 if (!VOICES[S.voice]) S.voice = DEFAULTS.voice;
+if (!S.custom || typeof S.custom !== 'object' || !Array.isArray(S.custom.partials)) S.custom = customFrom('glass');
 function save(){ try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
 
 // The lowest pad is the key's root, somewhere between E2 and E♭3, so every key sits in the same range.
@@ -296,7 +358,7 @@ const nameOf = (i) => { const m = midiOf(i); return NOTE_NAMES[m % 12] + (Math.f
 const hueOf = (i) => 190 + 145 * i / (N - 1);
 
 /* ---------- audio engine ---------- */
-let ac = null, bus, revSend, echoSend, master;
+let ac = null, bus, revSend, echoSend, master, noiseBuf;
 const voices = [];
 
 function impulse(seconds){
@@ -321,6 +383,8 @@ function ensureAudio(){
   // Play through the ringer switch on iPhone, like a music app.
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
   ac = new AC({ latencyHint: 'interactive' });
+  noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  { const d = noiseBuf.getChannelData(0); for (let k = 0; k < d.length; k++) d[k] = Math.random() * 2 - 1; }
 
   const comp = ac.createDynamicsCompressor();
   comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = .005; comp.release.value = .25;
@@ -358,91 +422,107 @@ function applyMix(){
   master.gain.setTargetAtTime(Math.pow(S.volume / 100, 1.6) * 1.2, t, .05);
 }
 
-// Starts one note at `when`. Held notes (Pad voice under a finger) sustain until release().
+// Starts one note at `when`, built from the current instrument's patch.
+// Instruments with sustain (Pad, Choir) hold while a finger stays down and fade on release().
 function noteOn(i, when, vel, held){
   if (!ac) return null;
   while (voices.length > 26) voices[0].kill();
-  const f = freqOf(i), pos = i / (N - 1);
+  const P = patch(), pos = i / (N - 1);
+  const f = freqOf(i) * Math.pow(2, P.octave);
   const out = ac.createGain(); out.gain.value = 0;
   const pan = ac.createStereoPanner();
   pan.pan.value = ((i % cols) / (cols - 1) - .5) * .9 + (Math.random() - .5) * .1;
   out.connect(pan); pan.connect(bus);
-  const amp = vel * (1 - .5 * pos);
-  const oscs = [];
-  function osc(type, freq, gain, detune){
-    const o = ac.createOscillator(); o.type = type; o.frequency.value = freq;
-    if (detune) o.detune.value = detune;
-    const g = ac.createGain(); g.gain.value = gain;
-    o.connect(g); oscs.push(o);
-    return g;
-  }
-  const g = out.gain;
-  let end = null, sustains = false;
-  g.setValueAtTime(0, when);
+  const amp = vel * (1 - .5 * pos) * P.level;
+  const D = Math.max(.03, P.decay * (1 - P.highDamp * pos)); // high notes ring shorter, like real ones
+  const srcs = [];
 
-  if (S.voice === 'glass'){
-    const decay = 4.4 - 2.6 * pos;
-    osc('sine', f, 1).connect(out);
-    osc('sine', f * 2, .16, 4).connect(out);
-    const shine = ac.createGain(); shine.connect(out);
-    osc('sine', f * 3.01, .1).connect(shine);
-    osc('sine', f * 4.97, .04).connect(shine);
-    shine.gain.setValueAtTime(1, when); shine.gain.setTargetAtTime(0, when, decay / 9);
-    g.linearRampToValueAtTime(.3 * amp, when + .012);
-    g.setTargetAtTime(0, when + .012, decay / 4.5);
-    end = when + decay * 1.5;
-  } else if (S.voice === 'kalimba'){
-    const decay = 2 - 1.1 * pos;
-    osc('sine', f, 1).connect(out);
-    osc('triangle', f, .22).connect(out);
-    const tine = ac.createGain(); tine.connect(out);
-    osc('sine', f * 5.95, .32).connect(tine);
-    tine.gain.setValueAtTime(1, when); tine.gain.setTargetAtTime(0, when, .03);
-    g.linearRampToValueAtTime(.38 * amp, when + .004);
-    g.setTargetAtTime(0, when + .004, decay / 5);
-    end = when + decay * 1.4;
-  } else { // pad: soft detuned saws through an opening filter
-    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = .4; lp.connect(out);
-    lp.frequency.setValueAtTime(Math.min(f * 1.4, 9000), when);
-    lp.frequency.linearRampToValueAtTime(Math.min(f * 4.5, 9000), when + 1.4);
-    osc('sawtooth', f, .2, -9).connect(lp);
-    osc('sawtooth', f, .2, 9).connect(lp);
-    osc('triangle', f / 2, .45).connect(lp);
-    g.linearRampToValueAtTime(.2 * amp, when + .5);
-    sustains = true;
+  // brightness: a lowpass that can start open and close down (the filter sweep)
+  let dest = out;
+  if (P.bright < 40){
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = P.q;
+    const cut = Math.min(f * P.bright, 18000);
+    lp.frequency.setValueAtTime(Math.min(cut * (1 + P.fenv * 6), 20000), when);
+    if (P.fenv > 0) lp.frequency.setTargetAtTime(cut, when + P.attack, Math.max(.01, D / 6));
+    lp.connect(out); dest = lp;
   }
+  let vib = null;
+  if (P.vibDepth > 0){
+    const lfo = ac.createOscillator(); lfo.frequency.value = P.vibRate;
+    vib = ac.createGain(); vib.gain.value = P.vibDepth;
+    lfo.connect(vib); srcs.push(lfo);
+  }
+  // overtones: each partial is a ratio of the note, a level, and how long it rings next to the body
+  P.partials.forEach(([ratio, gain, ring], k) => {
+    const fr = f * ratio;
+    let lv = k ? gain * P.otLevel : gain;
+    if (fr > 18000 || lv < .0005) return;
+    const pair = P.detune > 0;
+    if (pair) lv *= .55;
+    const pg = ac.createGain(); pg.gain.value = lv; pg.connect(dest);
+    const rk = k ? ring * P.otDecay : ring;
+    if (rk < .999){ pg.gain.setValueAtTime(lv, when); pg.gain.setTargetAtTime(0, when + P.attack, Math.max(.004, D * rk / 4.5)); }
+    for (const dt of pair ? [-P.detune, P.detune] : [0]){
+      const o = ac.createOscillator(); o.type = P.wave;
+      if (P.drop){ o.frequency.setValueAtTime(fr * Math.pow(2, P.drop / 12), when); o.frequency.setTargetAtTime(fr, when, Math.max(.005, P.dropTime / 3)); }
+      else o.frequency.value = fr;
+      o.detune.value = dt * (1 + k * .15);
+      if (vib) vib.connect(o.detune);
+      o.connect(pg); srcs.push(o);
+    }
+  });
+  // the strike: a short burst of tuned noise, for mallets, sticks and plucks
+  if (P.noise > 0){
+    const n = ac.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+    n.loopStart = Math.random() * .5;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = P.nq;
+    bp.frequency.value = Math.min(f * P.ntone, 16000);
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(0, when);
+    ng.gain.linearRampToValueAtTime(P.noise * amp * 4, when + .0015);
+    ng.gain.setTargetAtTime(0, when + .0015, P.nDecay / 3);
+    n.connect(bp); bp.connect(ng); ng.connect(out);
+    n.start(when, n.loopStart); n.stop(when + P.nDecay * 4 + .05);
+  }
+
+  const g = out.gain;
+  g.setValueAtTime(0, when);
+  g.linearRampToValueAtTime(amp, when + P.attack);
+  g.setTargetAtTime(amp * P.sustain, when + P.attack, D / 4.5);
+  const sustains = P.sustain > .001;
+  const relTc = Math.max(.02, P.release / 4);
+  const stopAll = (t) => srcs.forEach((o) => { try { o.stop(t); } catch (e) {} });
 
   const v = {
-    i, out, oscs, done: false,
+    i, out, done: false, sustaining: sustains,
     release(at){
       if (v.done || !v.sustaining) return;
       v.sustaining = false;
       const now = ac.currentTime;
-      if (at && at > now + .01){ g.setTargetAtTime(0, at, .9); oscs.forEach((o) => o.stop(at + 5)); return; }
+      if (at && at > now + .01){ g.setTargetAtTime(0, at, relTc); stopAll(at + relTc * 7); return; }
       // a finger lifting: fade from wherever the swell has got to
       g.cancelScheduledValues(now);
       g.setValueAtTime(Math.max(g.value, .0001), now);
-      g.setTargetAtTime(0, now, .9);
-      oscs.forEach((o) => o.stop(now + 5));
+      g.setTargetAtTime(0, now, relTc);
+      stopAll(now + relTc * 7);
     },
     kill(){
       if (v.done) return;
       const t = ac.currentTime;
       g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + .05);
-      oscs.forEach((o) => { try { o.stop(t + .06); } catch (e) {} });
+      stopAll(t + .06);
       finish();
-    },
-    sustaining: sustains
+    }
   };
   function finish(){
     if (v.done) return;
     v.done = true;
     const k = voices.indexOf(v); if (k >= 0) voices.splice(k, 1);
   }
-  oscs.forEach((o) => o.start(when));
-  oscs[0].onended = () => { finish(); out.disconnect(); };
-  if (end) oscs.forEach((o) => o.stop(end));
-  else if (!held) v.release(when + 1.6); // a drifting or looping Pad note swells and fades on its own
+  srcs.forEach((o) => o.start(when));
+  srcs[srcs.length - 1].onended = () => { finish(); out.disconnect(); };
+  if (!sustains) stopAll(when + P.attack + D * 1.5);
+  else if (!held) v.release(when + P.attack + Math.max(1.1, Math.min(D * .6, 3))); // a drifting or looping note swells and fades on its own
   voices.push(v);
   return v;
 }
@@ -503,7 +583,7 @@ sizeSky();
 function flash(i, vel){
   const p = pads[i];
   p.lit.animate([{ opacity: Math.min(1, .45 + vel * .7) }, { opacity: 0 }],
-    { duration: reduceMotion.matches ? 500 : (S.voice === 'pad' ? 2200 : 1500), easing: 'cubic-bezier(.2,.6,.3,1)' });
+    { duration: reduceMotion.matches ? 500 : (patch().sustain > 0 ? 2200 : 1500), easing: 'cubic-bezier(.2,.6,.3,1)' });
   if (reduceMotion.matches) return;
   const r = p.el.getBoundingClientRect();
   ripples.push({ x: r.left + r.width / 2, y: r.top + r.height / 2, h: hueOf(i), v: vel, t: 0, size: Math.max(r.width, r.height) });
@@ -558,7 +638,7 @@ function padAt(x, y){
 }
 function press(i, vel){
   const v = noteOn(i, ac.currentTime, vel, true);
-  if (S.voice === 'pad') pads[i].el.classList.add('held');
+  if (patch().sustain > 0) pads[i].el.classList.add('held');
   flash(i, vel);
   firstPlay();
   return v;
@@ -716,22 +796,103 @@ function openSheet(on){
 btnPanel.addEventListener('click', () => openSheet(!sheet.classList.contains('open')));
 document.getElementById('btnClose').addEventListener('click', () => { openSheet(false); btnPanel.focus(); });
 
-function seg(id, entries, key, after){
+function segBox(id, entries, get, set){
   const box = document.getElementById(id);
   const btns = entries.map(([value, label]) => {
     const b = document.createElement('button');
     b.type = 'button'; b.textContent = label;
-    b.addEventListener('click', () => { S[key] = value; save(); sync(); after && after(); });
+    b.addEventListener('click', () => { set(value); sync(); });
     box.appendChild(b);
     return [value, b];
   });
-  const sync = () => btns.forEach(([value, b]) => b.setAttribute('aria-pressed', String(S[key] === value)));
+  const sync = () => btns.forEach(([value, b]) => b.setAttribute('aria-pressed', String(get() === value)));
   sync();
+  return sync;
+}
+function seg(id, entries, key, after){
+  return segBox(id, entries, () => S[key], (value) => { S[key] = value; save(); after && after(); });
 }
 function onNotesChanged(){ voices.slice().forEach((v) => v.release && v.release()); labelPads(); }
-seg('segVoice', Object.entries(VOICES), 'voice');
+const syncVoice = seg('segVoice', Object.entries(VOICES), 'voice', syncCustomUI);
 seg('segScale', Object.entries(SCALES).map(([k, v]) => [k, v.name]), 'scale', onNotesChanged);
 seg('segKey', NOTE_NAMES.map((n, k) => [k, n]), 'key', onNotesChanged);
+
+/* ---------- custom instrument ---------- */
+const fmtTime = (s) => s < 1 ? Math.round(s * 1000) + ' ms' : s.toFixed(s < 10 ? 1 : 0) + ' s';
+const pct = (v) => Math.round(v * 100) + '%';
+// [patch key, label, min, max, log scale, format, help]
+const CUSTOM_GROUPS = [
+  ['Shape', [
+    ['attack', 'Attack', .001, 2, true, fmtTime, 'How quickly a note swells in. Short is struck, long is bowed.'],
+    ['decay', 'Ring', .05, 12, true, fmtTime, 'How long a note takes to fade.'],
+    ['sustain', 'Sustain', 0, 1, false, pct, 'Above zero, a note holds while your finger stays down.'],
+    ['release', 'Release', .05, 6, true, fmtTime, 'How long a held note takes to fade after you let go.'],
+    ['highDamp', 'High notes shorter', 0, .9, false, pct]
+  ]],
+  ['Tone', [
+    ['otLevel', 'Overtone level', 0, 2, false, pct],
+    ['otDecay', 'Overtone ring', .05, 2, true, pct, 'How long the overtones ring, next to the body of the note.'],
+    ['bright', 'Brightness', 1, 40, true, (v) => v >= 39.5 ? 'Open' : '×' + v.toFixed(1)],
+    ['q', 'Resonance', .1, 12, true, (v) => v.toFixed(1)],
+    ['fenv', 'Filter sweep', 0, 1, false, pct, 'Starts brighter and mellows as the note rings.']
+  ]],
+  ['Strike', [
+    ['noise', 'Strike', 0, 1, false, pct, 'A tap of noise at the start, like a mallet, stick or pluck.'],
+    ['ntone', 'Strike pitch', .5, 10, true, (v) => '×' + v.toFixed(1)],
+    ['nDecay', 'Strike length', .005, .3, true, fmtTime]
+  ]],
+  ['Motion', [
+    ['drop', 'Pitch drop', 0, 12, false, (v) => v.toFixed(1) + ' st', 'Each note starts sharp and falls to pitch, like a drum.'],
+    ['detune', 'Shimmer', 0, 30, false, (v) => Math.round(v) + ' ¢', 'Two slightly detuned copies that beat against each other.'],
+    ['vibDepth', 'Vibrato', 0, 40, false, (v) => Math.round(v) + ' ¢'],
+    ['vibRate', 'Vibrato speed', .2, 9, true, (v) => v.toFixed(1) + ' Hz'],
+    ['level', 'Loudness', .05, .8, false, (v) => Math.round(v / .8 * 100) + '%']
+  ]]
+];
+const customBox = document.getElementById('customBox'), btnCustomize = document.getElementById('btnCustomize');
+const customSyncs = [];
+function editCustom(){ save(); }
+customSyncs.push(segBox('segFrom', Object.entries(INSTRUMENTS).map(([k, v]) => [k, v.name]),
+  () => S.custom.from, (k) => { S.custom = customFrom(k); save(); customSyncs.forEach((f) => f()); }));
+customSyncs.push(segBox('segWave', [['sine', 'Sine'], ['triangle', 'Triangle'], ['sawtooth', 'Saw'], ['square', 'Square']],
+  () => S.custom.wave, (w) => { S.custom.wave = w; editCustom(); }));
+customSyncs.push(segBox('segOt', Object.entries(OVERTONES).map(([k, v]) => [k, v.name]),
+  () => S.custom.otSet, (k) => { S.custom.partials = OVERTONES[k].partials.map((x) => x.slice()); S.custom.otSet = k; editCustom(); }));
+customSyncs.push(segBox('segOct', [[-1, 'Down'], [0, 'Middle'], [1, 'Up']],
+  () => S.custom.octave, (o) => { S.custom.octave = o; editCustom(); }));
+
+const sliderBox = document.getElementById('customSliders');
+for (const [group, defs] of CUSTOM_GROUPS){
+  const gl = document.createElement('p'); gl.className = 'group-label sub'; gl.textContent = group;
+  sliderBox.appendChild(gl);
+  for (const [key, label, min, max, log, fmt, help] of defs){
+    const id = 'c-' + key;
+    const row = document.createElement('div'); row.className = 'ctl';
+    row.innerHTML = '<label for="' + id + '"></label><output></output><input type="range" id="' + id + '" min="0" max="1000" step="1">' + (help ? '<p class="help"></p>' : '');
+    row.querySelector('label').textContent = label;
+    if (help) row.querySelector('.help').textContent = help;
+    const r = row.querySelector('input'), o = row.querySelector('output');
+    const toVal = (u) => log ? min * Math.pow(max / min, u) : min + (max - min) * u;
+    const toPos = (v) => log ? Math.log(Math.max(min, v) / min) / Math.log(max / min) : (v - min) / (max - min);
+    const paint = () => { r.style.setProperty('--fill', (r.value / 10) + '%'); o.textContent = fmt(toVal(r.value / 1000)); };
+    const sync = () => { const v = S.custom[key] ?? BASE_PATCH[key]; r.value = Math.round(Math.min(1, Math.max(0, toPos(v))) * 1000); paint(); };
+    r.addEventListener('input', () => { S.custom[key] = toVal(r.value / 1000); paint(); editCustom(); });
+    customSyncs.push(sync);
+    sliderBox.appendChild(row);
+  }
+}
+function syncCustomUI(){
+  const custom = S.voice === 'custom';
+  customBox.hidden = !custom;
+  btnCustomize.hidden = custom;
+  if (custom) customSyncs.forEach((f) => f());
+}
+btnCustomize.addEventListener('click', () => {
+  S.custom = customFrom(S.voice); S.voice = 'custom'; save();
+  syncVoice(); syncCustomUI();
+  customBox.scrollIntoView({ behavior: reduceMotion.matches ? 'auto' : 'smooth', block: 'start' });
+});
+syncCustomUI();
 
 function slider(id, key, fmt, after){
   const r = document.getElementById('r' + id), o = document.getElementById('o' + id);
