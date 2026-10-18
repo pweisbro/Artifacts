@@ -131,6 +131,8 @@ button{font:inherit;color:inherit}
     transform:translateX(calc(100% + 48px));
   }
   .grab{display:none}
+  /* keep the dock centered in the space left of the open panel */
+  .sheet-open .dock,.sheet-open .hint{left:calc((100% - 404px) / 2)}
 }
 .sheet-head{display:flex;flex-direction:column;gap:12px;padding-top:10px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .grab{width:38px;height:4px;border-radius:4px;background:var(--track);align-self:center}
@@ -154,10 +156,10 @@ button{font:inherit;color:inherit}
 .chip:hover{border-color:var(--track)}
 .chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:3px;border-radius:12px;background:rgba(0,0,0,.28)}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:3px;border-radius:12px;background:rgba(0,0,0,.28)}
 .tab{
   height:34px;border:0;border-radius:9px;background:transparent;cursor:pointer;
-  font-size:.82rem;font-weight:600;color:var(--muted);letter-spacing:.01em;
+  font-size:.8rem;font-weight:600;color:var(--muted);letter-spacing:.01em;
 }
 .tab[aria-selected="true"]{background:rgba(255,255,255,.09);color:var(--text)}
 
@@ -236,6 +238,43 @@ input[type=color]::-moz-color-swatch{border:0;border-radius:6px}
 .fatal p{max-width:34ch;line-height:1.5;color:var(--muted)}
 .fatal h2{font-family:var(--font-display);margin:0 0 8px}
 
+/* Presets pane */
+.save-row{display:flex;gap:8px;margin-top:8px}
+.save-row input{flex:1;min-width:0;height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--text);font:500 16px var(--font-body);-webkit-user-select:text;user-select:text}
+.solid{flex:none;height:42px;padding:0 18px;border-radius:10px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:.86rem;cursor:pointer}
+.solid:disabled{opacity:.6;cursor:default}
+.rows{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.prow{display:flex;align-items:center;gap:4px}
+.prow-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:7px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.03);cursor:pointer;text-align:left;color:var(--text)}
+.prow-main:hover{border-color:var(--track)}
+.prow-main[aria-current="true"]{border-color:var(--accent);background:rgba(255,255,255,.06)}
+.pthumb{width:54px;height:36px;flex:none;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.prow-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.prow-name{font-size:.88rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow-meta{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.del{flex:none;width:42px;height:42px;border-radius:10px;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;font-size:.8rem;font-weight:600}
+.del:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.del svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.del.arm{width:auto;padding:0 12px;background:rgba(255,120,100,.16);color:#ff9d8c}
+.empty{padding:14px;border-radius:12px;border:1px dashed var(--line);font-size:.8rem;line-height:1.45;color:var(--muted);text-align:center}
+.code-box{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.code-box .lbl{font-size:.87rem;font-weight:500;margin-top:4px}
+.code-box textarea{width:100%;min-height:76px;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--text);font:400 16px/1.4 var(--font-mono);word-break:break-all;-webkit-user-select:text;user-select:text}
+.btn-row{display:flex;gap:8px}
+.btn-row > *{flex:1;min-width:0}
+.text-btn.wide{width:100%;height:42px}
+.chip-sep{flex:0 0 auto;width:1px;margin:6px 3px;background:var(--line)}
+.toast{
+  position:fixed;z-index:30;left:50%;transform:translateX(-50%);
+  top:calc(12px + env(safe-area-inset-top, 0px));
+  display:flex;align-items:center;gap:4px;max-width:calc(100% - 32px);
+  padding:6px 6px 6px 14px;border-radius:12px;
+  background:rgba(20,21,30,.96);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.45);font-size:.86rem;
+}
+.toast span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toast button{flex:none;border:0;background:transparent;color:var(--accent);font-weight:600;font-size:.84rem;padding:8px 10px;border-radius:8px;cursor:pointer}
+.toast button:hover{background:rgba(255,255,255,.06)}
+
 @media (prefers-reduced-motion: reduce){
   .sheet,.dock,.hint,.brand{transition:none}
 }
@@ -298,6 +337,7 @@ input[type=color]::-moz-color-swatch{border:0;border-radius:6px}
       <button class="tab" role="tab" id="tab-color" aria-controls="pane-color" aria-selected="false">Color</button>
       <button class="tab" role="tab" id="tab-audio" aria-controls="pane-audio" aria-selected="false">Audio</button>
       <button class="tab" role="tab" id="tab-touch" aria-controls="pane-touch" aria-selected="false">Touch</button>
+      <button class="tab" role="tab" id="tab-presets" aria-controls="pane-presets" aria-selected="false">Presets</button>
     </div>
   </header>
   <div class="sheet-body" id="sheetBody">
@@ -338,8 +378,36 @@ input[type=color]::-moz-color-swatch{border:0;border-radius:6px}
       <div id="audioCtls"></div>
     </div>
     <div class="pane" id="pane-touch" role="tabpanel" aria-labelledby="tab-touch" hidden></div>
+    <div class="pane" id="pane-presets" role="tabpanel" aria-labelledby="tab-presets" hidden>
+      <form id="libSave" autocomplete="off">
+        <p class="group-label"><label for="libName">Save current settings</label></p>
+        <div class="save-row">
+          <input type="text" id="libName" maxlength="40" spellcheck="false" autocapitalize="words" placeholder="Name this look">
+          <button type="submit" class="solid" id="libSaveBtn">Save</button>
+        </div>
+        <p class="note" id="libStatus">Connecting to your saved presets…</p>
+      </form>
+      <p class="group-label">My presets <span id="libCount"></span></p>
+      <div class="rows" id="libMine"></div>
+      <p class="group-label">Built-in</p>
+      <div class="rows" id="libBuiltin"></div>
+      <p class="group-label">Preset codes</p>
+      <p class="note">A code holds every setting, audio included, as one line of text. Send it to a friend, or paste one from another copy of Resonant Ink.</p>
+      <div class="code-box">
+        <div class="btn-row">
+          <button type="button" class="text-btn wide" id="libCopy">Copy code</button>
+          <button type="button" class="text-btn wide" id="libShare" hidden>Share…</button>
+        </div>
+        <label class="lbl" for="libCode">Paste a code</label>
+        <textarea id="libCode" rows="3" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="RI1:…"></textarea>
+        <button type="button" class="text-btn wide" id="libLoadCode">Load code</button>
+        <p class="note" id="libCodeMsg" hidden></p>
+      </div>
+    </div>
   </div>
 </section>
+
+<div class="toast" id="toast" role="status" hidden><span id="toastMsg"></span><button type="button" id="toastUndo">Undo</button></div>
 
 <div class="fatal" id="fatal" hidden>
   <div>
@@ -367,6 +435,8 @@ const VISUAL_DEFAULTS = {
   shading: true, bloom: true, bloomIntensity: 0.8, bloomThreshold: 0.6,
   hueSpin: 0, saturation: 1, exposure: 1, posterize: 0,
   splatRadius: 0.25, splatForce: 6000, symmetry: 'off', tapBurst: true,
+  timeScale: 1, buoyancy: 0, whirlpool: 0, turbulence: 0, turbScale: 3, autoStir: 0,
+  colorJitter: 0, colorMap: 'dye', speedGlow: 0, chroma: 0, vignette: 0, brushMode: 'both',
 };
 const AUDIO_DEFAULTS = {
   bandLow: 40, bandHigh: 140, sensitivity: 0.6, autoGain: true, react: 'burst',
@@ -397,8 +467,27 @@ const PRESETS = {
   Silk: { palette: 'aurora', vorticity: 0, velDiss: 0.05, dyeDiss: 0.35, bloomIntensity: 0.5, splatRadius: 0.2 },
   Galaxy: { palette: 'sunset', vorticity: 50, symmetry: '6', hueSpin: 0.06, bloomIntensity: 1.1, dyeDiss: 0.6 },
   Toon: { palette: 'rainbow', posterize: 4, shading: false, bloom: false, vorticity: 25, saturation: 1.3, dyeAmount: 1.5 },
+  Ember: { palette: 'fire', colorMap: 'heat', buoyancy: 0.5, turbulence: 0.15, vorticity: 20, dyeDiss: 0.8, velDiss: 0.4, shading: false, bloomIntensity: 1, bloomThreshold: 0.35, splatRadius: 0.35 },
+  Maelstrom: { palette: 'ocean', whirlpool: 0.6, vorticity: 35, dyeDiss: 0.4, velDiss: 0.3, speedGlow: 0.5, bloomIntensity: 0.9, vignette: 0.4 },
+  Drift: { palette: 'aurora', turbulence: 0.5, turbScale: 3, autoStir: 0.4, vorticity: 15, dyeDiss: 0.5, velDiss: 0.6, timeScale: 0.7, bloomIntensity: 0.7 },
+  Prism: { palette: 'rainbow', colorMap: 'flow', chroma: 0.6, speedGlow: 0.4, vorticity: 30, bloomIntensity: 1 },
+};
+const BLURBS = {
+  Classic: 'Rainbow dye, glow and shading.',
+  Ink: 'Blue ink spreading on pale paper.',
+  Smoke: 'Slow, soft, nearly colorless wisps.',
+  Lava: 'Thick and slow, in fire colors.',
+  Neon: 'Fast curls with heavy bloom.',
+  Silk: 'Smooth ribbons that never curl.',
+  Galaxy: 'Six-way kaleidoscope with drifting hue.',
+  Toon: 'Flat cel-shaded color bands.',
+  Ember: 'Dye rises like heat and glows by density.',
+  Maelstrom: 'A whirlpool spins the whole tank.',
+  Drift: 'Stirs itself. Good for leaving on a screen.',
+  Prism: 'Colored by flow direction, with chromatic fringes.',
 };
 let activePreset = null;
+let activeName = '';
 
 /* ------------------------------------------------------------------ */
 /* Color                                                               */
@@ -672,12 +761,80 @@ const SRC = {
       vec4 sum = texture2D(uTexture, vL) + texture2D(uTexture, vR) + texture2D(uTexture, vT) + texture2D(uTexture, vB);
       gl_FragColor = sum * 0.25;
     }`,
+  forces: `
+    precision highp float; precision highp sampler2D;
+    varying vec2 vUv;
+    uniform sampler2D uVelocity, uDye;
+    uniform float dt, buoyancy, whirl, turb, turbScale, time, aspect;
+    float hash (vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vnoise (vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+    }
+    float field (vec2 p) {
+      return vnoise(p + vec2(time * 0.13, time * 0.07)) + 0.5 * vnoise(p * 2.03 + vec2(-time * 0.11, time * 0.17) + 7.1);
+    }
+    void main () {
+      vec2 vel = texture2D(uVelocity, vUv).xy;
+      vec2 p = (vUv - 0.5) * vec2(aspect, 1.0);
+      vec2 f = vec2(0.0);
+      if (buoyancy != 0.0) {
+        vec3 d = texture2D(uDye, vUv).rgb;
+        f.y += buoyancy * min(max(d.r, max(d.g, d.b)), 2.0);
+      }
+      if (whirl != 0.0) {
+        float r = length(p);
+        f += whirl * vec2(-p.y, p.x) * (1.0 - smoothstep(0.15, 0.75, r));
+      }
+      if (turb > 0.0) {
+        // curl of an animated noise field: divergence-free, so the pressure solve keeps all of it
+        vec2 q = p * turbScale;
+        float e = 0.04;
+        float n1 = field(q + vec2(0.0, e)), n2 = field(q - vec2(0.0, e));
+        float n3 = field(q + vec2(e, 0.0)), n4 = field(q - vec2(e, 0.0));
+        f += turb * vec2(n1 - n2, n4 - n3) / (2.0 * e);
+      }
+      gl_FragColor = vec4(vel + f * dt, 0.0, 1.0);
+    }`,
+  colorize: `
+    precision highp float; precision highp sampler2D;
+    varying vec2 vUv;
+    uniform sampler2D uTexture, uVelocity;
+    uniform float uMap, uGlow, uChroma;
+    vec3 hsv2rgb (vec3 c) {
+      vec3 p = abs(fract(c.xxx + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+      return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+    }
+    void main () {
+      vec2 vel = texture2D(uVelocity, vUv).xy;
+      vec3 c;
+      if (uChroma > 0.001) {
+        vec2 off = vel * uChroma * 0.00006;
+        c = vec3(texture2D(uTexture, vUv - off).r, texture2D(uTexture, vUv).g, texture2D(uTexture, vUv + off).b);
+      } else {
+        c = texture2D(uTexture, vUv).rgb;
+      }
+      float d = max(c.r, max(c.g, c.b));
+      if (uMap > 2.5) {        // flow: hue from the direction the fluid is moving
+        float a = atan(vel.y, vel.x + 1e-6) / 6.2831853 + 0.5;
+        c = hsv2rgb(vec3(a, 0.85, 1.0)) * min(d * 1.4, 1.2);
+      } else if (uMap > 1.5) { // spectral: density contours in rainbow bands
+        c = hsv2rgb(vec3(fract(d * 0.9), 0.9, 1.0)) * min(d * 2.5, 1.0);
+      } else if (uMap > 0.5) { // heat: black, red, yellow, white by density
+        float x = d * 1.1;
+        c = vec3(smoothstep(0.0, 0.35, x), smoothstep(0.22, 0.7, x), smoothstep(0.55, 1.25, x)) * (1.0 + max(x - 1.0, 0.0));
+      }
+      float speed = length(vel) / 300.0;
+      c *= 1.0 + uGlow * min(speed, 2.0) * 1.6;
+      gl_FragColor = vec4(c, 1.0);
+    }`,
   display: `
     precision highp float; precision highp sampler2D;
     varying vec2 vUv, vL, vR, vT, vB;
     uniform sampler2D uTexture, uBloom;
     uniform vec2 texelSize;
-    uniform float uShading, uBloomIntensity, uHue, uSaturation, uExposure, uPosterize, uInk;
+    uniform float uShading, uBloomIntensity, uHue, uSaturation, uExposure, uPosterize, uInk, uVignette, uAspect;
     uniform vec3 uBg;
     vec3 hueRotate (vec3 c, float a) {
       const vec3 k = vec3(0.57735);
@@ -710,6 +867,11 @@ const SRC = {
       } else {
         float a = clamp(max(c.r, max(c.g, c.b)), 0.0, 1.0);
         col = c + uBg * (1.0 - a);
+      }
+      if (uVignette > 0.001) {
+        vec2 q = (vUv - 0.5) * vec2(uAspect, 1.0);
+        float r = length(q) / (0.5 * length(vec2(uAspect, 1.0)));
+        col *= 1.0 - uVignette * smoothstep(0.35, 1.0, r);
       }
       gl_FragColor = vec4(col, 1.0);
     }`,
@@ -749,6 +911,8 @@ const prog = {
   pressure: program(SRC.pressure),
   gradient: program(SRC.gradient),
   diffuse: program(SRC.diffuse),
+  forces: program(SRC.forces),
+  colorize: program(SRC.colorize),
   bloomPrefilter: program(SRC.bloomPrefilter),
   bloomBlur: program(SRC.bloomBlur),
   display: program(SRC.display),
@@ -841,7 +1005,7 @@ function getResolution(res) {
   return gl.drawingBufferWidth > gl.drawingBufferHeight ? { w: max, h: min } : { w: min, h: max };
 }
 
-let dye, velocity, divergence, curl, pressure, velTemp, dyeTemp, bloom, bloomChain = [];
+let dye, velocity, divergence, curl, pressure, velTemp, dyeTemp, mapped, bloom, bloomChain = [];
 function initFramebuffers() {
   const sim = getResolution(SIM_RES[P.quality] || 128);
   const dr = getResolution(DYE_RES[P.quality] || 1024);
@@ -849,12 +1013,12 @@ function initFramebuffers() {
   gl.disable(gl.BLEND);
   dye = dye ? resizeDouble(dye, dr.w, dr.h, ext.rgba, lin) : createDouble(dr.w, dr.h, ext.rgba, lin);
   velocity = velocity ? resizeDouble(velocity, sim.w, sim.h, ext.rg, lin) : createDouble(sim.w, sim.h, ext.rg, lin);
-  [divergence, curl, velTemp, dyeTemp].forEach(destroyFBO);
+  [divergence, curl, velTemp, dyeTemp, mapped].forEach(destroyFBO);
   if (pressure) { destroyFBO(pressure.read); destroyFBO(pressure.write); }
   divergence = createFBO(sim.w, sim.h, ext.r, gl.NEAREST);
   curl = createFBO(sim.w, sim.h, ext.r, gl.NEAREST);
   pressure = createDouble(sim.w, sim.h, ext.r, gl.NEAREST);
-  velTemp = null; dyeTemp = null;
+  velTemp = null; dyeTemp = null; mapped = null;
   initBloom();
 }
 function initBloom() {
@@ -896,6 +1060,21 @@ function step(dt) {
   gl.uniform1f(prog.vorticity.u.curl, P.vorticity);
   gl.uniform1f(prog.vorticity.u.dt, dt);
   blit(velocity.write); velocity.swap();
+
+  if (P.buoyancy !== 0 || P.whirlpool !== 0 || P.turbulence > 0) {
+    const fp = prog.forces;
+    fp.bind();
+    gl.uniform1i(fp.u.uVelocity, velocity.read.attach(0));
+    gl.uniform1i(fp.u.uDye, dye.read.attach(1));
+    gl.uniform1f(fp.u.dt, dt);
+    gl.uniform1f(fp.u.buoyancy, P.buoyancy * 420);
+    gl.uniform1f(fp.u.whirl, P.whirlpool * 260);
+    gl.uniform1f(fp.u.turb, P.turbulence * 110);
+    gl.uniform1f(fp.u.turbScale, P.turbScale);
+    gl.uniform1f(fp.u.time, simTime);
+    gl.uniform1f(fp.u.aspect, canvas.width / canvas.height);
+    blit(velocity.write); velocity.swap();
+  }
 
   prog.divergence.bind();
   gl.uniform2f(prog.divergence.u.texelSize, vx, vy);
@@ -1052,15 +1231,31 @@ function applyBloom(source, dest) {
   blit(dest);
 }
 
-let hueAngle = 0;
+let hueAngle = 0, simTime = 0;
+const MAPS = ['dye', 'heat', 'spectral', 'flow'];
+// Color map, speed glow and chromatic split are drawn into their own texture so bloom picks them up too.
+function colorize() {
+  if (!mapped) mapped = createFBO(dye.width, dye.height, ext.rgba, ext.linear ? gl.LINEAR : gl.NEAREST);
+  const c = prog.colorize;
+  c.bind();
+  gl.uniform1i(c.u.uTexture, dye.read.attach(0));
+  gl.uniform1i(c.u.uVelocity, velocity.read.attach(1));
+  gl.uniform1f(c.u.uMap, Math.max(0, MAPS.indexOf(P.colorMap)));
+  gl.uniform1f(c.u.uGlow, P.speedGlow);
+  gl.uniform1f(c.u.uChroma, P.chroma);
+  blit(mapped);
+  return mapped;
+}
 function render(dt) {
-  if (P.bloom) applyBloom(dye.read, bloom);
+  gl.disable(gl.BLEND);
+  const src = (P.colorMap !== 'dye' || P.speedGlow > 0.001 || P.chroma > 0.001) ? colorize() : dye.read;
+  if (P.bloom) applyBloom(src, bloom);
   gl.disable(gl.BLEND);
   hueAngle = (hueAngle + P.hueSpin * TAU * dt) % TAU;
   const d = prog.display;
   d.bind();
   gl.uniform2f(d.u.texelSize, dye.texelSizeX, dye.texelSizeY);
-  gl.uniform1i(d.u.uTexture, dye.read.attach(0));
+  gl.uniform1i(d.u.uTexture, src.attach(0));
   gl.uniform1i(d.u.uBloom, bloom.attach(1));
   gl.uniform1f(d.u.uShading, P.shading ? 1 : 0);
   gl.uniform1f(d.u.uBloomIntensity, P.bloom ? P.bloomIntensity : 0);
@@ -1069,6 +1264,8 @@ function render(dt) {
   gl.uniform1f(d.u.uExposure, P.exposure);
   gl.uniform1f(d.u.uPosterize, P.posterize);
   gl.uniform1f(d.u.uInk, P.blend === 'ink' ? 1 : 0);
+  gl.uniform1f(d.u.uVignette, P.vignette);
+  gl.uniform1f(d.u.uAspect, canvas.width / canvas.height);
   const bg = hexToRgb(P.bg);
   gl.uniform3f(d.u.uBg, bg.r, bg.g, bg.b);
   blit(null);
@@ -1084,14 +1281,14 @@ function uv(e) {
   const r = canvas.getBoundingClientRect();
   return [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height];
 }
-function pointerColor(p) { return paletteColor(colorClock + p.idx * 0.17); }
+function pointerColor(p) { return paletteColor(colorClock + p.idx * 0.17 + p.jit); }
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
   const [x, y] = uv(e);
-  const p = { x, y, dx: 0, dy: 0, moved: false, idx: pointerSeq++, t0: performance.now(), travel: 0 };
+  const p = { x, y, dx: 0, dy: 0, moved: false, idx: pointerSeq++, t0: performance.now(), travel: 0, jit: 0 };
   pointers.set(e.pointerId, p);
-  emit(x, y, 0, 0, scaleColor(pointerColor(p), 0.35 * P.dyeAmount), 0.8);
+  if (P.brushMode !== 'stir') emit(x, y, 0, 0, scaleColor(pointerColor(p), 0.35 * P.dyeAmount), 0.8);
   dismissHint();
   requestWakeLock();
 });
@@ -1122,9 +1319,29 @@ function applyPointers() {
   for (const p of pointers.values()) {
     if (!p.moved) continue;
     p.moved = false;
-    const c = scaleColor(pointerColor(p), 0.18 * P.dyeAmount);
-    emit(p.x, p.y, p.dx * P.splatForce, p.dy * P.splatForce, c);
+    if (P.colorJitter > 0) p.jit = (p.jit + (Math.random() - 0.5) * P.colorJitter * 0.5) % 1;
+    const ink = P.brushMode !== 'stir', push = P.brushMode !== 'ink';
+    const c = ink ? scaleColor(pointerColor(p), 0.18 * P.dyeAmount) : null;
+    emit(p.x, p.y, push ? p.dx * P.splatForce : 0, push ? p.dy * P.splatForce : 0, c);
     p.dx = 0; p.dy = 0;
+  }
+}
+
+// Auto stir: two invisible stirrers wander the tank on their own.
+const stirrers = [];
+function autoStir(dt) {
+  if (P.autoStir <= 0 || paused) return;
+  const k = dt * 60;
+  for (let i = 0; i < 2; i++) {
+    const s = stirrers[i] || (stirrers[i] = { x: 0.3 + 0.4 * Math.random(), y: 0.3 + 0.4 * Math.random(), a: Math.random() * TAU });
+    s.a += ((Math.random() - 0.5) * 2.4 + Math.sin(simTime * 0.7 + i * 2.1) * 0.9) * dt;
+    s.x += Math.cos(s.a) * 0.16 * dt;
+    s.y += Math.sin(s.a) * 0.16 * dt;
+    if (s.x < 0.1 || s.x > 0.9) { s.a = Math.PI - s.a; s.x = clamp(s.x, 0.1, 0.9); }
+    if (s.y < 0.1 || s.y > 0.9) { s.a = -s.a; s.y = clamp(s.y, 0.1, 0.9); }
+    const v = 70 * P.autoStir * k;
+    const c = P.brushMode === 'stir' ? null : scaleColor(paletteColor(colorClock + 0.5 * i + 0.25), 0.07 * P.autoStir * P.dyeAmount * k);
+    emit(s.x, s.y, Math.cos(s.a) * v, Math.sin(s.a) * v, c);
   }
 }
 
@@ -1303,7 +1520,9 @@ $('#srcMic').addEventListener('click', async () => {
     audioNote('Listening to the microphone. Nothing is recorded or sent anywhere.');
     updateAudioUI();
   } catch (err) {
-    audioNote('The microphone is blocked in this view. Load a song file or play the demo beat instead.', true);
+    audioNote(inClaude
+      ? 'The microphone isn\'t available inside Claude. Load a song or play the demo beat, or open the GitHub copy of Resonant Ink.'
+      : 'Couldn\'t open the microphone. Allow microphone access for this page, or load a song file instead.', true);
   }
 });
 
@@ -1357,7 +1576,7 @@ function spotPos(i, n) {
   return [0.14 + 0.72 * Math.random(), 0.14 + 0.72 * Math.random()];
 }
 function spotColor(i, k) {
-  const c = P.audioColor === 'pitch' ? pitchColor(A.domHz) : paletteColor(colorClock + i * 0.21);
+  const c = P.audioColor === 'pitch' ? pitchColor(A.domHz) : paletteColor(colorClock + i * 0.21 + Math.random() * P.colorJitter * 0.5);
   return scaleColor(c, k * P.dyeAmount);
 }
 function audioUpdate(dt, now) {
@@ -1514,6 +1733,13 @@ const CONTROLS = {
     { k: 'vorticity', label: 'Vorticity', min: 0, max: 60, step: 1, fmt: fx.n0, help: 'Vorticity confinement. Feeds energy back into small eddies so curls keep spinning.' },
     { k: 'velDiss', label: 'Velocity damping', min: 0, max: 4, step: 0.05, fmt: fx.rate, help: 'How fast motion dies out on its own.' },
     { k: 'viscosity', label: 'Viscosity', min: 0, max: 1, step: 0.01, fmt: fx.n2, help: 'Thickness. High values move like honey or lava.' },
+    { k: 'timeScale', label: 'Time speed', min: 0.1, max: 2, step: 0.05, fmt: fx.mult, help: 'Slow motion below 1×, fast forward above. Touch and audio still respond instantly.' },
+    { group: 'Forces' },
+    { k: 'buoyancy', label: 'Buoyancy', min: -1, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : v > 0 ? `rises ${v.toFixed(2)}` : `sinks ${(-v).toFixed(2)}`), help: 'Dense dye floats up like smoke or sinks like syrup.' },
+    { k: 'whirlpool', label: 'Whirlpool', min: -1, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : `${v > 0 ? '↺' : '↻'} ${Math.abs(v).toFixed(2)}`), help: 'Spins the whole tank around the center. Left of zero turns clockwise.' },
+    { k: 'turbulence', label: 'Turbulence', min: 0, max: 1, step: 0.01, fmt: fx.n2, help: 'A slowly shifting field of eddies that keeps the fluid moving.' },
+    { k: 'turbScale', label: 'Turbulence scale', min: 1, max: 10, step: 0.5, fmt: (v) => `${v.toFixed(1)} eddies`, help: 'How many eddies fit across the short side. Fewer means bigger swirls.' },
+    { k: 'autoStir', label: 'Auto stir', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Two invisible stirrers wander the tank so it keeps moving on its own.' },
     { group: 'Dye' },
     { k: 'dyeAmount', label: 'Dye density', min: 0.1, max: 3, step: 0.05, fmt: fx.mult, help: 'How much pigment each stroke and spot drops in.' },
     { k: 'dyeDiss', label: 'Dye fade', min: 0, max: 4, step: 0.05, fmt: fx.rate, help: 'At zero the dye never fades and the tank fills up.' },
@@ -1521,13 +1747,18 @@ const CONTROLS = {
     { group: 'Solver' },
     { k: 'pressure', label: 'Pressure carry-over', min: 0, max: 1, step: 0.01, fmt: fx.pct, help: 'How much of last frame\'s pressure seeds the next solve. Higher feels bouncier.' },
     { k: 'pressureIters', label: 'Pressure iterations', min: 4, max: 50, step: 1, fmt: fx.n0, help: 'Jacobi passes per frame. More is more incompressible and slower.' },
-    { k: 'quality', label: 'Grid resolution', type: 'seg', options: [['low', 'Low'], ['med', 'Medium'], ['high', 'High']], help: 'Velocity grid 64 / 128 / 256 cells, dye 512 / 1024 / 1440 px on the short side.' },
+    { k: 'quality', label: 'Grid resolution', type: 'seg', options: [['low', 'Low'], ['med', 'Medium'], ['high', 'High']], help: 'Velocity grid 64 / 128 / 256 cells, dye 512 / 1024 / 1440 px on the short side. Saved per device, not in presets.' },
   ],
   color: [
     { group: 'Dye color' },
     { k: 'palette', label: 'Palette', type: 'seg', options: Object.keys(PALETTES).map((k) => [k, PALETTES[k].name]), swatch: true },
     { k: 'monoColor', label: 'Mono color', type: 'color' },
     { k: 'cycleSpeed', label: 'Color cycle', min: 0, max: 5, step: 0.05, fmt: fx.mult, help: 'How quickly new strokes walk through the palette.' },
+    { k: 'colorJitter', label: 'Color jitter', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Scatters each stroke and spot across nearby palette colors.' },
+    { group: 'Color map' },
+    { k: 'colorMap', label: 'Map', type: 'seg', options: [['dye', 'Dye'], ['heat', 'Heat'], ['spectral', 'Spectral'], ['flow', 'Flow']], help: 'Dye shows the colors you put in. Heat and Spectral recolor by density, Flow by the direction the fluid moves.' },
+    { k: 'speedGlow', label: 'Speed glow', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Fast-moving fluid lights up.' },
+    { k: 'chroma', label: 'Chromatic split', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Pulls red and blue apart along the flow for rainbow fringes.' },
     { group: 'Ground' },
     { k: 'blend', label: 'Blend', type: 'seg', options: [['glow', 'Glow (light on dark)'], ['ink', 'Ink (absorbs light)']] },
     { k: 'bg', label: 'Background', type: 'color' },
@@ -1540,9 +1771,11 @@ const CONTROLS = {
     { k: 'saturation', label: 'Saturation', min: 0, max: 2, step: 0.01, fmt: fx.pct },
     { k: 'exposure', label: 'Exposure', min: 0.2, max: 3, step: 0.05, fmt: fx.mult },
     { k: 'posterize', label: 'Posterize', min: 0, max: 12, step: 1, fmt: (v) => (v === 0 ? 'off' : `${v} bands`), help: 'Quantizes color into flat cel-shaded bands.' },
+    { k: 'vignette', label: 'Vignette', min: 0, max: 1, step: 0.01, fmt: (v) => (v === 0 ? 'off' : fx.pct(v)), help: 'Darkens the corners to frame the tank.' },
   ],
   touch: [
     { group: 'Brush' },
+    { k: 'brushMode', label: 'Brush does', type: 'seg', options: [['both', 'Stir + dye'], ['ink', 'Dye only'], ['stir', 'Stir only']], help: 'Dye only paints without pushing. Stir only moves what is already there.' },
     { k: 'splatRadius', label: 'Brush size', min: 0.03, max: 1, step: 0.01, fmt: fx.n2 },
     { k: 'splatForce', label: 'Stir force', min: 500, max: 20000, step: 100, fmt: fx.n0 },
     { k: 'tapBurst', label: 'Tap to burst', type: 'toggle', help: 'A quick tap blows a ring outward from your finger.' },
@@ -1654,25 +1887,379 @@ const bandBtns = BAND_PRESETS.map(([name, lo, hi]) => {
 });
 syncers.push(() => bandBtns.forEach(({ b, lo, hi }) => b.setAttribute('aria-pressed', P.bandLow === lo && P.bandHigh === hi)));
 
+const presetsRow = $('#presets');
 const presetBtns = Object.keys(PRESETS).map((name) => {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'chip';
   b.textContent = name;
+  b.dataset.tag = name;
   b.addEventListener('click', () => applyPreset(name));
-  $('#presets').appendChild(b);
+  presetsRow.appendChild(b);
   return b;
 });
-syncers.push(() => presetBtns.forEach((b) => b.setAttribute('aria-pressed', b.textContent === activePreset)));
+const chipSep = document.createElement('span');
+chipSep.className = 'chip-sep';
+chipSep.hidden = true;
+chipSep.setAttribute('aria-hidden', 'true');
+presetsRow.appendChild(chipSep);
+let savedChips = [];
+function syncChips() {
+  presetBtns.concat(savedChips).forEach((b) => b.setAttribute('aria-pressed', b.dataset.tag === activePreset));
+  document.querySelectorAll('.prow-main[data-tag]').forEach((b) => b.setAttribute('aria-current', b.dataset.tag === activePreset));
+}
+syncers.push(syncChips);
 
+// Built-in presets change only the look; your audio settings stay as they are.
 function applyPreset(name) {
   const prevQuality = P.quality;
   Object.assign(P, VISUAL_DEFAULTS, { quality: prevQuality }, PRESETS[name]);
   activePreset = name;
+  activeName = '';
   syncAll(); save(); onLookChange();
   randomSplats(5);
 }
 $('#btnReset').addEventListener('click', () => applyPreset('Classic'));
+
+/* ------------------------------------------------------------------ */
+/* Saved presets and preset codes (the same approach as Spectrum Bench) */
+/* ------------------------------------------------------------------ */
+// With Claude's page storage: one private document per preset under this viewer's own data/users/<id>/ collection.
+// Without it (the GitHub copy, or signed out): this browser's localStorage.
+const inClaude = !!(window.claude && typeof window.claude.use === 'function');
+const PRESET_KEYS = Object.keys(DEFAULTS).filter((k) => k !== 'quality' && k !== 'monitor');
+const SPEC = {};
+for (const tab in CONTROLS) for (const c of CONTROLS[tab]) if (c.k) SPEC[c.k] = c;
+function presetBase() {
+  const b = {};
+  for (const k of PRESET_KEYS) b[k] = DEFAULTS[k];
+  return b;
+}
+function currentSettings() {
+  const o = {};
+  for (const k of PRESET_KEYS) o[k] = P[k];
+  return o;
+}
+// Accepts only known keys with sane values, so a damaged or hand-edited code can't break the page.
+function cleanSettings(src) {
+  const out = {};
+  if (!src || typeof src !== 'object') return out;
+  for (const k of PRESET_KEYS) {
+    if (!(k in src)) continue;
+    const v = src[k], d = DEFAULTS[k], c = SPEC[k];
+    if (typeof v !== typeof d) continue;
+    if (typeof d === 'number') {
+      if (!Number.isFinite(v)) continue;
+      if (k === 'bandLow' || k === 'bandHigh') out[k] = clamp(Math.round(v), 20, 16000);
+      else out[k] = c && c.min != null ? clamp(v, c.min, c.max) : v;
+    } else if (typeof d === 'boolean') {
+      out[k] = v;
+    } else if (c && c.type === 'seg') {
+      if (c.options.some((o) => o[0] === v)) out[k] = v;
+    } else if (c && c.type === 'color') {
+      if (/^#[0-9a-f]{6}$/i.test(v)) out[k] = v.toLowerCase();
+    }
+  }
+  if (out.bandLow != null && out.bandHigh != null && out.bandHigh <= out.bandLow) out.bandHigh = Math.min(16000, out.bandLow + 20);
+  return out;
+}
+
+let toastT = 0, undoFn = null;
+function toast(msg, undo) {
+  $('#toastMsg').textContent = msg;
+  undoFn = undo || null;
+  $('#toastUndo').hidden = !undo;
+  $('#toast').hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(hideToast, undo ? 6000 : 3200);
+}
+function hideToast() { $('#toast').hidden = true; undoFn = null; }
+$('#toastUndo').addEventListener('click', () => { const f = undoFn; hideToast(); if (f) f(); });
+
+function afterLoad(splash) {
+  syncAll(); save(); onLookChange();
+  if (splash) randomSplats(4);
+}
+function loadSettings(s, name, tag, quiet) {
+  const clean = cleanSettings(s);
+  if (!Object.keys(clean).length && !(s && typeof s === 'object')) { toast('That preset is empty.'); return; }
+  const prev = currentSettings(), prevTag = activePreset, prevName = activeName;
+  Object.assign(P, presetBase(), clean);
+  activePreset = tag;
+  activeName = name;
+  afterLoad(true);
+  if (!quiet) toast(`Loaded “${name}”`, () => {
+    Object.assign(P, prev);
+    activePreset = prevTag;
+    activeName = prevName;
+    afterLoad(false);
+    prepLibrary();
+  });
+}
+
+const LIBKEY = 'resonant-ink-presets-v1';
+const store = { mode: 'pending', items: [], col: null };
+const validItem = (o) => o && typeof o.id === 'string' && typeof o.name === 'string' && o.s && typeof o.s === 'object';
+function localItems() {
+  try { const a = JSON.parse(localStorage.getItem(LIBKEY) || '[]'); return Array.isArray(a) ? a.filter(validItem) : []; } catch (e) { return []; }
+}
+function writeLocal(items) {
+  try { localStorage.setItem(LIBKEY, JSON.stringify(items)); return true; } catch (e) { return false; }
+}
+function setItems(arr) {
+  store.items = arr.filter(validItem).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  renderLibrary();
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const storeReady = (async () => {
+  await Promise.resolve(); // let the rest of the page finish setting up first
+  let db = null, user = null, id = null;
+  try { if (inClaude) [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } catch (e) {}
+  if (user) { try { id = await user.id(); } catch (e) {} }
+  if (db && id) { try { store.col = db.collection('data/users/' + id); } catch (e) { store.col = null; } }
+  if (store.col) {
+    store.mode = 'account';
+    await new Promise((res) => {
+      let done = false;
+      const fin = () => { if (!done) { done = true; res(); } };
+      store.col.onSnapshot(
+        (snap) => { setItems(snap.docs.filter((d) => d.exists).map((d) => ({ ...d.data(), id: d.id }))); fin(); },
+        () => { store.col = null; store.mode = 'local'; setItems(localItems()); updateStoreNote(); fin(); });
+      setTimeout(fin, 8000);
+    });
+  } else {
+    store.mode = 'local';
+    setItems(localItems());
+  }
+  updateStoreNote();
+  renderLibrary();
+})();
+async function storePut(id, body) {
+  await storeReady;
+  if (store.mode === 'account' && store.col) {
+    let err = null;
+    for (let tries = 0; tries < 2; tries++) {
+      try { await store.col.doc(id).set(body); return { ok: true }; }
+      catch (e) { err = e; if (!(e && e.code === 'unavailable')) break; await wait(400 + Math.random() * 500); }
+    }
+    if (err && err.code === 'quota_exceeded') return { ok: false, msg: 'Storage for saved presets is full. Delete one, then save again.' };
+    return { ok: false, msg: 'Couldn’t save right now. Try again in a moment.' };
+  }
+  const items = localItems().filter((i) => i.id !== id);
+  items.push({ ...body, id });
+  if (!writeLocal(items)) return { ok: false, msg: 'This browser won’t let the page save. Copy a preset code instead.' };
+  setItems(items);
+  return { ok: true };
+}
+async function storeDelete(id) {
+  await storeReady;
+  if (store.mode === 'account' && store.col) { try { await store.col.doc(id).delete(); return true; } catch (e) { return false; } }
+  const items = localItems().filter((i) => i.id !== id);
+  writeLocal(items);
+  setItems(items);
+  return true;
+}
+const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const findByName = (n) => store.items.find((i) => i.name.toLowerCase() === n.trim().toLowerCase());
+
+// Codes: "RI1:" + base64 of {v, name, s}. Only settings that differ from the defaults are included, to keep codes short.
+function b64e(str) { const b = new TextEncoder().encode(str); let o = ''; for (let i = 0; i < b.length; i++) o += String.fromCharCode(b[i]); return btoa(o); }
+function b64d(str) { const o = atob(str), b = new Uint8Array(o.length); for (let i = 0; i < o.length; i++) b[i] = o.charCodeAt(i); return new TextDecoder().decode(b); }
+function encodeCode(name) {
+  const base = presetBase(), cur = currentSettings(), s = {};
+  for (const k of PRESET_KEYS) if (cur[k] !== base[k]) s[k] = cur[k];
+  return 'RI1:' + b64e(JSON.stringify({ v: 1, name: name || 'Shared preset', s }));
+}
+function decodeCode(str) {
+  const m = String(str).replace(/\s+/g, '').match(/RI1:([A-Za-z0-9+/=]+)/i);
+  if (!m) throw new Error('format');
+  const o = JSON.parse(b64d(m[1]));
+  if (!o || typeof o.s !== 'object' || !o.s) throw new Error('format');
+  return { name: typeof o.name === 'string' && o.name.trim() ? o.name.trim().slice(0, 40) : 'Pasted preset', s: o.s };
+}
+
+const TRASH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></svg>';
+function swatchCss(s) {
+  const key = s.palette in PALETTES ? s.palette : 'rainbow';
+  const hex = (v, fb) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : fb);
+  const bg = hex(s.bg, '#000000');
+  let a, b;
+  if (key === 'rainbow') { a = '#ff4d4d'; b = '#3fb8ff'; }
+  else if (key === 'mono') { a = b = hex(s.monoColor, '#5fd4ff'); }
+  else { a = PALETTES[key].stops[1]; b = PALETTES[key].stops[2]; }
+  return `radial-gradient(circle at 32% 42%, ${a} 0, transparent 58%), radial-gradient(circle at 70% 64%, ${b} 0, transparent 52%), ${bg}`;
+}
+const MAP_NAMES = { heat: 'Heat map', spectral: 'Spectral map', flow: 'Flow map' };
+function metaOf(it) {
+  const s = it.s, parts = [];
+  parts.push(PALETTES[s.palette] ? PALETTES[s.palette].name : 'Rainbow');
+  if (MAP_NAMES[s.colorMap]) parts.push(MAP_NAMES[s.colorMap]);
+  try { parts.push(new Date(it.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })); } catch (e) {}
+  return parts.join(' · ');
+}
+function emptyNote(t) { const d = document.createElement('div'); d.className = 'empty'; d.textContent = t; return d; }
+function rowEl(name, meta, s, tag, onLoad, item) {
+  const row = document.createElement('div');
+  row.className = 'prow';
+  const main = document.createElement('button');
+  main.type = 'button';
+  main.className = 'prow-main';
+  main.dataset.tag = tag;
+  main.setAttribute('aria-current', tag === activePreset);
+  main.setAttribute('aria-label', `Load ${name}`);
+  const th = document.createElement('span');
+  th.className = 'pthumb';
+  th.style.background = swatchCss(s);
+  const tx = document.createElement('span');
+  tx.className = 'prow-text';
+  const nm = document.createElement('span');
+  nm.className = 'prow-name';
+  nm.textContent = name;
+  const mt = document.createElement('span');
+  mt.className = 'prow-meta';
+  mt.textContent = meta;
+  tx.append(nm, mt);
+  main.append(th, tx);
+  main.addEventListener('click', onLoad);
+  row.append(main);
+  if (item) {
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'del';
+    del.setAttribute('aria-label', `Delete ${name}`);
+    del.innerHTML = TRASH;
+    let armed = 0;
+    del.addEventListener('click', () => {
+      if (!armed) {
+        del.classList.add('arm');
+        del.textContent = 'Delete';
+        armed = setTimeout(() => { armed = 0; del.classList.remove('arm'); del.innerHTML = TRASH; }, 3000);
+        return;
+      }
+      clearTimeout(armed);
+      armed = 0;
+      deleteItem(item);
+    });
+    row.append(del);
+  }
+  return row;
+}
+async function deleteItem(it) {
+  if (!(await storeDelete(it.id))) { toast(`Couldn’t delete “${it.name}”. Try again.`); return; }
+  if (activePreset === 'mine:' + it.id) activePreset = null;
+  const body = { name: it.name, s: it.s, savedAt: it.savedAt, v: 1 };
+  toast(`Deleted “${it.name}”`, () => { storePut(it.id, body); });
+}
+function renderLibrary() {
+  const box = $('#libMine');
+  $('#libCount').textContent = store.items.length ? `· ${store.items.length}` : '';
+  box.textContent = '';
+  if (store.mode === 'pending') box.append(emptyNote('Loading your saved presets…'));
+  else if (!store.items.length) box.append(emptyNote('Nothing saved yet. Name the current look above and tap Save.'));
+  else for (const it of store.items) box.append(rowEl(it.name, metaOf(it), it.s, 'mine:' + it.id, () => loadSettings(it.s, it.name, 'mine:' + it.id), it));
+  savedChips.forEach((b) => b.remove());
+  savedChips = store.items.map((it) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.textContent = it.name;
+    b.dataset.tag = 'mine:' + it.id;
+    b.addEventListener('click', () => loadSettings(it.s, it.name, 'mine:' + it.id, true));
+    presetsRow.appendChild(b);
+    return b;
+  });
+  chipSep.hidden = !savedChips.length;
+  syncChips();
+  updSaveBtn();
+}
+function updateStoreNote() {
+  $('#libStatus').textContent = store.mode === 'pending' ? 'Connecting to your saved presets…'
+    : store.mode === 'account' ? 'Saved presets are kept with this page, and only you can see yours.'
+    : 'Saved presets stay in this browser on this device. Use a preset code to move one somewhere else.';
+}
+const builtinBox = $('#libBuiltin');
+for (const name of Object.keys(PRESETS)) {
+  builtinBox.append(rowEl(name, BLURBS[name] || '', { ...VISUAL_DEFAULTS, ...PRESETS[name] }, name, () => applyPreset(name)));
+}
+
+const libName = $('#libName'), libSaveBtn = $('#libSaveBtn');
+function defaultPresetName() { return activeName || `My preset ${store.items.length + 1}`; }
+function updSaveBtn() {
+  if (libSaveBtn.disabled) return;
+  libSaveBtn.textContent = findByName(libName.value) ? 'Replace' : 'Save';
+}
+function prepLibrary() {
+  if (document.activeElement !== libName) libName.value = defaultPresetName();
+  updSaveBtn();
+  updateStoreNote();
+}
+libName.addEventListener('input', updSaveBtn);
+$('#libSave').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  libName.blur();
+  const name = (libName.value.trim() || defaultPresetName()).slice(0, 40), ex = findByName(name);
+  libSaveBtn.disabled = true;
+  libSaveBtn.textContent = 'Saving…';
+  const id = ex ? ex.id : newId();
+  const res = await storePut(id, { name, s: currentSettings(), savedAt: Date.now(), v: 1 });
+  libSaveBtn.disabled = false;
+  if (res.ok) {
+    activeName = name;
+    activePreset = 'mine:' + id;
+    libName.value = name;
+    toast((ex ? 'Replaced “' : 'Saved “') + name + '”');
+    syncChips();
+  } else {
+    toast(res.msg);
+  }
+  updSaveBtn();
+});
+
+const codeBox = $('#libCode'), codeMsg = $('#libCodeMsg');
+const showCodeMsg = (t) => { codeMsg.hidden = false; codeMsg.textContent = t; };
+function codeName() {
+  if (activeName) return activeName;
+  if (activePreset && PRESETS[activePreset]) return activePreset;
+  return 'Shared preset';
+}
+$('#libCopy').addEventListener('click', () => {
+  const code = encodeCode(codeName());
+  const fallback = () => {
+    codeBox.value = code;
+    codeBox.focus();
+    codeBox.select();
+    showCodeMsg('Copying was blocked here. The code is in the box above, selected and ready to copy.');
+  };
+  try { navigator.clipboard.writeText(code).then(() => showCodeMsg('Copied. Paste it anywhere to share these settings.'), fallback); }
+  catch (err) { fallback(); }
+});
+if (navigator.share && !inClaude) {
+  const shareBtn = $('#libShare');
+  shareBtn.hidden = false;
+  shareBtn.addEventListener('click', async () => {
+    const name = codeName(), code = encodeCode(name);
+    const url = location.href.split('#')[0];
+    try {
+      await navigator.share({ title: `Resonant Ink preset: ${name}`, text: `“${name}”, a Resonant Ink preset. Open ${url}, go to Controls → Presets, and paste this code:\n\n${code}` });
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        codeBox.value = code;
+        codeBox.select();
+        showCodeMsg('Sharing didn’t work here. The code is in the box above, ready to copy.');
+      }
+    }
+  });
+}
+$('#libLoadCode').addEventListener('click', () => {
+  let d;
+  try { d = decodeCode(codeBox.value); }
+  catch (e) { showCodeMsg('That doesn’t look like a preset code. Codes start with RI1:'); return; }
+  codeMsg.hidden = true;
+  loadSettings(d.s, d.name, null);
+  libName.value = d.name;
+  updSaveBtn();
+  showCodeMsg(`Loaded “${d.name}”. Tap Save at the top to keep it in My presets.`);
+});
 
 function changed(k) {
   if (k in VISUAL_DEFAULTS && k !== 'quality') activePreset = null;
@@ -1689,7 +2276,7 @@ function onLookChange() {
 }
 
 // Tabs
-const tabs = ['fluid', 'color', 'audio', 'touch'];
+const tabs = ['fluid', 'color', 'audio', 'touch', 'presets'];
 let currentTab = 'fluid';
 function showTab(t) {
   currentTab = t;
@@ -1698,6 +2285,7 @@ function showTab(t) {
     $(`#pane-${x}`).hidden = x !== t;
   });
   $('#sheetBody').scrollTop = 0;
+  if (t === 'presets') prepLibrary();
 }
 tabs.forEach((t) => $(`#tab-${t}`).addEventListener('click', () => showTab(t)));
 
@@ -1791,8 +2379,9 @@ function frame(now) {
   colorClock += dt * 0.08 * P.cycleSpeed;
   updateAccent(now);
   applyPointers();
+  autoStir(dt);
   audioUpdate(dt, now);
-  if (!paused) step(dt);
+  if (!paused) { simTime += dt * P.timeScale; step(dt * P.timeScale); }
   render(dt);
   if (A.mode !== 'none') {
     const s = 1 + A.level * 0.35;
