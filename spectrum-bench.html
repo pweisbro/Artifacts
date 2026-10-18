@@ -289,7 +289,7 @@ function passColor(el){const s=[0,0,0];for(let l=390;l<=690;l+=6){const t=transO
 // Per-piece sound tuning (prisms and liquids): a frequency range whose loudness drives refraction, color spread, reflection and tilt or ripple.
 const SNDDEF={snd:false,sndLo:40,sndHi:160,sndN:.25,sndBoost:3,sndRefl:0,sndSpin:0,sndRip:.8};
 const DEF={
-  light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0},
+  light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0,c:0},
   prism:Object.assign({type:'prism',x:0,y:0,angle:0,shape:'eq',size:150,mat:'flint',boost:1},SNDDEF),
   liquid:Object.assign({type:'liquid',x:0,y:0,angle:0,size:200,mat:'water',boost:1,wob:.55,flow:.6},SNDDEF),
   lens:{type:'lens',x:0,y:0,angle:90,power:'conv',form:'bi',mat:'crown',f:160,ap:140,boost:1},
@@ -301,7 +301,7 @@ const DEF={
   slit:{type:'slit',x:0,y:0,angle:90,len:200,gap:10},
   screen:{type:'screen',x:0,y:0,angle:90,len:260}
 };
-const RANGES={sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
+const RANGES={c:[0,100000],sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
   f:[30,500],ap:[30,260],len:[20,640],lpmm:[100,1500],orders:[1,3],lam:[380,700],bw:[10,200],refl:[5,95],gap:[0,400]};
 const PRISM_SHAPES=['eq','right','hex','block','drop','pipe'];
 function okEnum(t,k,v){
@@ -486,7 +486,7 @@ function buildS(geos){
 function trace(sc,bright,geos,W,sh){
   const S0=sh?null:buildS(geos),out=sh?sh.out:{beams:new Map(),splats:new Map(),hits:new Map()};
   const beams=out.beams,splats=out.splats,hits=out.hits,stack=[],lo=sh?sh.lo:0,hi=sh?sh.hi:Infinity;
-  for(const el of sc)if(el.type==='light')emit(el,stack,!!sh);
+  for(const el of (sh&&sh.emit)||sc)if(el.type==='light')emit(el,stack,!!sh&&sh.keyed!==false);
   const bucket=(map,r,a)=>{const q=Math.max(1,Math.min(24,Math.round(a*24)));const key=(r.ck*32+q)*8+r.gi;let b=map.get(key);if(!b){b={p:new Path2D(),c:r.col,a:q/24,gm:Math.pow(2,-r.gi)};map.set(key,b);}return b.p;};
   let segs=0,maxD=0;
   while(stack.length&&segs<MAXSEG){
@@ -535,14 +535,19 @@ function trace(sc,bright,geos,W,sh){
     maxD=Math.max(maxD,r.d+Math.min(best,VIEWR));
     const s0=Math.max(0,lo-r.d),s1=Math.min(best,hi-r.d);
     if(a>=.02&&s1>s0){
-      // In a slowed beam, a ray that carried on from the previous shell is drawn as a chord from where it left that shell,
-      // so a bending beam reads as one smooth curve instead of offset pieces.
-      const p=bucket(beams,r,a),deco=W&&W.used<W.budget;let pv=null;
-      if(sh&&r.key){if(s0>0)pv=sh.prev.get(r.key);if(s1<best)sh.next.set(r.key,[r.x+r.dx*s1,r.y+r.dy*s1]);}
-      if(pv&&!deco){p.moveTo(pv[0],pv[1]);p.lineTo(r.x+r.dx*s1,r.y+r.dy*s1);}
-      else{
-        if(pv){p.moveTo(pv[0],pv[1]);p.lineTo(r.x+r.dx*s0,r.y+r.dy*s0);}
-        if(deco)(W.bars?barSeg:waveSeg)(p,r,s0,s1,W);else{p.moveTo(r.x+r.dx*s0,r.y+r.dy*s0);p.lineTo(r.x+r.dx*s1,r.y+r.dy*s1);}
+      // In a slowed beam the same ray is followed from shell to shell. Each shell adds the point where the ray leaves it,
+      // and the beam is drawn as a curve through the midpoints between those points (control point at each one),
+      // so a bending beam is one smooth curve instead of a chain of straight pieces.
+      const p=bucket(beams,r,a),deco=W&&W.used<W.budget,X=[r.x+r.dx*s1,r.y+r.dy*s1],cont=s1<best;
+      const pv0=sh&&r.key&&s0>0?sh.prev.get(r.key):null,pv=pv0&&Math.hypot(pv0.p[0]-X[0],pv0.p[1]-X[1])<sh.jump?pv0:null; // a sudden jump (the beam swept across an edge) starts a fresh curve
+      if(sh&&r.key&&!deco){
+        const P=pv?pv.p:[r.x+r.dx*s0,r.y+r.dy*s0],M=pv?pv.m:P,E=cont?[(P[0]+X[0])/2,(P[1]+X[1])/2]:X;
+        p.moveTo(M[0],M[1]);p.quadraticCurveTo(P[0],P[1],E[0],E[1]);
+        if(cont)sh.next.set(r.key,{p:X,m:E});
+      }else{
+        if(pv){p.moveTo(pv.m[0],pv.m[1]);p.lineTo(pv.p[0],pv.p[1]);p.lineTo(r.x+r.dx*s0,r.y+r.dy*s0);}
+        if(sh&&r.key&&cont)sh.next.set(r.key,{p:X,m:X});
+        if(deco)(W.bars?barSeg:waveSeg)(p,r,s0,s1,W);else{p.moveTo(r.x+r.dx*s0,r.y+r.dy*s0);p.lineTo(X[0],X[1]);}
       }
     }
     segs++;
@@ -596,32 +601,54 @@ function trace(sc,bright,geos,W,sh){
 // With a finite speed, the light at path distance s left its source s/c ago and met each piece as that piece was when the light got there.
 // The bench keeps a short history of its own state and draws the beams in distance shells, each traced against that history at the right ages.
 // When nothing has changed for long enough, it falls back to the single instant trace.
-let LSPD=Infinity,VIEWR=1000,KAD=24,lastMaxD=1200,DELAYING=false;
-const HIST=[];let lastSig='',lastChange=-1e9,lastSigT=-1;
-const lspdFromSlider=v=>v>=100?Infinity:30*Math.pow(100,v/99),lspdToSlider=c=>isFinite(c)?clamp(Math.round(99*Math.log(c/30)/Math.log(100)),0,99):100;
-const lspdF=v=>{const c=lspdFromSlider(v);return isFinite(c)?Math.round(c)+' mm/s':'Instant';};
+let VIEWR=1000,KAD=32,lastMaxD=1200,DELAYING=false;
+const HIST=[];let lastSig='',lastChange=-1e9;
+const LMAX=100000; // fastest finite setting, 100 m/s; the slider's top step is Instant
+const lspdFromSlider=v=>v>=100?0:30*Math.pow(LMAX/30,v/99),lspdToSlider=c=>c>0?clamp(Math.round(99*Math.log(c/30)/Math.log(LMAX/30)),0,99):100;
+const speedF=c=>!(c>0)?'Instant':c<1000?Math.round(c)+' mm/s':(c/1000).toFixed(c<10000?1:0)+' m/s';
+const slowestC=sc=>{let m=0;for(const e of sc)if(e.type==='light'&&e.c>0)m=m?Math.min(m,e.c):e.c;return m;};
+const anySlow=()=>scene.some(e=>e.type==='light'&&e.c>0);
 function sceneSig(sc){return JSON.stringify(sc.map(e=>{const o={};for(const k in e){if(k==='id'||k==='_t'||k==='lv')continue;const v=e[k];o[k]=typeof v==='number'?Math.round(v*100)/100:v;}return o;}));}
 const snap=sc=>sc.map(e=>Object.assign({},e));
 function seedHist(sc){HIST.length=0;HIST.push({t:-1e9,sc:snap(sc)});lastSig=sceneSig(sc);lastChange=-1e9;}
-function recordHist(sc){
+function recordHist(sc,cMin){
   if(!HIST.length)seedHist(sc);
-  if(NOW-lastSigT>=1/30){lastSigT=NOW;const sig=sceneSig(sc);if(sig!==lastSig){lastSig=sig;lastChange=NOW;HIST.push({t:NOW,sc:snap(sc)});}}
-  const keep=NOW-lastMaxD/LSPD-1;while(HIST.length>2&&HIST[1].t<keep)HIST.shift();
+  const sig=sceneSig(sc);if(sig!==lastSig){lastSig=sig;lastChange=NOW;HIST.push({t:NOW,sc:snap(sc)});}
+  const keep=NOW-lastMaxD/cMin-1;while(HIST.length>2&&HIST[1].t<keep)HIST.shift();
 }
-function histAt(t){let a=0,b=HIST.length-1;if(t>=HIST[b].t)return HIST[b];while(a<b){const m=(a+b+1)>>1;if(HIST[m].t<=t)a=m;else b=m-1;}return HIST[a];}
+// A light switched from Instant to a finite speed sets out again: drop it from the remembered past.
+function regrow(id){if(!HIST.length)seedHist(scene);for(const h of HIST)h.sc=h.sc.filter(e=>e.id!==id);lastSig='';lastChange=NOW=performance.now()/1000;}
+// The bench as it was at time t, blended between the two nearest recorded moments so slowed beams bend smoothly.
+function histAt(t){
+  let a=0,b=HIST.length-1;if(t>=HIST[b].t)return HIST[b].sc;
+  while(a<b){const m=(a+b+1)>>1;if(HIST[m].t<=t)a=m;else b=m-1;}
+  const A=HIST[a],B=HIST[a+1];if(!B||A.t<-1e8)return A.sc;
+  const f=(t-A.t)/(B.t-A.t);if(f<=0)return A.sc;
+  const mb=new Map(B.sc.map(e=>[e.id,e]));
+  return A.sc.map(e=>{const o=mb.get(e.id);if(!o)return e;const r=Object.assign({},e);
+    for(const k in e){const x=e[k],y=o[k];if(k==='id'||typeof x!=='number'||typeof y!=='number'||x===y)continue;r[k]=k==='angle'?x+((((y-x)%360)+540)%360-180)*f:x+(y-x)*f;}
+    return r;});
+}
 function traceDelayed(sc,geos,o){
-  const t0=performance.now(),c=LSPD,out={beams:new Map(),splats:new Map(),hits:new Map()};
-  const Dmax=clamp(lastMaxD,300,4000),ds=Math.max(Dmax/KAD,c/30),K=Math.ceil(Dmax/ds),states=[],Ss=[];
-  const stateAt=j=>{if(states[j])return states[j];let st=sc;if(j>0){const tq=NOW-j*ds/c;st=histAt(tq).sc.map(e=>e.type==='liquid'?Object.assign({},e,{_t:tq}):e);}return states[j]=st;};
-  const SAt=j=>Ss[j]||(Ss[j]=buildS(j===0?geos:stateAt(j).map(geomOf)));
-  let maxD=0,prev=new Map();
-  for(let k=0;k<K;k++){
-    const lo=k*ds,hi=lo+ds,mid=lo+ds/2,next=new Map();
-    const T=trace(stateAt(k),o.bright,null,o.wave||null,{lo,hi,out,prev,next,S:r=>SAt(clamp(Math.round((mid-r.d)/ds),0,k))});
-    maxD=Math.max(maxD,T.maxD);prev=next;
+  const t0=performance.now(),out={beams:new Map(),splats:new Map(),hits:new Map()},S0=buildS(geos);
+  const Dmax=clamp(lastMaxD,300,4000),inst=[],slow=[];
+  for(const L of sc)if(L.type==='light'){if(L.c>0&&NOW-lastChange<=Dmax/L.c+.25)slow.push(L);else inst.push(L);}
+  let maxD=0;
+  if(inst.length)maxD=trace(sc,o.bright,null,o.wave||null,{lo:0,hi:Infinity,out,S:()=>S0,emit:inst,keyed:false}).maxD;
+  const states=new Map(),Ss=new Map(),q=a=>Math.round(a*2000);
+  const stateAt=age=>{if(age<=0)return sc;const k=q(age);let st=states.get(k);if(!st){const tq=NOW-age;st=histAt(tq).map(e=>e.type==='liquid'?Object.assign({},e,{_t:tq}):e);states.set(k,st);}return st;};
+  const SAt=age=>{if(age<=0)return S0;const k=q(age);let S=Ss.get(k);if(!S){S=buildS(stateAt(age).map(geomOf));Ss.set(k,S);}return S;};
+  const kPer=Math.max(8,Math.round(KAD/Math.max(1,slow.length)));
+  for(const L of slow){
+    const c=L.c,ds=Math.max(Dmax/kPer,c/120),K=Math.ceil(Dmax/ds);let prev=new Map();
+    for(let k=0;k<K;k++){
+      const lo=k*ds,hi=lo+ds,mid=lo+ds/2,st=stateAt(mid/c),src=st.find(e=>e.id===L.id),next=new Map();
+      if(src){const T=trace(st,o.bright,null,o.wave||null,{lo,hi,out,prev,next,jump:ds*3+15,emit:[src],S:r=>SAt(Math.max(0,Math.round((mid-r.d)/ds))*ds/c)});maxD=Math.max(maxD,T.maxD);}
+      prev=next;
+    }
   }
   lastMaxD+=(Math.max(300,maxD)-lastMaxD)*.3;
-  KAD=clamp(KAD*Math.sqrt(14/Math.max(performance.now()-t0,.5)),6,64);
+  KAD=clamp(KAD*Math.sqrt(14/Math.max(performance.now()-t0,.5)),8,120);
   return{beams:out.beams,splats:out.splats,hits:out.hits,maxD};
 }
 
@@ -770,13 +797,13 @@ function draw(){
   const c=AU.cfg,now=performance.now()/1000;let W=null;
   if(AU.on&&c.wave&&c.waveStyle==='bars')W={bars:true,ring:AU.ring,RING:AU.RING,B:16,slot:Math.floor(now*30),now,v:c.waveSpd,gap:c.waveLen/18,A:c.waveAmt*1.3,used:0,budget:70000};
   else if(AU.on&&c.wave&&AU.lvl>.02)W={tbl:AU.wt,L:c.waveLen,A:c.waveAmt*Math.min(1,AU.lvl*1.4),phase:now*c.waveSpd,step:Math.max(4,c.waveLen/22),used:0,budget:70000};
-  const finite=isFinite(LSPD);if(finite)recordHist(sc);
-  DELAYING=finite&&NOW-lastChange<=lastMaxD/LSPD+.25;
+  const cMin=slowestC(sc);if(cMin>0)recordHist(sc,cMin);
+  DELAYING=cMin>0&&NOW-lastChange<=lastMaxD/cMin+.25;
   last=render(ctx,sc,{dpr,scale,cx,cy},{bright:br,lw:1,wave:W,delay:DELAYING,main:true});
   if(sel){const i=scene.indexOf(sel);if(i>=0)drawSelection(sc[i],last.geos[i]);}
   if(sel&&sel.type==='screen')drawStrip();
 }
-let raf=0;function request(){if(loopRaf)return;if(hasFlow()||isFinite(LSPD)){loopRaf=requestAnimationFrame(loop);return;}if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw();});}
+let raf=0;function request(){if(loopRaf)return;if(hasFlow()||anySlow()){loopRaf=requestAnimationFrame(loop);return;}if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw();});}
 const hasFlow=()=>scene.some(e=>e.type==='liquid'&&e.flow>0);
 function resize(){
   const r=stage.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);
@@ -861,6 +888,7 @@ function renderInspector(){
       h+=`</div><div class="readout" id="readout"></div><div class="fields">`;
       h+=rangeField('f-width','width','Beam width',0,240,2,el.width,v=>v>0?v+' mm':'Pencil');
       h+=rangeField('f-spread','spread','Spread',0,90,1,el.spread,v=>v>0?v+'°':'Parallel');
+      FM['f-lc']=speedF;h+=`<div class="field"><label class="lab" for="f-lc"><span>Light speed</span><span class="val" id="f-lc-v">${speedF(el.c)}</span></label><input type="range" id="f-lc" data-k="c" data-lspd="1" min="0" max="100" step="1" value="${lspdToSlider(el.c)}"></div>`;
       h+=angle+'</div>';break;
     case 'prism':
       h+=selectField('f-mat','mat','Material',MAT_OPTS,el.mat);
@@ -912,7 +940,7 @@ function renderInspector(){
   box.innerHTML=h;
   $('b-dup').addEventListener('click',()=>{const c=mk(sel.type,Object.assign({},sel,{x:sel.x+30,y:sel.y+30}));scene.push(c);sel=c;renderInspector();changed();});
   $('b-del').addEventListener('click',delSel);
-  box.querySelectorAll('input[type=range][data-k]').forEach(n=>n.addEventListener('input',()=>{const raw=parseFloat(n.value),v=n.dataset.log?Math.round(logF(raw)):raw;sel[n.dataset.k]=v;$(n.id+'-v').textContent=FM[n.id](v);onField();}));
+  box.querySelectorAll('input[type=range][data-k]').forEach(n=>n.addEventListener('input',()=>{const raw=parseFloat(n.value),v=n.dataset.log?Math.round(logF(raw)):n.dataset.lspd?lspdFromSlider(raw):raw,was=sel[n.dataset.k];sel[n.dataset.k]=v;if(n.dataset.lspd&&!(was>0)&&v>0)regrow(sel.id);$(n.id+'-v').textContent=FM[n.id](v);onField();}));
   box.querySelectorAll('input[type=checkbox][data-k]').forEach(n=>n.addEventListener('change',()=>{sel[n.dataset.k]=n.checked;onField();}));
   const fb=$('f-bands');if(fb)fb.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel.sndLo=+b.dataset.lo;sel.sndHi=+b.dataset.hi;for(const [id,k] of [['f-slo','sndLo'],['f-shi','sndHi']]){$(id).value=unlogF(sel[k]);$(id+'-v').textContent=hzF(sel[k]);}onField();});
   const os=$('f-open-snd');if(os)os.addEventListener('click',()=>renderSnd());
@@ -964,6 +992,7 @@ function updateReadout(){
       let t='<canvas class="chart" id="spec-chart" aria-label="Emission spectrum by wavelength and frequency"></canvas>';
       if(el.spectrum==='laser')t+=`<div><b>${el.laser} nm</b> · <b>${THZ(el.laser).toFixed(1)} THz</b> · <b>${EV(el.laser).toFixed(2)} eV</b> per photon · ${hueName(el.laser)}</div><div>One frequency only, so prisms and gratings can bend it but never split it.</div>`;
       else t+=`<div>${SPECTRA[el.spectrum].note}</div>`;
+      if(el.c>0)t+=`<div>This light travels at <b>${speedF(el.c)}</b>, so its beams take time to cross the bench. Real light does it in about <b>2 ns</b>. A change starts where it happens and ripples outward: turn a mirror and only light that reaches it afterward goes the new way.</div>`;
       box.innerHTML=t;drawSpecChart($('spec-chart'),el);break;}
     case 'liquid':{
       const nd=nOf(el,589.3);
@@ -1028,17 +1057,12 @@ function benchHTML(){
   FM={};
   return `<div class="insp-head"><h2>Bench</h2></div>
   <p class="lede">Tap a piece to adjust it. Drag it to move it, and drag its amber knob to turn it. Open Setups to save this bench or load another.</p>
-  <div class="fields">${rangeField('f-bright','bright','Beam brightness',.4,2.5,.05,bright,v=>(+v).toFixed(2)+'×')}${rangeField('f-lspd','lspd','Light speed',0,100,1,lspdToSlider(LSPD),lspdF)}</div>
+  <div class="fields">${rangeField('f-bright','bright','Beam brightness',.4,2.5,.05,bright,v=>(+v).toFixed(2)+'×')}</div>
   <button type="button" class="ghost wide" id="b-clear">Clear the bench</button>
-  <div class="readout"><div>Visible light runs from about <b>380 nm</b> (violet, <b>790 THz</b>) to <b>700 nm</b> (red, <b>430 THz</b>). Each colored ray here is one frequency taking its own path.</div><div>Glass slows violet more than red, while a grating bends red more than violet, so prisms and gratings fan the colors in opposite orders.</div><div>Real light crosses this bench in about <b>2 ns</b>. Slow it down and beams take time to travel. A change starts where it happens and ripples outward: turn a mirror and only light that reaches it afterward goes the new way.</div></div>`;
+  <div class="readout"><div>Visible light runs from about <b>380 nm</b> (violet, <b>790 THz</b>) to <b>700 nm</b> (red, <b>430 THz</b>). Each colored ray here is one frequency taking its own path.</div><div>Glass slows violet more than red, while a grating bends red more than violet, so prisms and gratings fan the colors in opposite orders.</div></div>`;
 }
 function wireBench(){
   const b=$('f-bright');b.addEventListener('input',()=>{bright=parseFloat(b.value);$('f-bright-v').textContent=bright.toFixed(2)+'×';changed();});
-  const ls=$('f-lspd');ls.addEventListener('input',()=>{
-    const c=lspdFromSlider(+ls.value);
-    if(!isFinite(LSPD)&&isFinite(c)){seedHist(scene.filter(e=>e.type!=='light'));lastChange=NOW=performance.now()/1000;} // switching on: beams set out again from their lights
-    LSPD=c;$('f-lspd-v').textContent=lspdF(+ls.value);saveSoon();request();
-  });
   $('b-clear').addEventListener('click',()=>{
     if(!scene.length)return;const prev=snapshotBench(),pn=benchName;
     scene=[];sel=null;benchName=null;renderInspector();changed();
@@ -1529,10 +1553,10 @@ $('b-snd').addEventListener('click',()=>{if(view==='snd')renderInspector();else 
 /* ================= Autosave of the current bench ================= */
 const KEY='spectrum-bench-v1';let saveT=0;
 function saveSoon(){clearTimeout(saveT);saveT=setTimeout(saveCurrent,400);}
-function saveCurrent(){try{localStorage.setItem(KEY,JSON.stringify({scene:serialScene(scene),bright,name:benchName,c:isFinite(LSPD)?LSPD:0}));}catch(e){}}
+function saveCurrent(){try{localStorage.setItem(KEY,JSON.stringify({scene:serialScene(scene),bright,name:benchName}));}catch(e){}}
 function loadCurrent(){
   try{const s=JSON.parse(localStorage.getItem(KEY)||'null');
-    if(s&&Array.isArray(s.scene)&&s.scene.length){const sc=s.scene.map(sanitize).filter(Boolean);if(sc.length){scene=sc;bright=clamp(+s.bright||1,.4,2.5);benchName=typeof s.name==='string'?s.name:null;LSPD=+s.c>0?clamp(+s.c,30,3000):Infinity;return true;}}
+    if(s&&Array.isArray(s.scene)&&s.scene.length){if(+s.c>0)for(const o of s.scene)if(o&&o.type==='light'&&o.c===undefined)o.c=+s.c;const sc=s.scene.map(sanitize).filter(Boolean);if(sc.length){scene=sc;bright=clamp(+s.bright||1,.4,2.5);benchName=typeof s.name==='string'?s.name:null;return true;}}
   }catch(e){}
   return false;
 }
