@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Unbounded:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Silkscreen&family=Unbounded:wght@700&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -84,6 +84,7 @@ body{
 .label h2.t-pad{font:800 23px/1.05 "Syne","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
 /* Gravity Wells' own wordmark */
 .label h2.t-wells{font:700 21px/1.1 "Unbounded","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
+.label h2.t-grain{font:400 19px/1.15 "Silkscreen",ui-monospace,Menlo,monospace;letter-spacing:.06em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
 .foot a{color:var(--muted);text-underline-offset:3px}
@@ -108,6 +109,7 @@ body{
         <li><a class="tile" href="resonant-ink.html"><div class="label"><h2>Resonant Ink</h2></div></a></li>
         <li><a class="tile" href="drift-pad.html"><div class="label"><h2>Drift Pad</h2></div></a></li>
         <li><a class="tile" href="gravity-wells.html"><div class="label"><h2>Gravity Wells</h2></div></a></li>
+        <li><a class="tile" href="grainfall.html"><div class="label"><h2>Grainfall</h2></div></a></li>
       </ul>
     </noscript>
   </main>
@@ -157,6 +159,15 @@ const APPS = [
     accent: '#ffc56b',
     titleClass: 't-wells',
     art: 'wells'
+  },
+  {
+    name: 'Grainfall',
+    href: 'grainfall.html',
+    blurb: 'Pour sand, water, lava, gunpowder and a dozen more materials on a clay TV in a moonlit bedroom, and watch them burn, melt, grow and explode.',
+    ground: '#2e2d57',
+    accent: '#a6e3cc',
+    titleClass: 't-grain',
+    art: 'grain'
   }
 ];
 
@@ -501,6 +512,44 @@ ARTS.wells = {
 };
 
 // Fallback for apps without their own preview: slow glows in the app's accent color.
+// A tiny falling-sand screen on the mint TV: a spout wanders and pours pastel grains that pile up, then it clears and starts over.
+ARTS.grain = {
+  init(s, w, h){
+    s.gw = 40; s.gh = 30; s.g = new Uint8Array(s.gw * s.gh); s.acc = 0; s.sx = 20; s.vx = .35; s.n = 0; s.hue = 0;
+  },
+  frame(ctx, s, w, h, t, dt){
+    const { gw, gh, g } = s, cols = ['#f2d38a', '#9fd0ff', '#f7a6c4', '#a8dca0', '#ffb07a'];
+    s.acc += dt;
+    while (s.acc > 1 / 40){
+      s.acc -= 1 / 40;
+      for (let y = gh - 2; y >= 0; y--) for (let x = 0; x < gw; x++){
+        const i = y * gw + x, c = g[i]; if (!c) continue;
+        const d = (Math.random() < .5) ? 1 : -1;
+        if (!g[i + gw]){ g[i + gw] = c; g[i] = 0; }
+        else if (x + d >= 0 && x + d < gw && !g[i + gw + d]){ g[i + gw + d] = c; g[i] = 0; }
+      }
+      s.sx += s.vx; if (s.sx < 4 || s.sx > gw - 5) s.vx = -s.vx;
+      if (Math.random() < .02) s.hue = (s.hue + 1) % cols.length;
+      for (const x of [Math.round(s.sx), Math.round(s.sx) + 1]) if (!g[x] && Math.random() < .8){ g[x] = s.hue + 1; s.n++; }
+      if (s.n > gw * gh * .55){ g.fill(0); s.n = 0; }
+    }
+    ctx.fillStyle = '#2e2d57'; ctx.fillRect(0, 0, w, h);
+    const glow = ctx.createRadialGradient(w * .5, h * .45, 0, w * .5, h * .45, Math.max(w, h) * .7);
+    glow.addColorStop(0, 'rgba(150,160,232,.5)'); glow.addColorStop(1, 'rgba(164,176,240,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
+    // the TV: mint body, dark screen sized 4:3 inside it
+    const sh = Math.min(h * .62, w * .5 * 3 / 4), sw = sh * 4 / 3, bx = (w - sw) / 2, by = (h - sh) / 2 - h * .03, b = sh * .1;
+    ctx.fillStyle = '#a6e3cc';
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - b, by - b, sw + b * 2, sh + b * 3, b * 1.6) : ctx.rect(bx - b, by - b, sw + b * 2, sh + b * 3); ctx.fill();
+    ctx.fillStyle = '#f8d3e6'; ctx.beginPath(); ctx.arc(bx + sw - b * .2, by + sh + b * 1.15, b * .38, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = '#2a1f33'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, sw, sh, b * .8) : ctx.rect(bx, by, sw, sh); ctx.fill();
+    const cw = sw / gw, chh = sh / gh;
+    for (let i = 0; i < g.length; i++) if (g[i]){ ctx.fillStyle = cols[g[i] - 1]; ctx.fillRect(bx + (i % gw) * cw, by + Math.floor(i / gw) * chh, cw + .5, chh + .5); }
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    for (let y = 0; y < sh; y += 3) ctx.fillRect(bx, by + y, sw, 1);
+  }
+};
+
 ARTS.glow = {
   init(){},
   frame(ctx, s, w, h, t){
@@ -573,7 +622,7 @@ function sizeTile(tile){
 }
 // With reduced motion, settle each preview into a single still frame.
 function drawStill(tile){
-  const steps = tile.art === ARTS.ink || tile.art === ARTS.wells ? 160 : 1;
+  const steps = tile.art === ARTS.ink || tile.art === ARTS.wells || tile.art === ARTS.grain ? 160 : 1;
   for (let i = 0; i < steps; i++) tile.art.frame(tile.ctx, tile.state, tile.w, tile.h, tile.t + i / 60, 1 / 60);
 }
 

@@ -44,6 +44,14 @@ Everything is synthesized in the browser, so it works offline. Settings are kept
 
 `gravity-wells.html` is a multi-touch particle toy. Every finger (or the mouse) becomes a gravity well, and thousands of sparks fall toward it, orbit and slingshot, colored by how fast they move. The longer you hold a well the heavier it gets; let go of a heavy one and it collapses into a shockwave. The dock switches what your fingers do (**Pull**, **Push** or **Swirl**), **Tilt** lets the device's own tilt pour the particles around (iPhone and iPad ask for motion access the first time). Tilt is measured from however you hold the device when you turn it on, and the target button next to it sets a new level from the current position, and **Big bang** gathers everything into one point and blows it apart.
 
+### Grainfall
+
+`grainfall.html` is a falling-sand sandbox played on a mint clay CRT TV in a pastel 3D bedroom at night, with lamplight, moonlight through the blinds and dust drifting in the beam. Draw on the TV screen with 18 materials: sand, stone, gunpowder, water, oil, acid, lava, fire, spark, steam, wall, wood, plant, ice, copper wire, spout, wind and erase. They react: water and lava make steam and stone, fire spreads through wood, plants and oil, gunpowder explodes with a pressure blast, acid eats solids, plants grow into water, ice freezes it, sparks run along wire, and a spout copies whatever touches it. **Air view** shows the pressure field that Wind and explosions push around.
+
+Drag anywhere off the screen to look around the room, or turn on **Tilt** (iPhone and iPad ask for motion access the first time) and lean the device instead; however you hold it when you turn Tilt on counts as level. **Zoom in** swings the camera square onto the screen. If the device struggles, the room lowers its own resolution and effects step by step; add `?fps` to the address to see the frame rate and which step it is on. Without WebGL it falls back to the flat screen in a mint bezel.
+
+The 3D room uses three.js from jsDelivr, which is cached after the first visit so it works offline too.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.
