@@ -84,11 +84,12 @@ h1{margin:0;font-family:var(--display);font-weight:600;font-size:21px;line-heigh
 .toast button:hover{background:rgba(255,179,64,.1)}
 
 .dock{min-height:0;overflow:auto;overscroll-behavior:contain;border:1px solid var(--rule);border-radius:12px;background:var(--panel)}
-.add{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;padding:7px;background:var(--panel);border-bottom:1px solid var(--rule)}
-.add button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 1px 5px;border-radius:8px;background:var(--panel-2);border:1px solid var(--rule);color:var(--text);font:600 10.5px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;min-height:44px;min-width:0;overflow:hidden}
+.add{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;padding:7px;background:var(--panel);border-bottom:1px solid var(--rule)}
+.add button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 1px 5px;border-radius:8px;background:var(--panel-2);border:1px solid var(--rule);color:var(--text);font:600 10px/1 var(--display);letter-spacing:.03em;text-transform:uppercase;min-height:44px;min-width:0;overflow:hidden}
 .add button:hover{border-color:var(--rule-hi)}
 .add button:active{transform:translateY(1px)}
 .add svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+@media (max-width:440px){.add{gap:4px;padding:6px}.add button{font-size:9.5px;letter-spacing:.02em}}
 
 .insp{padding:14px 14px 18px;display:grid;gap:14px}
 .insp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
@@ -153,6 +154,11 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .icon-btn.arm{width:auto;padding:0 11px;color:var(--amber);border-color:var(--amber)}
 .empty{padding:13px 14px;border:1px dashed var(--rule);border-radius:9px;color:var(--muted);font-size:13.5px}
 /* sound mode */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{min-height:32px;padding:6px 10px;font-size:13px}
+.chips button[aria-pressed="true"]{border-color:var(--amber);color:var(--amber)}
+.bandm{height:58px}
+.snd-sec{border-top:1px solid var(--rule);padding-top:12px}
 .meter{height:120px}
 .snd-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .react{display:grid;gap:6px}
@@ -191,6 +197,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
       <button type="button" data-add="light" aria-label="Add a light source"><svg viewBox="0 0 24 24"><rect x="2" y="8" width="12" height="8" rx="1.5"/><path d="M14 12h8"/><path d="M5 10.5v3M8 10.5v3"/></svg><span>Light</span></button>
       <button type="button" data-add="prism" aria-label="Add a prism"><svg viewBox="0 0 24 24"><path d="M12 4l9 15H3z"/></svg><span>Prism</span></button>
       <button type="button" data-add="lens" aria-label="Add a lens"><svg viewBox="0 0 24 24"><path d="M12 2.5c3.6 3.4 3.6 15.6 0 19c-3.6-3.4-3.6-15.6 0-19z"/></svg><span>Lens</span></button>
+      <button type="button" data-add="liquid" aria-label="Add a liquid blob"><svg viewBox="0 0 24 24"><path d="M12 3.5c4.6 0 7.5 3.2 7.2 7.6-.3 4.6-3.6 9.4-8 9.4-4.2 0-7-3.6-6.7-7.8C4.8 8 7.6 3.5 12 3.5z"/><path d="M8.5 8.5c.8-1.3 2-2 3.4-2.2" stroke-width="1.2"/></svg><span>Liquid</span></button>
       <button type="button" data-add="mirror" aria-label="Add a flat mirror"><svg viewBox="0 0 24 24"><path d="M5 19L19 5"/><path d="M8 20l-2.5-2.5M11 17l-2.5-2.5M14 14l-2.5-2.5M17 11l-2.5-2.5M20 8l-2.5-2.5" stroke-width="1"/></svg><span>Mirror</span></button>
       <button type="button" data-add="curved" aria-label="Add a curved mirror"><svg viewBox="0 0 24 24"><path d="M15 3c-5 4-5 14 0 18"/><circle cx="8" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg><span>Curved</span></button>
       <button type="button" data-add="grating" aria-label="Add a diffraction grating"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M9 5h6M9 8h6M9 11h6M9 14h6M9 17h6M9 20h6" stroke-width="1"/></svg><span>Grating</span></button>
@@ -270,7 +277,7 @@ const MATS={
   diamond:{name:'Diamond',A:2.3791,B:.0133,tint:'rgba(235,242,255,.13)'}
 };
 // Cauchy fit n = A + B/λ². "Rainbow boost" scales B while keeping n fixed at the sodium D line.
-function nOf(el,l){const m=MATS[el.mat]||MATS.crown,k=el.boost||1,ld=.5893,lu=l/1000;return m.A+m.B/(ld*ld)*(1-k)+k*m.B/(lu*lu);}
+function nOf(el,l){const m=MATS[el.mat]||MATS.crown,k=el.boost||1,ld=.5893,lu=l/1000;return m.A+m.B/(ld*ld)*(1-k)+k*m.B/(lu*lu)+(el.dn||0);}
 function transOf(el,l){
   if(el.pass==='long')return 1/(1+Math.exp(-(l-el.lam)/4));
   if(el.pass==='short')return 1/(1+Math.exp((l-el.lam)/4));
@@ -279,9 +286,12 @@ function transOf(el,l){
 function passColor(el){const s=[0,0,0];for(let l=390;l<=690;l+=6){const t=transOf(el,l),c=colorOf(l);s[0]+=c[0]*t;s[1]+=c[1]*t;s[2]+=c[2]*t;}const m=Math.max(s[0],s[1],s[2]);return m>0?s.map(v=>Math.round(255*v/m)):[90,95,105];}
 
 /* ================= Scene model ================= */
+// Per-piece sound tuning (prisms and liquids): a frequency range whose loudness drives refraction, color spread, reflection and tilt or ripple.
+const SNDDEF={snd:false,sndLo:40,sndHi:160,sndN:.25,sndBoost:3,sndRefl:0,sndSpin:0,sndRip:.8};
 const DEF={
   light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0},
-  prism:{type:'prism',x:0,y:0,angle:0,shape:'eq',size:150,mat:'flint',boost:1},
+  prism:Object.assign({type:'prism',x:0,y:0,angle:0,shape:'eq',size:150,mat:'flint',boost:1},SNDDEF),
+  liquid:Object.assign({type:'liquid',x:0,y:0,angle:0,size:200,mat:'water',boost:1,wob:.55,flow:.6},SNDDEF),
   lens:{type:'lens',x:0,y:0,angle:90,power:'conv',form:'bi',mat:'crown',f:160,ap:140,boost:1},
   mirror:{type:'mirror',x:0,y:0,angle:90,len:140},
   curved:{type:'curved',x:0,y:0,angle:90,shape:'sphere',f:120,len:200},
@@ -291,7 +301,7 @@ const DEF={
   slit:{type:'slit',x:0,y:0,angle:90,len:200,gap:10},
   screen:{type:'screen',x:0,y:0,angle:90,len:260}
 };
-const RANGES={x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
+const RANGES={sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
   f:[30,500],ap:[30,260],len:[20,640],lpmm:[100,1500],orders:[1,3],lam:[380,700],bw:[10,200],refl:[5,95],gap:[0,400]};
 const PRISM_SHAPES=['eq','right','hex','block','drop','pipe'];
 function okEnum(t,k,v){
@@ -314,6 +324,7 @@ function sanitize(o){
   for(const k in d){
     if(k==='type')continue;
     const v=o[k],dv=d[k];
+    if(typeof dv==='boolean'){r[k]=typeof v==='boolean'?v:dv;continue;}
     if(typeof dv==='number'){r[k]=(typeof v==='number'&&isFinite(v))?(RANGES[k]?clamp(v,RANGES[k][0],RANGES[k][1]):v):dv;}
     else r[k]=(typeof v==='string'&&okEnum(t,k,v))?v:dv;
   }
@@ -325,6 +336,7 @@ function serialScene(sc){return sc.map(o=>{const c={};for(const k in DEF[o.type]
 const NAMES={light:'Light source',mirror:'Mirror',grating:'Grating',splitter:'Beam splitter',screen:'Screen'};
 function nameOf(el){
   switch(el.type){
+    case 'liquid':return 'Liquid';
     case 'prism':return({eq:'Prism',right:'Right-angle prism',hex:el.mat==='ice'?'Ice crystal':'Hexagonal prism',block:'Glass block',drop:el.mat==='water'?'Raindrop':'Glass sphere',pipe:'Light pipe'})[el.shape]||'Prism';
     case 'lens':return el.power==='div'?'Diverging lens':'Converging lens';
     case 'curved':return el.shape==='para'?'Parabolic mirror':'Spherical mirror';
@@ -335,6 +347,7 @@ function nameOf(el){
 }
 
 /* ================= Geometry ================= */
+let NOW=performance.now()/1000; // animation clock for flowing liquids, set each frame
 function frameOf(el){const a=el.angle*D2R,c=Math.cos(a),s=Math.sin(a);return{a,ux:c,uy:s,vx:-s,vy:c,L:(x,y)=>[el.x+c*x-s*y,el.y+s*x+c*y]};}
 function mkSeg(A,B,kind,el){const ex=B[0]-A[0],ey=B[1]-A[1],L=Math.hypot(ex,ey)||1;return{t:0,ax:A[0],ay:A[1],ex,ey,tx:ex/L,ty:ey/L,nx:-ey/L,ny:ex/L,kind,el};}
 function mkArc(F,cx,cy,R,p0,p1,kind,el){const c=F.L(cx,cy),am=F.a+(p0+p1)/2,hs=Math.abs(p1-p0)/2;return{t:1,cx:c[0],cy:c[1],R,cam:Math.cos(am),sam:Math.sin(am),chs:Math.cos(hs)-1e-9,kind,el};}
@@ -389,6 +402,15 @@ function geomOf(el){
   const F=frameOf(el);
   switch(el.type){
     case 'light':{const hh=lightH(el),c=[[-22,-hh/2],[22,-hh/2],[22,hh/2],[-22,hh/2]].map(p=>F.L(p[0],p[1]));return{F,hh,outline:c,prims:c.map((p,i)=>mkSeg(p,c[(i+1)%4],'block',el)),r:Math.hypot(22,hh/2)};}
+    case 'liquid':{
+      // A smooth closed blob whose radius is a slowly drifting sum of waves. Each edge carries the normals at both ends,
+      // and the trace blends them, so refraction is smooth instead of faceted.
+      const n=72,R=el.size*.42,t=NOW*el.flow,w=el.wob*(1+(el.rip||0)),pts=[];
+      for(let i=0;i<n;i++){const th=i/n*TAU,r=R*(1+w*(.11*Math.sin(2*th+t*1.3+.5)+.075*Math.sin(3*th-t*1.7+1.2)+.05*Math.sin(5*th+t*2.3+2.1)+.03*Math.sin(7*th-t*3.1)));pts.push(F.L(r*Math.cos(th),r*Math.sin(th)));}
+      const nrm=pts.map((p,i)=>{const a=pts[(i+n-1)%n],b=pts[(i+1)%n];let x=b[1]-a[1],y=-(b[0]-a[0]);const l=Math.hypot(x,y)||1;x/=l;y/=l;if(x*(p[0]-el.x)+y*(p[1]-el.y)<0){x=-x;y=-y;}return [x,y];});
+      const prims=pts.map((p,i)=>{const sg=mkSeg(p,pts[(i+1)%n],'glass',el);sg.n0=nrm[i];sg.n1=nrm[(i+1)%n];return sg;});
+      let r=0;for(const p of pts)r=Math.max(r,Math.hypot(p[0]-el.x,p[1]-el.y));
+      return{F,outline:pts,prims,r};}
     case 'prism':{const g=closedShape(el,F,prismPieces(el),'glass');let r=0;for(const p of g.outline)r=Math.max(r,Math.hypot(p[0]-el.x,p[1]-el.y));g.F=F;g.r=r;return g;}
     case 'lens':{
       const L=lensGeom(el),A=F.L(-L.h,0),B=F.L(L.h,0);
@@ -448,7 +470,15 @@ function barSeg(p,r,len,W){
   }
 }
 function trace(sc,bright,geos,W){
-  const S=[];for(const g of geos)for(const p of g.prims)S.push(p);
+  const S=[];
+  for(const g of geos){
+    if(g.prims.length>4&&g.outline){
+      let qx=0,qy=0;for(const p of g.outline){qx+=p[0];qy+=p[1];}qx/=g.outline.length;qy/=g.outline.length;
+      let m=0;for(const p of g.outline)m=Math.max(m,(p[0]-qx)**2+(p[1]-qy)**2);
+      S.push({t:9,cx:qx,cy:qy,r2:(Math.sqrt(m)+2)**2,n:g.prims.length});
+    }
+    for(const p of g.prims)S.push(p);
+  }
   const beams=new Map(),splats=new Map(),hits=new Map(),stack=[];
   for(const el of sc)if(el.type==='light')emit(el,stack);
   const bucket=(map,r,a)=>{const q=Math.max(1,Math.min(24,Math.round(a*24)));const key=(r.ck*32+q)*8+r.gi;let b=map.get(key);if(!b){b={p:new Path2D(),c:r.col,a:q/24,gm:Math.pow(2,-r.gi)};map.set(key,b);}return b.p;};
@@ -459,6 +489,8 @@ function trace(sc,bright,geos,W){
     let best=FAR,hs=null,hu=0,hnx=0,hny=0;
     for(let i=0;i<S.length;i++){
       const s=S[i];
+      if(s.t===9){const px=s.cx-r.x,py=s.cy-r.y,tca=px*r.dx+py*r.dy,o2=px*px+py*py;
+        if(o2>s.r2&&(tca<0||o2-tca*tca>s.r2||tca-Math.sqrt(s.r2-(o2-tca*tca))>=best))i+=s.n;continue;}
       if(s.t===0){
         if(s===r.skip)continue;
         const den=r.dx*s.ey-r.dy*s.ex;if(den>-1e-12&&den<1e-12)continue;
@@ -490,6 +522,7 @@ function trace(sc,bright,geos,W){
         }
       }
     }
+    if(hs&&hs.n0){const a=hs.n0,b=hs.n1,x=a[0]+(b[0]-a[0])*hu,y=a[1]+(b[1]-a[1])*hu,l=Math.hypot(x,y)||1;hnx=x/l;hny=y/l;}
     const ex=r.x+r.dx*best,ey=r.y+r.dy*best;
     const a=clamp(bright*r.base*Math.pow(r.I,.6),0,1);
     if(a>=.02){const p=bucket(beams,r,a);if(W&&W.used<W.budget)(W.bars?barSeg:waveSeg)(p,r,best,W);else{p.moveTo(r.x,r.y);p.lineTo(ex,ey);}}
@@ -514,7 +547,7 @@ function trace(sc,bright,geos,W){
         if(k<0){go(rx,ry,r.I*.995,r.med);} // total internal reflection
         else{
           const ct=Math.sqrt(k);
-          const rs=(n1*ci-n2*ct)/(n1*ci+n2*ct),rp=(n1*ct-n2*ci)/(n1*ct+n2*ci),R=.5*(rs*rs+rp*rp);
+          const rs=(n1*ci-n2*ct)/(n1*ci+n2*ct),rp=(n1*ct-n2*ci)/(n1*ct+n2*ci),R=Math.max(.5*(rs*rs+rp*rp),el.reflx||0);
           let tx=eta*r.dx+(eta*ci-ct)*nx,ty=eta*r.dy+(eta*ci-ct)*ny;const tl=Math.hypot(tx,ty)||1;
           go(tx/tl,ty/tl,r.I*(1-R),inside?null:el);
           if(r.I*R>REFL_MIN)go(rx,ry,r.I*R,r.med); // partial Fresnel reflection
@@ -563,8 +596,20 @@ function pathPoly(g,pts,closed){g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p[0]
 
 function drawEl(g,el,geo,px){
   switch(el.type){
+    case 'liquid':{
+      const R=geo.r||1,gr=g.createRadialGradient(el.x-R*.35,el.y-R*.45,R*.05,el.x,el.y,R*1.05);
+      gr.addColorStop(0,'rgba(255,255,255,.17)');gr.addColorStop(.5,'rgba(205,228,255,.04)');gr.addColorStop(1,'rgba(170,205,255,.12)');
+      pathPoly(g,geo.outline,true);g.fillStyle=gr;g.fill();
+      if(el.lv>.02){g.fillStyle=`rgba(255,255,255,${(.14*el.lv).toFixed(3)})`;g.fill();}
+      g.save();g.clip();g.strokeStyle='rgba(190,220,255,.2)';g.lineWidth=9*px;g.stroke();g.restore();
+      g.strokeStyle='rgba(236,246,255,.78)';g.lineWidth=1.5*px;g.stroke();
+      const n=geo.outline.length,a0=Math.round(n*.56),a1=Math.round(n*.7); // a glint along the upper-left rim
+      g.beginPath();for(let i=a0;i<=a1;i++){const p=geo.outline[i%n];i===a0?g.moveTo(p[0],p[1]):g.lineTo(p[0],p[1]);}
+      g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=3*px;g.stroke();
+      break;}
     case 'prism':
       pathPoly(g,geo.outline,true);g.fillStyle=(MATS[el.mat]||MATS.crown).tint;g.fill();
+      if(el.lv>.02){g.fillStyle=`rgba(255,255,255,${(.14*el.lv).toFixed(3)})`;g.fill();}
       g.strokeStyle='rgba(205,225,250,.62)';g.lineWidth=1.3*px;g.stroke();break;
     case 'lens':{
       if(geo.lens.ideal){
@@ -643,7 +688,7 @@ function drawSelection(el,geo){
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.lineCap='round';ctx.lineJoin='round';
   const S=p=>toScreen(p[0],p[1]),[kx,ky]=knobPos(el,geo),F=geo.F;
   let tail=null;
-  if(el.type==='prism'){
+  if(el.type==='prism'||el.type==='liquid'){
     const [sx,sy]=toScreen(el.x,el.y);ctx.strokeStyle='rgba(255,179,64,.6)';ctx.lineWidth=1.2;ctx.setLineDash([3,5]);
     ctx.beginPath();ctx.arc(sx,sy,geo.r*scale+14,0,TAU);ctx.stroke();ctx.setLineDash([]);
   }else if(el.type==='light'){
@@ -663,6 +708,7 @@ function drawSelection(el,geo){
   if(drag&&drag.mode==='rot'){ctx.font='500 12px "IBM Plex Mono",ui-monospace,monospace';ctx.fillStyle='#ffb340';ctx.textAlign='left';ctx.fillText(fmtA(el.angle),kx+14,ky-12);}
 }
 function draw(){
+  NOW=performance.now()/1000;
   ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='source-over';
   if(bgc)ctx.drawImage(bgc,0,0);else{ctx.fillStyle='#0a0c10';ctx.fillRect(0,0,canvas.width,canvas.height);}
   const sc=AU.on?liveScene():scene,br=AU.on&&AU.cfg.bright?bright*(.3+1.05*AU.lvl+.45*AU.kick):bright;
@@ -673,7 +719,8 @@ function draw(){
   if(sel){const i=scene.indexOf(sel);if(i>=0)drawSelection(sc[i],last.geos[i]);}
   if(sel&&sel.type==='screen')drawStrip();
 }
-let raf=0;function request(){if(AU.on)return;if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw();});}
+let raf=0;function request(){if(loopRaf)return;if(hasFlow()){loopRaf=requestAnimationFrame(loop);return;}if(!raf)raf=requestAnimationFrame(()=>{raf=0;draw();});}
+const hasFlow=()=>scene.some(e=>e.type==='liquid'&&e.flow>0);
 function resize(){
   const r=stage.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);
   dpr=Math.min(2,window.devicePixelRatio||1);
@@ -762,7 +809,13 @@ function renderInspector(){
       h+=selectField('f-mat','mat','Material',MAT_OPTS,el.mat);
       h+=selectField('f-shape','shape','Shape',[['eq','Equilateral, 60°'],['right','Right-angle, 45°'],['hex','Hexagon (ice crystal)'],['block','Rectangular block'],['drop','Sphere (raindrop)'],['pipe','Bent light pipe']],el.shape);
       h+=rangeField('f-boost','boost','Rainbow boost',1,6,.5,el.boost,boostF);
-      h+=rangeField('f-size','size','Size',70,300,1,el.size,mmF)+angle+'</div><div class="readout" id="readout"></div>';break;
+      h+=rangeField('f-size','size','Size',70,300,1,el.size,mmF)+angle+'</div><div class="readout" id="readout"></div>'+sndSection(el);break;
+    case 'liquid':
+      h+=selectField('f-mat','mat','Material',MAT_OPTS,el.mat);
+      h+=rangeField('f-wob','wob','Wobble',0,1,.05,el.wob,v=>Math.round(v*100)+'%');
+      h+=rangeField('f-flow','flow','Flow speed',0,3,.05,el.flow,v=>v>0?(+v).toFixed(2)+'×':'Still');
+      h+=rangeField('f-boost','boost','Rainbow boost',1,6,.5,el.boost,boostF);
+      h+=rangeField('f-size','size','Size',70,300,1,el.size,mmF)+angle+'</div><div class="readout" id="readout"></div>'+sndSection(el);break;
     case 'lens':
       h+=segField('f-power','power','Type',[['conv','Converging'],['div','Diverging']],el.power);
       h+=selectField('f-lmat','mat','Material',[['ideal','Ideal lens (perfect focus)']].concat(MAT_OPTS),el.mat);
@@ -802,13 +855,37 @@ function renderInspector(){
   box.innerHTML=h;
   $('b-dup').addEventListener('click',()=>{const c=mk(sel.type,Object.assign({},sel,{x:sel.x+30,y:sel.y+30}));scene.push(c);sel=c;renderInspector();changed();});
   $('b-del').addEventListener('click',delSel);
-  box.querySelectorAll('input[type=range][data-k]').forEach(n=>n.addEventListener('input',()=>{const v=parseFloat(n.value);sel[n.dataset.k]=v;$(n.id+'-v').textContent=FM[n.id](v);onField();}));
+  box.querySelectorAll('input[type=range][data-k]').forEach(n=>n.addEventListener('input',()=>{const raw=parseFloat(n.value),v=n.dataset.log?Math.round(logF(raw)):raw;sel[n.dataset.k]=v;$(n.id+'-v').textContent=FM[n.id](v);onField();}));
+  box.querySelectorAll('input[type=checkbox][data-k]').forEach(n=>n.addEventListener('change',()=>{sel[n.dataset.k]=n.checked;onField();}));
+  const fb=$('f-bands');if(fb)fb.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel.sndLo=+b.dataset.lo;sel.sndHi=+b.dataset.hi;for(const [id,k] of [['f-slo','sndLo'],['f-shi','sndHi']]){$(id).value=unlogF(sel[k]);$(id+'-v').textContent=hzF(sel[k]);}onField();});
+  const os=$('f-open-snd');if(os)os.addEventListener('click',()=>renderSnd());
   box.querySelectorAll('select[data-k]').forEach(n=>n.addEventListener('change',()=>{sel[n.dataset.k]=n.value;onField();}));
   box.querySelectorAll('.seg[data-k]').forEach(n=>n.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel[n.dataset.k]=n.dataset.num?Number(b.dataset.v):b.dataset.v;for(const x of n.children)x.setAttribute('aria-pressed',String(x===b));onField();}));
   applyVis();updateReadout();
 }
+const BANDS=[['Bass',40,160],['Low mids',160,600],['Mids',600,2000],['Highs',2000,8000]];
+const logF=v=>40*Math.pow(250,v/1000),unlogF=f=>Math.round(1000*Math.log(Math.max(40,f)/40)/Math.log(250)),hzF=f=>f<1000?Math.round(f)+' Hz':(f/1000).toFixed(f<10000?1:0)+' kHz';
+function logRange(id,k,label,val){FM[id]=hzF;return `<div class="field"><label class="lab" for="${id}"><span>${label}</span><span class="val" id="${id}-v">${hzF(val)}</span></label><input type="range" id="${id}" data-k="${k}" data-log="1" min="0" max="1000" step="1" value="${unlogF(val)}"></div>`;}
+function sndSection(el){
+  const isP=el.type==='prism';
+  return `<div class="group snd-sec"><div class="lab"><span>Sound</span></div>
+  <label class="tog" for="f-snd"><input type="checkbox" id="f-snd" data-k="snd"${el.snd?' checked':''}><span>React to a sound range</span></label>
+  <div id="wrap-snd" class="react">
+    <div class="chips" id="f-bands" role="group" aria-label="Quick ranges">${BANDS.map(([n,lo,hi])=>`<button type="button" class="ghost" data-lo="${lo}" data-hi="${hi}">${n}</button>`).join('')}</div>
+    <div class="fields">${logRange('f-slo','sndLo','From',el.sndLo)}${logRange('f-shi','sndHi','To',el.sndHi)}</div>
+    <canvas class="chart bandm" id="f-bandm" aria-label="Live level of the chosen sound range"></canvas>
+    <div class="fields">
+      ${rangeField('f-sn','sndN','Refraction',0,.6,.01,el.sndN,v=>'+'+(+v).toFixed(2)+' index')}
+      ${rangeField('f-sb','sndBoost','Color spread',1,8,.5,el.sndBoost,v=>'up to '+v+'×')}
+      ${rangeField('f-sr','sndRefl','Reflection',0,.95,.05,el.sndRefl,v=>'up to '+Math.round(v*100)+'%')}
+      ${isP?rangeField('f-ss','sndSpin','Tilt',0,90,1,el.sndSpin,v=>'up to '+v+'°'):rangeField('f-sp','sndRip','Ripple',0,2,.1,el.sndRip,v=>'up to +'+Math.round(v*100)+'%')}
+    </div>
+    <div class="snd-row"><p class="note" id="f-snd-note"></p><button type="button" class="ghost" id="f-open-snd">Open Sound</button></div>
+  </div></div>`;
+}
 function applyVis(){
   const el=sel;if(!el)return;
+  const ws=$('wrap-snd');if(ws){ws.hidden=!el.snd;for(const b of $('f-bands').children)b.setAttribute('aria-pressed',String(+b.dataset.lo===el.sndLo&&+b.dataset.hi===el.sndHi));sndNote(true);drawBandMeter();}
   const t=$('insp-title');if(t)t.textContent=nameOf(el);
   if(el.type==='light')$('wrap-laser').hidden=el.spectrum!=='laser';
   if(el.type==='lens'){const ideal=el.mat==='ideal';$('wrap-form').hidden=ideal;$('wrap-boost').hidden=ideal;}
@@ -831,6 +908,9 @@ function updateReadout(){
       if(el.spectrum==='laser')t+=`<div><b>${el.laser} nm</b> · <b>${THZ(el.laser).toFixed(1)} THz</b> · <b>${EV(el.laser).toFixed(2)} eV</b> per photon · ${hueName(el.laser)}</div><div>One frequency only, so prisms and gratings can bend it but never split it.</div>`;
       else t+=`<div>${SPECTRA[el.spectrum].note}</div>`;
       box.innerHTML=t;drawSpecChart($('spec-chart'),el);break;}
+    case 'liquid':{
+      const nd=nOf(el,589.3);
+      box.innerHTML=`<div>A clear, flowing blob, like a drop of liquid glass. Its curved edge acts as a moving lens, so the bright caustic lines it throws slide and merge as it flows.</div><div>Refractive index <b>${nd.toFixed(3)}</b> at 589 nm. Set Flow speed to Still to freeze the shape.</div>${el.boost>1?`<div>Color spread is exaggerated ${el.boost}×.</div>`:''}`;break;}
     case 'prism':{
       const n4=nOf(el,400),n5=nOf(el,550),n7=nOf(el,700),nd=nOf(el,589.3),nF=nOf(el,486.1),nC=nOf(el,656.3);
       const V=(nd-1)/(nF-nC),crit=Math.asin(1/nd)*R2D,note=SHAPE_NOTE[el.shape];
@@ -989,7 +1069,9 @@ const PRESETS=[
     return [mk('light',{x:-270,y:Math.round(ent[1]*10)/10,width:12}),p,mk('screen',{x:ex[0]+Math.cos(exA*D2R)*190,y:ex[1]+Math.sin(exA*D2R)*190,angle:exA+90,len:140})];}},
   {name:'Newton’s recombination',blurb:'A second prism turns the rainbow back into white.',build:()=>[mk('light',{x:-281,y:66,angle:-33.2}),mk('prism',{x:-110,y:0}),mk('prism',{x:30,y:0,angle:180}),mk('screen',{x:235,y:-88,angle:56.8,len:160})]},
   {name:'Periscope to prism',blurb:'Two mirrors steer the beam into a prism.',build:()=>[mk('light',{x:-260,y:200}),mk('mirror',{x:220,y:200,angle:-45,len:110}),mk('mirror',{x:220,y:-200,angle:45,len:110}),mk('prism',{x:-80,y:-161.4,angle:-33.2}),mk('screen',{x:-211,y:42.5,angle:23.6,len:220})]},
-  {name:'Diamond fire',blurb:'High index and strong dispersion make the sparkle.',build:()=>[mk('light',{x:-240,y:0,width:24}),mk('prism',{x:20,y:0,angle:12,size:180,mat:'diamond'})]}
+  {name:'Diamond fire',blurb:'High index and strong dispersion make the sparkle.',build:()=>[mk('light',{x:-240,y:0,width:24}),mk('prism',{x:20,y:0,angle:12,size:180,mat:'diamond'})]},
+  {name:'Liquid lens',blurb:'A flowing blob of water throws moving caustics.',build:()=>[mk('light',{x:-282,y:0,width:150}),mk('liquid',{x:-30,y:0,size:230,mat:'water',wob:.6,flow:.6}),mk('screen',{x:250,y:0,len:340})]},
+  {name:'Bass-tuned prism',blurb:'Start Sound and play music: bass bends and spreads the rainbow.',build:()=>[mk('light',{x:-244,y:79,angle:-33.2}),mk('prism',{x:-22,y:-20,snd:true,sndLo:40,sndHi:160,sndN:.18,sndBoost:4,sndSpin:6}),mk('screen',{x:220,y:95,angle:123.2,len:230})]}
 ];
 let STARTERS=null;
 function starters(){if(!STARTERS)STARTERS=PRESETS.map(p=>({name:p.name,blurb:p.blurb,data:{scene:serialScene(p.build()),bright:p.bright||1}}));return STARTERS;}
@@ -1198,10 +1280,39 @@ function liveScene(){
   return scene.map((el,i)=>{
     let o=null;const cp=()=>o||(o=Object.assign({},el));
     if(c.sway&&el.type==='light'){cp().angle=el.angle+c.swayAmt*(.6*AU.lvl*Math.sin(t*2.1+i*1.9)+.4*AU.kick*AU.beatSign*(i%2?-1:1));}
-    if(c.boost&&(el.type==='prism'||(el.type==='lens'&&el.mat!=='ideal')))cp().boost=clamp(el.boost+(c.boostAmt-1)*Math.max(AU.bass*.7,AU.kick),1,8);
+    if(c.boost&&!el.snd&&(el.type==='prism'||el.type==='liquid'||(el.type==='lens'&&el.mat!=='ideal')))cp().boost=clamp(el.boost+(c.boostAmt-1)*Math.max(AU.bass*.7,AU.kick),1,8);
+    if(el.snd&&(el.type==='prism'||el.type==='liquid')){const lv=elLevel(el),q=cp();q.lv=lv;q.dn=el.sndN*lv;q.boost=clamp(el.boost+(el.sndBoost-1)*lv,1,8);q.reflx=el.sndRefl*lv;if(el.type==='prism')q.angle=el.angle+el.sndSpin*lv;else q.rip=el.sndRip*lv;}
     if(c.color&&el.type==='light'&&el.spectrum==='laser'&&AU.lam){const pc=((rootPc+CH[li++%3])%12+12)%12;cp().laser=Math.round(299792.458/pcTHz(pc));} // several lasers play a chord
     return o||el;
   });
+}
+// Loudness of one frequency range, 0–1, with its own slowly decaying peak so quiet treble ranges still move.
+function bandLevel(lo,hi){
+  if(!AU.an)return 0;const hz=AU.ctx.sampleRate/AU.an.fftSize,a=Math.max(1,Math.floor(Math.min(lo,hi)/hz)),b=Math.min(AU.fd.length-1,Math.max(a,Math.ceil(Math.max(lo,hi)/hz)));
+  let m=0,c=0;for(let i=a;i<=b;i++){m+=AU.fd[i];c++;}
+  return clamp((m/(c||1)/255+20*Math.log10(AU.cfg.sens)/70-.3)/.7,0,1);
+}
+const ELV=new Map();
+function elLevel(el){
+  const v=bandLevel(el.sndLo,el.sndHi),st=ELV.get(el.id)||{s:0,pk:.2};
+  st.pk=Math.max(v,st.pk*.995,.15);const t=v<.03?0:v/st.pk;st.s+=(t-st.s)*(t>st.s?.5:.12);ELV.set(el.id,st);return st.s;
+}
+let sndState=null;
+function sndNote(force){const n=$('f-snd-note'),b=$('f-open-snd');if(!n)return;const st=AU.on?'on':'off';if(!force&&st===sndState)return;sndState=st;n.textContent=AU.on?'Listening. Reacts as this range gets louder. Saved with the setup.':'Reacts while Sound is listening. Saved with the setup.';b.hidden=AU.on;}
+function drawBandMeter(){
+  const cv=$('f-bandm');if(!cv||!sel||!sel.snd||view!=='insp')return;sndNote(false);
+  const w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
+  if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#07080b';g.fillRect(0,0,w,h);
+  const L=8,R=w-8,top=6,bot=h-16,f0=40,f1=10000,lx=f=>L+(R-L)*Math.log(f/f0)/Math.log(f1/f0),lo=Math.min(sel.sndLo,sel.sndHi),hi=Math.max(sel.sndLo,sel.sndHi);
+  g.fillStyle='rgba(255,179,64,.12)';g.fillRect(lx(lo),top,Math.max(2,lx(hi)-lx(lo)),bot-top);
+  if(AU.on&&AU.an){const hz=AU.ctx.sampleRate/AU.an.fftSize,n=60,bw=(R-L)/n;
+    for(let b=0;b<n;b++){const fa=f0*Math.pow(f1/f0,b/n),fb=f0*Math.pow(f1/f0,(b+1)/n);let m=0,c=0;for(let i=Math.floor(fa/hz);i<=Math.ceil(fb/hz);i++){m+=AU.fd[i]||0;c++;}
+      const v=c?m/c/255:0,y=bot-(bot-top)*v,inR=fb>lo&&fa<hi;g.fillStyle=inR?'#ffb340':'#3b424e';g.fillRect(L+b*bw+1,y,Math.max(1,bw-2),bot-y);}
+    const st=ELV.get(sel.id);g.fillStyle='#dde1e7';g.fillRect(L,h-6,(R-L)*(st?st.s:0),3);}
+  g.font='10px "IBM Plex Mono",ui-monospace,monospace';g.fillStyle='#8d949f';g.textAlign='center';
+  g.fillText('100 Hz',lx(100),h-8);g.fillText('1 kHz',lx(1000),h-8);
+  if(!AU.on){g.textAlign='right';g.fillText('Not listening',R,top+10);}
 }
 function ensureCtx(){
   if(!AU.ctx){
@@ -1269,7 +1380,7 @@ function drawMeter(){
   if(AU.on&&AU.kick>.05){g.fillStyle=`rgba(255,179,64,${AU.kick.toFixed(2)})`;g.beginPath();g.arc(mx-44,12,5,0,TAU);g.fill();}
 }
 let loopRaf=0;
-function loop(){loopRaf=0;if(!AU.on){draw();drawMeter();return;}analyze();draw();drawMeter();loopRaf=requestAnimationFrame(loop);}
+function loop(){loopRaf=0;if(AU.on)analyze();draw();drawMeter();drawBandMeter();if(AU.on||hasFlow())loopRaf=requestAnimationFrame(loop);}
 function goLive(kind){AU.ring.fill(0);AU.lastSlot=-1e12;AU.on=true;AU.kind=kind;AU.peakR=.01;AU.peakB=.05;AU.low=0;AU.fm=0;AU.fv=0;AU.kick=0;$('b-snd').dataset.live='true';updSnd();if(!loopRaf)loopRaf=requestAnimationFrame(loop);}
 function stopSound(){AU.kick=0;
   if(AU.stream){AU.stream.getTracks().forEach(t=>t.stop());AU.stream=null;}
@@ -1336,7 +1447,7 @@ function renderSnd(){
   </div>
   <div class="readout"><div>The wave on each beam is the microphone’s live signal, about 21 ms of sound stretched across one wave length and lined up so a steady note holds still, like an oscilloscope. It flows out from the light and follows every bounce and split. Spectrum bars sends a running histogram instead: each bar is one slice of the sound, bass to treble, measured as it leaves the light, so beats ride outward as clusters of tall bass bars. Length sets how long one histogram is. A real light wave is far smaller: about half a micron from crest to crest.</div>
   <div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch-to-color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet.</div>
-  <div>Only lasers change color with pitch, because they make a single frequency. With two or three lasers on the bench, they spread into a chord: the note, a major third up and a fifth up.</div><div>Rainbow boost reacts on prisms and glass lenses. Your saved setups aren’t changed.</div></div>`;
+  <div>Only lasers change color with pitch, because they make a single frequency. With two or three lasers on the bench, they spread into a chord: the note, a major third up and a fifth up.</div><div>Rainbow boost reacts on prisms, liquids and glass lenses. You can also tune one prism or liquid to its own frequency range: select it and turn on React to a sound range. The reactions here don’t change your saved setups.</div></div>`;
   $('snd-done').addEventListener('click',()=>renderInspector());
   $('snd-src').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===AU.src)return;stopSound();AU.src=b.dataset.v;for(const x of $('snd-src').children)x.setAttribute('aria-pressed',String(x===b));saveSnd();updSnd();});
   $('snd-go').addEventListener('click',()=>{
