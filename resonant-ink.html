@@ -78,11 +78,15 @@ button{font:inherit;color:inherit}
   -webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
   transition:opacity .25s, transform .25s;
 }
-.dock button,.ghost{
+.dock button,.dock .home,.ghost{
   width:44px;height:44px;border:0;border-radius:999px;background:transparent;
   display:grid;place-items:center;cursor:pointer;color:var(--text);
 }
-.dock button:hover{background:rgba(255,255,255,.07)}
+.dock button:hover,.dock .home:hover{background:rgba(255,255,255,.07)}
+/* back to the Artifacts homepage (a home-screen web app has no back button) */
+.dock .home{text-decoration:none}
+.dock .sep{width:1px;margin:10px 3px;background:var(--line)}
+@media (max-width:400px){ .dock button,.dock .home{width:40px} }
 .dock button[aria-pressed="true"]{color:var(--accent)}
 .dock .lead{background:var(--accent);color:var(--accent-ink)}
 .dock .lead:hover{background:var(--accent);filter:brightness(1.08)}
@@ -248,6 +252,10 @@ input[type=color]::-moz-color-swatch{border:0;border-radius:6px}
 <div class="hint" id="hint">Drag to stir. Try several fingers at once.</div>
 
 <nav class="dock" id="dock" aria-label="Simulation">
+  <a class="home" href="./" aria-label="Back to Artifacts" title="Artifacts">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+  </a>
+  <span class="sep" aria-hidden="true"></span>
   <button id="btnPanel" class="lead" aria-label="Open controls" title="Controls">
     <svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
   </button>

@@ -1,7 +1,17 @@
-// Spectrum Bench offline support.
+// Artifacts offline support, shared by the homepage and every app page.
 // Pages are fetched fresh when you're online (so updates show up) and served from the cache when you're not.
-const CACHE = 'spectrum-bench-v4';
-const CORE = ['./', './index.html', './resonant-ink.html', './manifest.webmanifest', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
+// When you add an app page, list it in CORE and bump the CACHE number.
+const CACHE = 'artifacts-v5';
+const CORE = [
+  './',
+  './index.html',
+  './spectrum-bench.html',
+  './resonant-ink.html',
+  './manifest.webmanifest',
+  './apple-touch-icon.png',
+  './icon-192.png',
+  './icon-512.png'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
@@ -21,9 +31,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   if (req.mode === 'navigate') {
-    // Each page is cached under its own address, so opening Resonant Ink never replaces the bench's offline copy.
-    const isBench = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
-    const key = isBench ? './index.html' : req;
+    // Each page is cached under its own address, so opening one app never replaces another's offline copy.
+    // The folder address and index.html are the same page: the homepage.
+    const isHome = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+    const key = isHome ? './index.html' : req;
     event.respondWith(
       fetch(req)
         .then((res) => {
