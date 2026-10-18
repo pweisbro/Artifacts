@@ -1,7 +1,7 @@
 // Stim Lab offline support, shared by the homepage and every app page.
 // Pages are fetched fresh when you're online (so updates show up) and served from the cache when you're not.
 // When you add an app page, list it in CORE and bump the CACHE number.
-const CACHE = 'artifacts-v22';
+const CACHE = 'artifacts-v23';
 const CORE = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const CORE = [
   './drift-pad.html',
   './gravity-wells.html',
   './grainfall.html',
+  './little-orrery.html',
   './resonant-ink.webmanifest',
   './resonant-ink-apple-touch-icon.png',
   './resonant-ink-icon-192.png',
@@ -58,7 +59,7 @@ self.addEventListener('fetch', (event) => {
 
   const sameOrigin = url.origin === self.location.origin;
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
-  // Grainfall's 3D room loads a pinned three.js version from jsDelivr; keep it so the room builds offline too.
+  // Grainfall and Little Orrery load a pinned three.js version from jsDelivr; keep it so the room builds offline too.
   const isThree = url.hostname === 'cdn.jsdelivr.net' && url.pathname.startsWith('/npm/three@');
   if (!sameOrigin && !isFont && !isThree) return;
 

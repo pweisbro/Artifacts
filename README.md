@@ -52,6 +52,10 @@ Drag anywhere off the screen to look around the room, or turn on **Tilt** (iPhon
 
 The 3D room uses three.js from jsDelivr, which is cached after the first visit so it works offline too.
 
+### Little Orrery
+
+`little-orrery.html` is a miniature clay model of the solar system: the Sun as a warm glowing lamp in the middle of a pastel plinth, with the eight planets (and Earth's moon, Saturn's and Uranus's rings) circling it on grooved orbit rings under a sky of soft stars. Sizes and distances are compressed so everything stays visible, but the order, the relative sizes, the orbit times, the spin directions and the axis tilts all follow the real thing. Drag to spin the model, pinch or scroll to zoom, and tap a planet to follow it and read a line about it. The **Speed** slider sets how long an Earth year takes (2 seconds to 2 minutes), **Names** and **Orbits** toggle the labels and the rings, and **Reset view** goes back to the overview. The 3D model uses three.js from jsDelivr, cached after the first visit; add `?fps` to the address to see the frame rate.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.
