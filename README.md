@@ -12,6 +12,8 @@ Open https://pweisbro.github.io/artifacts/ in Safari, then use **Share → Add t
 
 **Sound** makes the bench react to the microphone or a song file. Each beam can carry the sound in one of two styles: the live waveform like an oscilloscope trace, or spectrum bars, a running bass-to-treble histogram whose bars ride outward from the light. Both follow every bounce and split. Loudness and beats sway the beams, bass pulses rainbow boost, volume sets brightness, and pitch picks laser colors. Any prism or liquid can also be tuned to its own frequency range (bass, mids, highs or a custom From/To range), and that range's loudness drives its refraction, color spread, reflection, and tilt or ripple. The tuning is saved with the setup.
 
+**Light speed** (on the Bench panel, tap an empty spot) slows light from Instant down to about 30 mm/s. Beams then take time to travel, a swaying source bends its beam like a hose, and a change starts where it happens and ripples outward: turn a mirror and only light that reaches it afterward goes the new way.
+
 ### Resonant Ink
 
 `resonant-ink.html` is a multi-touch fluid simulation. Stir the dye with as many fingers as you like, and tune vorticity, viscosity, dye density, fade and diffusion. Colors, bloom and a kaleidoscope mirror are adjustable. Audio-reactive spots fire from a frequency band you pick on the live spectrum, with an adjustable sensitivity. The sound can come from the built-in demo beat, a song file, or the microphone.
