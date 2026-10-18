@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>X-Y Scope</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+/* Layout: a bench instrument. Phosphor screen in a dark bezel on the left, silkscreened control panel on the right; stacks on phones. Single committed look (lab-gear blue-grey). */
+:root {
+  --panel: #c6cdd3;
+  --panel-2: #b3bbc2;
+  --ink: #1d2730;
+  --ink-soft: #4a5866;
+  --bezel: #23292f;
+  --screen: #060b08;
+  --trace: #8dff72;
+  --knob: #2e5b86;
+  --warn: #a8461f;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+[hidden] { display: none !important; }
+html, body { background: var(--panel); color: var(--ink); }
+body { font-family: var(--body); font-size: 14px; }
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-top: max(20px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(32px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px;
+}
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 30px; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+.home-btn { align-self: center; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 6px; background: var(--ink); color: var(--panel); text-decoration: none; }
+.home-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+header p { flex-basis: 100%; margin: 0; color: var(--ink-soft); max-width: 62ch; }
+.bench { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+
+.bezel { background: var(--bezel); border-radius: 14px; padding: 18px; display: grid; gap: 12px; box-shadow: inset 0 0 0 2px #39424b, 0 2px 0 #8d979f; }
+.screen { position: relative; aspect-ratio: 1 / 1; width: 100%; max-width: 100%; background: var(--screen); border-radius: 10px; overflow: hidden; box-shadow: inset 0 0 40px #000; }
+.screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.readout { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; font-family: var(--mono); font-size: 12px; color: #9fb0a3; font-variant-numeric: tabular-nums; }
+.readout b { color: var(--trace); font-weight: 500; }
+.beam-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn {
+  font-family: var(--display); font-weight: 600; font-size: 16px; letter-spacing: .08em; text-transform: uppercase;
+  border: 0; border-radius: 6px; padding: 9px 16px; cursor: pointer; background: var(--knob); color: #fff;
+}
+.home-btn:focus-visible, .btn:focus-visible, .tab:focus-visible, .chip:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #f0b43c; outline-offset: 2px; }
+.btn.on { background: var(--trace); color: #0b1a08; }
+.beam-row .vol { flex: 1 1 180px; display: grid; gap: 2px; color: #c9d3cb; }
+.beam-row .vol label { font-family: var(--display); letter-spacing: .1em; text-transform: uppercase; font-size: 13px; color: #c9d3cb; }
+
+.panel { display: grid; gap: 14px; }
+.tabs { display: flex; gap: 0; border: 2px solid var(--ink); border-radius: 8px; overflow: hidden; }
+.tab { flex: 1; font-family: var(--display); font-weight: 600; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 6px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+.tab + .tab { border-left: 2px solid var(--ink); }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--panel); }
+.section { display: grid; gap: 12px; background: var(--panel-2); border-radius: 8px; padding: 14px; }
+.section h2 { margin: 0; font-family: var(--display); font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
+.ctl { display: grid; grid-template-columns: 92px minmax(0, 1fr) 84px; align-items: center; gap: 10px; }
+.ctl label { font-family: var(--display); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 14px; }
+.ctl output { font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--knob); }
+select { font: inherit; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--ink-soft); background: var(--panel); color: var(--ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 5px 9px; border-radius: 4px; border: 1px solid var(--ink); background: var(--panel); color: var(--ink); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.hint { margin: 0; color: var(--ink-soft); font-size: 13px; max-width: 62ch; }
+.mono { font-family: var(--mono); font-size: 12px; }
+input[type="file"] { font: inherit; max-width: 100%; }
+.hookup { border-top: 2px solid var(--ink); padding-top: 12px; display: grid; gap: 8px; }
+.hookup h2 { margin: 0; font-family: var(--display); font-size: 18px; letter-spacing: .1em; text-transform: uppercase; }
+.hookup ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; max-width: 75ch; }
+.hookup .warn { color: var(--warn); }
+@media (prefers-reduced-motion: reduce) { .btn, .tab { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <a class="home-btn" href="./" aria-label="Back to Stim Lab" title="Stim Lab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg></a>
+    <h1>X-Y Scope</h1>
+    <p>Left channel moves the beam sideways, right channel moves it up and down. What you see here is exactly what plays out of the headphone jack.</p>
+  </header>
+
+  <div class="bench">
+    <div class="bezel">
+      <div class="screen">
+        <canvas id="grat" aria-hidden="true"></canvas>
+        <canvas id="beam" role="img" aria-label="X-Y oscilloscope display"></canvas>
+      </div>
+      <div class="readout" id="readout"></div>
+      <div class="beam-row">
+        <button class="btn" id="power" type="button">Start sound</button>
+        <div class="vol">
+          <label for="vol">Output volume</label>
+          <input type="range" id="vol" min="0" max="1" step="0.01" value="0.25">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-gen" aria-selected="true" data-mode="gen" type="button">Lissajous</button>
+        <button class="tab" role="tab" id="tab-shape" aria-selected="false" data-mode="shape" type="button">Shapes</button>
+        <button class="tab" role="tab" id="tab-file" aria-selected="false" data-mode="file" type="button">Song</button>
+      </div>
+
+      <div class="section" id="pane-gen">
+        <h2>Two-channel generator</h2>
+        <div class="chips" id="ratios" aria-label="Frequency ratio presets"></div>
+        <div class="ctl"><label for="xf">X freq</label><input type="range" id="xf" min="20" max="1000" step="1" value="220"><output id="xf-o"></output></div>
+        <div class="ctl"><label for="wx">X wave</label><select id="wx"><option>sine</option><option>triangle</option><option>square</option><option>saw</option></select><span></span></div>
+        <div class="ctl"><label for="yf">Y freq</label><input type="range" id="yf" min="20" max="1000" step="1" value="330"><output id="yf-o"></output></div>
+        <div class="ctl"><label for="wy">Y wave</label><select id="wy"><option>sine</option><option>triangle</option><option>square</option><option>saw</option></select><span></span></div>
+        <div class="ctl"><label for="phase">Phase</label><input type="range" id="phase" min="0" max="360" step="1" value="90"><output id="phase-o"></output></div>
+        <div class="ctl"><label for="detune">Detune</label><input type="range" id="detune" min="-3" max="3" step="0.05" value="0.25"><output id="detune-o"></output></div>
+        <p class="hint" id="gen-hint"></p>
+      </div>
+
+      <div class="section" id="pane-shape" hidden>
+        <h2>Traced shape</h2>
+        <div class="chips" id="shapes" aria-label="Shape"></div>
+        <div class="ctl"><label for="sf">Pitch</label><input type="range" id="sf" min="30" max="660" step="1" value="110"><output id="sf-o"></output></div>
+        <div class="ctl"><label for="spin">Spin</label><input type="range" id="spin" min="-2" max="2" step="0.05" value="0.2"><output id="spin-o"></output></div>
+        <p class="hint">The beam traces the whole outline once per cycle, so the trace rate is the note you hear. At 110 Hz the shape is drawn 110 times a second and plays an A2. Raise the pitch and the same picture sounds higher.</p>
+      </div>
+
+      <div class="section" id="pane-file" hidden>
+        <h2>Play a stereo file</h2>
+        <input type="file" id="file" accept="audio/*">
+        <div class="mono" id="file-name">No file loaded. Try a normal song first, then an oscilloscope-music track.</div>
+        <div class="ctl"><label for="song">Song level</label><input type="range" id="song" min="0" max="1" step="0.01" value="0.8"><output id="song-o"></output></div>
+        <div class="ctl"><label for="overlay">Shape on top</label><input type="range" id="overlay" min="0" max="1" step="0.01" value="0"><output id="overlay-o"></output></div>
+        <p class="hint">This is the mix-on-top experiment. Raise the shape level to lay the shape from the Shapes tab over the song, then lower the song level until the picture settles. You will hear the shape as a steady tone under the music.</p>
+      </div>
+
+      <div class="section">
+        <h2>Display</h2>
+        <div class="ctl"><label for="zoom">Gain</label><input type="range" id="zoom" min="0.25" max="3" step="0.05" value="1"><output id="zoom-o"></output></div>
+        <div class="ctl"><label for="persist">Afterglow</label><input type="range" id="persist" min="0" max="0.97" step="0.01" value="0.75"><output id="persist-o"></output></div>
+        <div class="ctl"><label for="glow">Intensity</label><input type="range" id="glow" min="0.2" max="3" step="0.05" value="1"><output id="glow-o"></output></div>
+      </div>
+    </div>
+  </div>
+
+  <section class="hookup">
+    <h2>Driving a real scope</h2>
+    <ol>
+      <li>Headphone or line out to a 3.5 mm to 2× RCA cable, then RCA-to-BNC adapters. Left (white) into CH1, right (red) into CH2.</li>
+      <li>Set the scope to X-Y, both channels to DC coupling at about 0.2 V/div, and start with the volume here and on the computer low.</li>
+      <li>Turn off sound "enhancements", virtual surround and bass management. Anything that alters one channel bends the picture.</li>
+      <li class="warn">Keep CRT brightness low. Stopping the sound leaves a still, bright dot, which burns the phosphor, so turn intensity down first.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const S = {
+    mode: 'gen', xf: 220, yf: 330, wx: 'sine', wy: 'sine', phase: 90, detune: 0.25,
+    shape: 'cube', sf: 110, spin: 0.2, song: 0.8, overlay: 0,
+    zoom: 1, persist: 0.75, glow: 1, vol: 0.25
+  };
+  // Phase accumulators shared by preview and audio so both draw the same thing.
+  const P = { x: 0, y: 0, s: 0, rot: 0 };
+
+  // ---------- signal math ----------
+  function wave(type, p) {
+    p -= Math.floor(p);
+    switch (type) {
+      case 'triangle': { const q = (p + 0.25) % 1; return 1 - 4 * Math.abs(q - 0.5); }
+      case 'square': return p < 0.5 ? 1 : -1;
+      case 'saw': return 2 * p - 1;
+      default: return Math.sin(2 * Math.PI * p);
+    }
+  }
+
+  function closedPath(pts) { return pts.concat([pts[0]]); }
+  const heart = [];
+  for (let i = 0; i < 72; i++) {
+    const t = i / 72 * 2 * Math.PI, s = Math.sin(t);
+    heart.push([16 * s * s * s / 17, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t) + 2) / 17]);
+  }
+  const star = [];
+  for (let i = 0; i < 10; i++) {
+    const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.38 : 0.95;
+    star.push([r * Math.cos(a), r * Math.sin(a)]);
+  }
+  const mush = [];
+  for (let i = 0; i <= 28; i++) { const a = Math.PI - i / 28 * Math.PI; mush.push([0.82 * Math.cos(a), 0.1 + 0.62 * Math.sin(a)]); }
+  mush.push([0.24, 0.1], [0.3, -0.72], [-0.3, -0.72], [-0.24, 0.1]);
+  const C = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
+  const cubeRoute = [0,1,2,3,0,4,5,6,7,4,5,1,2,6,7,3].map(i => C[i].map(v => v * 0.52));
+
+  const SHAPES = {
+    cube: { label: 'Cube', pts: cubeRoute, d3: true },
+    square: { label: 'Square', pts: closedPath([[-.7,-.7],[.7,-.7],[.7,.7],[-.7,.7]]) },
+    star: { label: 'Star', pts: closedPath(star) },
+    heart: { label: 'Heart', pts: closedPath(heart) },
+    mushroom: { label: 'Mushroom', pts: closedPath(mush) }
+  };
+  for (const k in SHAPES) {
+    const sh = SHAPES[k], cum = [0];
+    for (let i = 1; i < sh.pts.length; i++) {
+      const a = sh.pts[i - 1], b = sh.pts[i];
+      cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0)));
+    }
+    sh.cum = cum; sh.len = cum[cum.length - 1];
+  }
+
+  function shapePoint(sh, u, rot, out) {
+    const target = u * sh.len, cum = sh.cum;
+    let lo = 0, hi = cum.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= target) lo = m; else hi = m; }
+    const a = sh.pts[lo], b = sh.pts[hi], seg = cum[hi] - cum[lo] || 1, f = (target - cum[lo]) / seg;
+    let x = a[0] + (b[0] - a[0]) * f, y = a[1] + (b[1] - a[1]) * f;
+    if (sh.d3) {
+      let z = a[2] + (b[2] - a[2]) * f;
+      const cy = Math.cos(rot), sy = Math.sin(rot);
+      let x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+      const tilt = 0.45, ct = Math.cos(tilt), st = Math.sin(tilt);
+      const y1 = y * ct - z1 * st; z1 = y * st + z1 * ct;
+      const k = 2.6 / (2.6 + z1);
+      out[0] = x1 * k * 1.15; out[1] = y1 * k * 1.15;
+    } else {
+      const c = Math.cos(rot), s = Math.sin(rot);
+      out[0] = x * c - y * s; out[1] = x * s + y * c;
+    }
+  }
+
+  // Fill L/R with n samples of the current generator or shape, advancing the shared phases.
+  const tmp = [0, 0];
+  function generate(L, R, n, sr, which) {
+    if (which === 'gen') {
+      const dx = S.xf / sr, dy = (S.yf + S.detune) / sr, ph = S.phase / 360;
+      for (let i = 0; i < n; i++) {
+        L[i] = 0.8 * wave(S.wx, P.x);
+        R[i] = 0.8 * wave(S.wy, P.y + ph);
+        P.x += dx; P.y += dy;
+        if (P.x > 1e6) P.x -= Math.floor(P.x);
+        if (P.y > 1e6) P.y -= Math.floor(P.y);
+      }
+    } else {
+      const sh = SHAPES[S.shape], ds = S.sf / sr, dr = S.spin * 2 * Math.PI / sr;
+      for (let i = 0; i < n; i++) {
+        shapePoint(sh, P.s, P.rot, tmp);
+        L[i] = 0.8 * tmp[0]; R[i] = 0.8 * tmp[1];
+        P.s += ds; if (P.s >= 1) P.s -= Math.floor(P.s);
+        P.rot += dr;
+      }
+    }
+  }
+
+  // ---------- audio ----------
+  let A = null, playing = false, songBuf = null, songSrc = null;
+  function setupAudio() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const proc = ctx.createScriptProcessor(1024, 1, 2);
+    const procGain = ctx.createGain(), songGain = ctx.createGain(), sum = ctx.createGain(), master = ctx.createGain();
+    const split = ctx.createChannelSplitter(2);
+    const anX = ctx.createAnalyser(), anY = ctx.createAnalyser();
+    anX.fftSize = anY.fftSize = 2048;
+    proc.onaudioprocess = e => {
+      const L = e.outputBuffer.getChannelData(0), R = e.outputBuffer.getChannelData(1);
+      generate(L, R, L.length, ctx.sampleRate, S.mode === 'gen' ? 'gen' : 'shape');
+    };
+    proc.connect(procGain); songGain.connect(sum); procGain.connect(sum);
+    sum.connect(master); master.connect(ctx.destination);
+    sum.connect(split); split.connect(anX, 0); split.connect(anY, 1);
+    A = { ctx, proc, procGain, songGain, master, anX, anY,
+          bx: new Float32Array(2048), by: new Float32Array(2048) };
+    applyLevels();
+  }
+  function applyLevels() {
+    if (!A) return;
+    const t = A.ctx.currentTime;
+    A.master.gain.setTargetAtTime(S.vol, t, 0.02);
+    A.songGain.gain.setTargetAtTime(S.mode === 'file' ? S.song : 0, t, 0.02);
+    A.procGain.gain.setTargetAtTime(S.mode === 'file' ? S.overlay : 1, t, 0.02);
+  }
+  function startSong() {
+    stopSong();
+    if (!A || !songBuf || S.mode !== 'file') return;
+    songSrc = A.ctx.createBufferSource();
+    songSrc.buffer = songBuf; songSrc.loop = true;
+    if (songBuf.numberOfChannels === 1) {
+      const m = A.ctx.createChannelMerger(2);
+      songSrc.connect(m, 0, 0); songSrc.connect(m, 0, 1); m.connect(A.songGain);
+    } else songSrc.connect(A.songGain);
+    songSrc.start();
+  }
+  function stopSong() { if (songSrc) { try { songSrc.stop(); } catch (e) {} songSrc.disconnect(); songSrc = null; } }
+
+  $('power').addEventListener('click', async () => {
+    if (!A) setupAudio();
+    if (!playing) {
+      await A.ctx.resume(); playing = true; startSong();
+    } else {
+      stopSong(); await A.ctx.suspend(); playing = false;
+    }
+    $('power').textContent = playing ? 'Stop sound' : 'Start sound';
+    $('power').classList.toggle('on', playing);
+  });
+
+  $('file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('file-name').textContent = 'Decoding ' + f.name + '…';
+    try {
+      if (!A) setupAudio();
+      const data = await f.arrayBuffer();
+      songBuf = await new Promise((res, rej) => A.ctx.decodeAudioData(data, res, rej));
+      $('file-name').textContent = f.name + ' · ' + songBuf.numberOfChannels + ' ch · ' + songBuf.duration.toFixed(1) + ' s · loops';
+      if (playing) startSong();
+    } catch (err) {
+      songBuf = null;
+      $('file-name').textContent = 'That file could not be decoded. Try a WAV, MP3, FLAC or M4A.';
+    }
+  });
+
+  // ---------- display ----------
+  const grat = $('grat'), beam = $('beam'), g = beam.getContext('2d');
+  let W = 0;
+  function resize() {
+    const r = beam.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(1, Math.round(r.width * dpr));
+    for (const c of [grat, beam]) { c.width = W; c.height = W; }
+    const gc = grat.getContext('2d'), d = W / 8;
+    gc.clearRect(0, 0, W, W);
+    gc.strokeStyle = 'rgba(150,190,160,0.16)'; gc.lineWidth = Math.max(1, dpr);
+    for (let i = 1; i < 8; i++) {
+      gc.beginPath(); gc.moveTo(i * d, 0); gc.lineTo(i * d, W); gc.stroke();
+      gc.beginPath(); gc.moveTo(0, i * d); gc.lineTo(W, i * d); gc.stroke();
+    }
+    gc.strokeStyle = 'rgba(150,190,160,0.3)';
+    for (let i = 1; i < 40; i++) {
+      const p = i * d / 5, t = d / 14;
+      gc.beginPath(); gc.moveTo(p, W / 2 - t); gc.lineTo(p, W / 2 + t); gc.stroke();
+      gc.beginPath(); gc.moveTo(W / 2 - t, p); gc.lineTo(W / 2 + t, p); gc.stroke();
+    }
+    g.fillStyle = '#060b08'; g.fillRect(0, 0, W, W);
+  }
+  new ResizeObserver(resize).observe(beam);
+
+  const BUCKETS = 8;
+  const paths = Array.from({ length: BUCKETS }, () => []);
+  function draw(xs, ys, n, message) {
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = `rgba(6,11,8,${(1 - S.persist).toFixed(3)})`;
+    g.fillRect(0, 0, W, W);
+    if (message) {
+      g.fillStyle = '#8dff72'; g.font = `${Math.round(W / 26)}px "IBM Plex Mono", monospace`;
+      g.textAlign = 'center'; g.fillText(message, W / 2, W / 2);
+      return;
+    }
+    const half = W / 2, k = half / 4 * 4 * S.zoom * 0.95, lw = Math.max(1.2, W / 420);
+    for (const p of paths) p.length = 0;
+    let px = half + xs[0] * k, py = half - ys[0] * k;
+    for (let i = 1; i < n; i++) {
+      const x = half + xs[i] * k, y = half - ys[i] * k;
+      const len = Math.hypot(x - px, y - py) / lw;
+      const a = Math.min(1, S.glow * 1.6 / (1 + len * 0.35));
+      const b = Math.min(BUCKETS - 1, Math.floor(a * BUCKETS));
+      paths[b].push(px, py, x, y);
+      px = x; py = y;
+    }
+    g.globalCompositeOperation = 'lighter';
+    g.lineCap = 'round';
+    for (let b = 0; b < BUCKETS; b++) {
+      const arr = paths[b]; if (!arr.length) continue;
+      const alpha = ((b + 0.5) / BUCKETS) * 0.55;
+      g.beginPath();
+      for (let i = 0; i < arr.length; i += 4) { g.moveTo(arr[i], arr[i + 1]); g.lineTo(arr[i + 2], arr[i + 3]); }
+      g.strokeStyle = `rgba(141,255,114,${alpha.toFixed(3)})`; g.lineWidth = lw * 2.6; g.globalAlpha = 0.25; g.stroke();
+      g.globalAlpha = 1; g.lineWidth = lw; g.stroke();
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  const PREV_SR = 48000, prevN = 800;
+  const pxs = new Float32Array(prevN), pys = new Float32Array(prevN);
+  function frame() {
+    if (W > 1) {
+      if (playing && A) {
+        A.anX.getFloatTimeDomainData(A.bx); A.anY.getFloatTimeDomainData(A.by);
+        draw(A.bx, A.by, 2048);
+      } else if (S.mode === 'file') {
+        draw(null, null, 0, songBuf ? 'Press Start sound' : 'Load a stereo file');
+      } else {
+        generate(pxs, pys, prevN, PREV_SR, S.mode);
+        draw(pxs, pys, prevN);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- controls ----------
+  const NOTES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+  const note = f => { const m = Math.round(12 * Math.log2(f / 440) + 69); return NOTES[(m % 12 + 12) % 12] + (Math.floor(m / 12) - 1); };
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+
+  const RATIOS = [[1,1],[1,2],[2,3],[3,4],[3,5],[4,5],[5,6],[1,3]];
+  RATIOS.forEach(([a, b]) => {
+    const c = document.createElement('button');
+    c.type = 'button'; c.className = 'chip'; c.textContent = a + ':' + b;
+    c.addEventListener('click', () => {
+      const base = 110 * (a <= 2 ? 2 : 1);
+      setVal('xf', base * a); setVal('yf', base * b);
+    });
+    $('ratios').appendChild(c);
+  });
+  for (const k in SHAPES) {
+    const c = document.createElement('button');
+    c.type = 'button'; c.className = 'chip'; c.dataset.shape = k; c.textContent = SHAPES[k].label;
+    c.addEventListener('click', () => { S.shape = k; P.s = 0; P.rot = 0; refresh(); });
+    $('shapes').appendChild(c);
+  }
+
+  const FMT = {
+    xf: v => v + ' Hz', yf: v => v + ' Hz', phase: v => v + '°',
+    detune: v => (v > 0 ? '+' : '') + Number(v).toFixed(2) + ' Hz',
+    sf: v => v + ' Hz ' + note(v), spin: v => Number(v).toFixed(2) + ' rev/s',
+    song: v => Math.round(v * 100) + '%', overlay: v => Math.round(v * 100) + '%',
+    zoom: v => '×' + Number(v).toFixed(2), persist: v => Math.round(v * 100) + '%', glow: v => '×' + Number(v).toFixed(2)
+  };
+  function setVal(id, v) { $(id).value = v; S[id] = Number(v); refresh(); }
+
+  ['xf','yf','phase','detune','sf','spin','song','overlay','zoom','persist','glow','vol'].forEach(id => {
+    $(id).addEventListener('input', e => { S[id] = Number(e.target.value); refresh(); });
+  });
+  ['wx','wy'].forEach(id => $(id).addEventListener('change', e => { S[id] = e.target.value; refresh(); }));
+
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    S.mode = t.dataset.mode;
+    if (S.mode === 'file') { if (playing) startSong(); } else stopSong();
+    refresh();
+  }));
+
+  function refresh() {
+    for (const id in FMT) { const o = $(id + '-o'); if (o) o.textContent = FMT[id]($(id).value); }
+    document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.mode === S.mode)));
+    $('pane-gen').hidden = S.mode !== 'gen';
+    $('pane-shape').hidden = S.mode !== 'shape';
+    $('pane-file').hidden = S.mode !== 'file';
+    document.querySelectorAll('#shapes .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.shape === S.shape)));
+    const g0 = gcd(Math.round(S.xf), Math.round(S.yf));
+    document.querySelectorAll('#ratios .chip').forEach((c, i) => {
+      const [a, b] = RATIOS[i];
+      c.setAttribute('aria-pressed', String(Math.round(S.xf) / g0 === a && Math.round(S.yf) / g0 === b));
+    });
+    const ratio = (S.xf / g0) + ':' + (S.yf / g0);
+    const d = Math.abs(S.detune);
+    $('gen-hint').textContent = 'Ratio ' + ratio + '. ' + (d < 0.01
+      ? 'With no detune the figure stands still; the phase knob reshapes it.'
+      : 'A ' + d.toFixed(2) + ' Hz detune makes the figure cycle through its phases about once every ' + (1 / d).toFixed(1) + ' s, which reads as a slow rotation.');
+    const ro = $('readout');
+    if (S.mode === 'gen') ro.innerHTML = `<span>CH1 X <b>${S.xf} Hz ${S.wx}</b></span><span>CH2 Y <b>${(S.yf + S.detune).toFixed(2)} Hz ${S.wy}</b></span><span>Ratio <b>${ratio}</b></span>`;
+    else if (S.mode === 'shape') ro.innerHTML = `<span>Shape <b>${SHAPES[S.shape].label}</b></span><span>Trace rate <b>${S.sf} Hz</b></span><span>Note <b>${note(S.sf)}</b></span>`;
+    else ro.innerHTML = `<span>Source <b>${songBuf ? 'file' : 'none'}</b></span><span>Song <b>${Math.round(S.song * 100)}%</b></span><span>Shape overlay <b>${Math.round(S.overlay * 100)}%</b> ${SHAPES[S.shape].label}</span>`;
+    applyLevels();
+  }
+
+  refresh();
+  requestAnimationFrame(frame);
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>
