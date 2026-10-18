@@ -1514,7 +1514,7 @@ const AU={on:false,kind:null,src:'mic',ctx:null,an:null,td:null,fd:null,stream:n
   lvl:0,bass:0,peakR:.01,peakB:.05,chs:new Float32Array(12),ch:new Float32Array(12),pc:-1,thz:0,lam:0,
   low:0,fm:0,fv:0,kick:0,lastBeat:0,beatSign:1,
   wt:new Float32Array(256),bands:new Float32Array(16),RING:512,ring:new Float32Array(512*16),lastSlot:-1e12,
-  cfg:{wave:true,waveStyle:'wave',waveSpd:160,waveAmt:16,waveLen:150,sway:true,swayAmt:20,boost:true,boostAmt:4,bright:true,color:true,sens:1}};
+  cfg:{wave:true,waveStyle:'wave',waveSpd:160,waveAmt:16,waveLen:150,sway:true,swayAmt:20,boost:true,boostAmt:4,bright:true,color:true,sens:1,listen:false}};
 try{const c=JSON.parse(localStorage.getItem(SNDKEY)||'null');if(c&&typeof c==='object'){for(const k in AU.cfg)if(typeof c[k]===typeof AU.cfg[k])AU.cfg[k]=c[k];if(c.v!==2)AU.cfg.sens=1;if(c.src==='mic'||c.src==='file')AU.src=c.src;}}catch(e){}
 AU.cfg.sens=clamp(+AU.cfg.sens||1,.5,4);
 function saveSnd(){try{localStorage.setItem(SNDKEY,JSON.stringify(Object.assign({v:2,src:AU.src},AU.cfg)));}catch(e){}}
@@ -1665,6 +1665,7 @@ function ensureCtx(){
   if(!AU.ctx){
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
     AU.ctx=new AC();AU.an=AU.ctx.createAnalyser();AU.an.fftSize=4096;AU.an.smoothingTimeConstant=.6;
+    const mute=AU.ctx.createGain();mute.gain.value=0;AU.an.connect(mute);mute.connect(AU.ctx.destination); // WebKit only runs nodes that reach the speakers
     AU.td=new Float32Array(AU.an.fftSize);AU.fd=new Uint8Array(AU.an.frequencyBinCount);AU.ff=new Float32Array(AU.an.frequencyBinCount);AU.ps=new Float64Array(AU.an.frequencyBinCount+1);
   }
   if(AU.ctx.state==='suspended')AU.ctx.resume().catch(()=>{});
@@ -1739,14 +1740,31 @@ function stopSound(){AU.kick=0;
   if(was&&!loopRaf)loopRaf=requestAnimationFrame(loop);
 }
 function sndStatus(t){const n=$('snd-status');if(n)n.textContent=t;}
+// Listening is a setting, not a mode: once on, it stays on (through Done, reloads and interruptions) until Stop listening.
+function setListen(v){AU.cfg.listen=v;saveSnd();}
+let micBusy=false,micTry=0;
+function keepListening(){
+  if(!AU.cfg.listen||AU.src!=='mic'||micBusy)return;
+  if(AU.ctx&&AU.ctx.state!=='running'&&AU.ctx.state!=='closed')AU.ctx.resume().catch(()=>{});
+  const tr=AU.stream&&AU.stream.getAudioTracks()[0],dead=!AU.on||!tr||tr.readyState==='ended';
+  if(dead&&performance.now()-micTry>3000){micTry=performance.now();startMic();}
+}
+['pointerdown','keydown'].forEach(t=>document.addEventListener(t,keepListening,true));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)keepListening();});
+setInterval(keepListening,2000);
 async function startMic(){
+  if(micBusy)return;micBusy=true;try{await openMic();}finally{micBusy=false;}
+}
+async function openMic(){
   stopSound();const ctx=ensureCtx();
   if(!ctx||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){sndStatus(inClaude?'The microphone isn’t available inside Claude. Choose Music file instead, or open your GitHub copy of the bench.':'This browser can’t share the microphone. Choose Music file instead.');return;}
   sndStatus('Waiting for microphone permission…');
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
     AU.stream=stream;AU.micNode=ctx.createMediaStreamSource(stream);AU.micNode.connect(AU.an);goLive('mic');
+    for(const t of stream.getAudioTracks())t.addEventListener('ended',()=>{if(AU.stream===stream){micTry=0;keepListening();}});
   }catch(e){
+    if(!e||e.name!=='AbortError')setListen(false);
     sndStatus(inClaude?'The microphone isn’t available inside Claude. Choose Music file instead, or open your GitHub copy of the bench.'
       :e&&e.name==='NotFoundError'?'No microphone was found on this device.'
       :'Microphone access was turned down. Allow it for this site in your browser’s settings, then try again.');
@@ -1767,7 +1785,7 @@ $('snd-file').addEventListener('change',e=>{
 function updSnd(keepStatus){
   const go=$('snd-go'),pick=$('snd-pick');if(!go)return;
   if(AU.src==='mic'){go.textContent=AU.on?'Stop listening':'Start listening';pick.hidden=true;
-    if(!keepStatus)sndStatus(AU.on?'Listening to the microphone.':inClaude?'Inside Claude, only music files work. Your GitHub copy can use the microphone.':'Your browser will ask before using the microphone.');}
+    if(!keepStatus)sndStatus(AU.on?'Listening to the microphone. It keeps listening after Done, and starts again when you come back, until you tap Stop listening.':inClaude?'Inside Claude, only music files work. Your GitHub copy can use the microphone.':'Your browser will ask before using the microphone.');}
   else{const has=!!(AU.audio&&AU.audio.src);go.textContent=AU.on?'Pause':has?'Play':'Choose a song';pick.hidden=!has;
     if(!keepStatus)sndStatus(AU.on?'Playing '+AU.fileName+'.':has?'Paused: '+AU.fileName+'.':'Pick a song from this device. It plays out loud and drives the light.');}
 }
@@ -1782,10 +1800,10 @@ function renderSnd(){
   <div class="fields">${rangeField('snd-sens','sens','Sensitivity',.5,4,.1,c.sens,sensF)}</div>
   <div class="readout"><div>Sensitivity sets how strongly the whole bench responds. Raise it for quiet rooms, lower it for loud music. Each piece’s own Sensitivity adjusts from there.</div><div>Everything else lives on the pieces. Select a light and open its <b>Audio reactive</b> tab, or select a prism, liquid or lens and use its <b>Sound</b> section, to set the frequency range it listens to and what it does.</div></div>`;
   $('snd-done').addEventListener('click',()=>renderInspector());
-  $('snd-src').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===AU.src)return;stopSound();AU.src=b.dataset.v;for(const x of $('snd-src').children)x.setAttribute('aria-pressed',String(x===b));saveSnd();updSnd();});
+  $('snd-src').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===AU.src)return;setListen(false);stopSound();AU.src=b.dataset.v;for(const x of $('snd-src').children)x.setAttribute('aria-pressed',String(x===b));saveSnd();updSnd();});
   $('snd-go').addEventListener('click',()=>{
-    if(AU.on){stopSound();return;}
-    if(AU.src==='mic'){startMic();return;}
+    if(AU.on){setListen(false);stopSound();return;}
+    if(AU.src==='mic'){setListen(true);micTry=performance.now();startMic();return;}
     if(AU.audio&&AU.audio.src){playFile();return;}
     ensureCtx();$('snd-file').click();
   });
@@ -1814,6 +1832,7 @@ renderInspector();
 resize();
 if(window.ResizeObserver)new ResizeObserver(resize).observe(stage);else window.addEventListener('resize',resize);
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{updateReadout();request();});
+if(AU.cfg.listen&&AU.src==='mic'&&!inClaude){micTry=performance.now();startMic();} // picks up listening where it was left; a first tap resumes audio if the browser held it
 })();
 </script>
 </body>
