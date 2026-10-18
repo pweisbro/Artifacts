@@ -30,7 +30,9 @@ The microphone needs a secure (https) host such as GitHub Pages and your permiss
 
 ### Drift Pad
 
-`drift-pad.html` is an ambient sound pad: twenty glowing pads tuned to a scale, low notes at the bottom left rising to the top right. Tap a pad to play it, hold to let a note swell, or drag across to strum. Pick a voice (Glass, Pad or Kalimba), a scale (pentatonic, minor pentatonic, Dorian, Lydian or Hirajoshi) and a key, and set reverb, echo and volume.
+`drift-pad.html` is an ambient sound pad: twenty glowing pads tuned to a scale, low notes at the bottom left rising to the top right. Tap a pad to play it, hold to let a note swell, or drag across to strum. Pick an instrument (Glass, Pad, Kalimba, Wood blocks, Steel drum, Gong, Singing bowl, Marimba, Music box, Harp or Choir), a scale (pentatonic, minor pentatonic, Dorian, Lydian or Hirajoshi) and a key, and set reverb, echo and volume.
+
+**Custom** is an instrument you build yourself. Start from any of the others, or tap **Customize this sound** on one, then tune its waveform, overtones (pure, harmonic, hollow, bell or metal), octave, attack, ring, sustain and release, brightness, resonance and filter sweep, a mallet-like strike of noise, pitch drop, shimmer and vibrato. Your custom instrument is saved with the other settings.
 
 Two things make it play itself. **Loop** sets pads repeating: each looping pad gets its own length, from about 5 to 20 seconds, so they drift in and out of step like tape loops, and a small ring on the pad sweeps once per loop. **Drift** wanders over the pads on its own, at the pace and density you set. Both can run together, and the sound pauses while the app is in the background.
 
