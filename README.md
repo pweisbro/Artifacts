@@ -56,6 +56,12 @@ The 3D room uses three.js from jsDelivr, which is cached after the first visit s
 
 `little-orrery.html` is a miniature clay model of the solar system: the Sun as a warm glowing lamp in the middle of a pastel plinth, with the eight planets (and Earth's moon, Saturn's and Uranus's rings) circling it on grooved orbit rings under a sky of soft stars. Sizes and distances are compressed so everything stays visible, but the order, the relative sizes, the orbit times, the spin directions and the axis tilts all follow the real thing. Drag to spin the model, pinch or scroll to zoom, and tap a planet to follow it and read a line about it. The **Speed** slider sets how long an Earth year takes (2 seconds to 2 minutes), **Names** and **Orbits** toggle the labels and the rings, and **Reset view** goes back to the overview. The 3D model uses three.js from jsDelivr, cached after the first visit; add `?fps` to the address to see the frame rate.
 
+### X-Y Scope
+
+`xy-scope.html` is a browser oscilloscope in X-Y mode, for oscilloscope music: the left channel moves the beam sideways and the right channel moves it up and down. **Lissajous** is a two-channel generator (frequency, wave shape, phase and a small detune that makes the figure rotate, with ratio presets from 1:1 to 1:3). **Shapes** traces a spinning wireframe cube, a square, star, heart or mushroom; the pitch slider sets how many times a second the shape is drawn, which is the note you hear. **Song** loads any audio file to see what it draws, and **Shape on top** mixes the current shape over it. Gain, afterglow and intensity set the look of the phosphor.
+
+**Start sound** plays exactly what's on screen out of the headphone jack, so it can drive a real scope: left into CH1, right into CH2, X-Y mode, volume low, and sound enhancements off. Keep a real CRT's brightness low and turn it down before stopping the sound, since a still dot burns the phosphor. Everything is generated in the browser, so it works offline; songs play locally and are never uploaded.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.

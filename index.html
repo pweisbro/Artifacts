@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -85,6 +85,8 @@ body{
 /* Gravity Wells' own wordmark */
 .label h2.t-wells{font:700 21px/1.1 "Unbounded","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
 .label h2.t-grain{font:400 19px/1.15 "Silkscreen",ui-monospace,Menlo,monospace;letter-spacing:.06em}
+/* X-Y Scope's own wordmark */
+.label h2.t-scope{font:500 20px/1.1 "IBM Plex Mono",ui-monospace,Menlo,monospace;letter-spacing:.04em;color:#8dff72}
 .label h2.t-orrery{font:600 23px/1.1 "Fredoka","Avenir Next",system-ui,sans-serif;letter-spacing:.01em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
@@ -112,6 +114,7 @@ body{
         <li><a class="tile" href="gravity-wells.html"><div class="label"><h2>Gravity Wells</h2></div></a></li>
         <li><a class="tile" href="grainfall.html"><div class="label"><h2>Grainfall</h2></div></a></li>
         <li><a class="tile" href="little-orrery.html"><div class="label"><h2>Little Orrery</h2></div></a></li>
+        <li><a class="tile" href="xy-scope.html"><div class="label"><h2>X-Y Scope</h2></div></a></li>
       </ul>
     </noscript>
   </main>
@@ -179,6 +182,15 @@ const APPS = [
     accent: '#ffd3b0',
     titleClass: 't-orrery',
     art: 'orrery'
+  },
+  {
+    name: 'X-Y Scope',
+    href: 'xy-scope.html',
+    blurb: 'Draw with sound on a glowing oscilloscope: Lissajous knots, a spinning cube, a mushroom, or whatever a song draws. What you see is exactly what plays, so it can drive a real scope.',
+    ground: '#060b08',
+    accent: '#8dff72',
+    titleClass: 't-scope',
+    art: 'scope'
   }
 ];
 
@@ -585,6 +597,30 @@ ARTS.orrery = {
     for (const it of items) if (it.back) ball(it.x, it.y - it.p[3], it.p[3], it.p[0]);
     ball(cx, cy - R * .1, R * .12, '#ffe7c4');
     for (const it of items) if (!it.back) ball(it.x, it.y - it.p[3], it.p[3], it.p[0]);
+  }
+};
+
+// A slowly turning Lissajous figure on a phosphor screen, with afterglow.
+ARTS.scope = {
+  init(s){ s.ph = 0; s.fresh = true; },
+  frame(ctx, s, w, h, t, dt){
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = s.fresh ? '#060b08' : 'rgba(6,11,8,.3)'; ctx.fillRect(0, 0, w, h); s.fresh = false;
+    const R = Math.min(w, h) * .4, cx = w / 2, cy = h / 2;
+    ctx.strokeStyle = 'rgba(150,190,160,.12)'; ctx.lineWidth = 1;
+    for (let i = -4; i <= 4; i++){
+      ctx.beginPath(); ctx.moveTo(cx + i * R / 4, cy - R); ctx.lineTo(cx + i * R / 4, cy + R); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - R, cy + i * R / 4); ctx.lineTo(cx + R, cy + i * R / 4); ctx.stroke();
+    }
+    s.ph += dt * .25;
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i <= 400; i++){
+      const u = i / 400 * 6.2832, x = cx + R * Math.sin(2 * u), y = cy - R * Math.sin(3 * u + s.ph);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(141,255,114,.18)'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.strokeStyle = 'rgba(141,255,114,.8)'; ctx.lineWidth = 1.4; ctx.stroke();
   }
 };
 
