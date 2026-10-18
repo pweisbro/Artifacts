@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Silkscreen&family=Unbounded:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -85,6 +85,7 @@ body{
 /* Gravity Wells' own wordmark */
 .label h2.t-wells{font:700 21px/1.1 "Unbounded","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
 .label h2.t-grain{font:400 19px/1.15 "Silkscreen",ui-monospace,Menlo,monospace;letter-spacing:.06em}
+.label h2.t-orrery{font:600 23px/1.1 "Fredoka","Avenir Next",system-ui,sans-serif;letter-spacing:.01em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
 .foot a{color:var(--muted);text-underline-offset:3px}
@@ -110,6 +111,7 @@ body{
         <li><a class="tile" href="drift-pad.html"><div class="label"><h2>Drift Pad</h2></div></a></li>
         <li><a class="tile" href="gravity-wells.html"><div class="label"><h2>Gravity Wells</h2></div></a></li>
         <li><a class="tile" href="grainfall.html"><div class="label"><h2>Grainfall</h2></div></a></li>
+        <li><a class="tile" href="little-orrery.html"><div class="label"><h2>Little Orrery</h2></div></a></li>
       </ul>
     </noscript>
   </main>
@@ -168,6 +170,15 @@ const APPS = [
     accent: '#a6e3cc',
     titleClass: 't-grain',
     art: 'grain'
+  },
+  {
+    name: 'Little Orrery',
+    href: 'little-orrery.html',
+    blurb: 'A clay model of the solar system on a pastel plinth. Spin it, zoom in, and tap a planet to ride along with it.',
+    ground: '#262649',
+    accent: '#ffd3b0',
+    titleClass: 't-orrery',
+    art: 'orrery'
   }
 ];
 
@@ -547,6 +558,33 @@ ARTS.grain = {
     for (let i = 0; i < g.length; i++) if (g[i]){ ctx.fillStyle = cols[g[i] - 1]; ctx.fillRect(bx + (i % gw) * cw, by + Math.floor(i / gw) * chh, cw + .5, chh + .5); }
     ctx.fillStyle = 'rgba(0,0,0,.18)';
     for (let y = 0; y < sh; y += 3) ctx.fillRect(bx, by + y, sw, 1);
+  }
+};
+
+// A tilted pastel disc with a glowing sun and little planets circling at their own speeds.
+ARTS.orrery = {
+  init(s, w, h){
+    s.t0 = Math.random() * 100;
+    s.p = [['#cfc6d8', .19, .24, 3], ['#ffd4a8', .27, .62, 4], ['#9fd3ff', .33, 1, 4.5], ['#ffb09a', .4, 1.88, 3.5], ['#ffdcb8', .56, 11.86, 9], ['#fff0c2', .67, 29.46, 8], ['#bdf0e4', .8, 84, 6], ['#b3bcff', .9, 164.8, 6]];
+  },
+  frame(ctx, s, w, h, t, dt){
+    const cx = w / 2, cy = h * .5, R = Math.min(w * .44, h * .62), sq = .42, yr = (s.t0 + t) / 6;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#262649'; ctx.fillRect(0, 0, w, h);
+    // the plinth, as two stacked ellipses
+    ctx.fillStyle = '#6f68b8'; ctx.beginPath(); ctx.ellipse(cx, cy + R * .07, R, R * sq, 0, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = '#8f88d4'; ctx.beginPath(); ctx.ellipse(cx, cy, R, R * sq, 0, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = 'rgba(214,206,255,.55)'; ctx.lineWidth = 1;
+    for (const p of s.p){ ctx.beginPath(); ctx.ellipse(cx, cy, R * p[1], R * p[1] * sq, 0, 0, 6.2832); ctx.stroke(); }
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * .4);
+    glow.addColorStop(0, 'rgba(255,220,180,.7)'); glow.addColorStop(1, 'rgba(255,220,180,0)');
+    ctx.fillStyle = glow; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    // planets behind the sun first, then the sun, then the ones in front
+    const items = s.p.map((p, i) => { const a = yr / p[2] * 6.2832 + i * 1.7; return { p, x: cx + Math.cos(a) * R * p[1], y: cy + Math.sin(a) * R * p[1] * sq, back: Math.sin(a) < 0 }; });
+    const ball = (x, y, r, c) => { const g = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .1, x, y, r); g.addColorStop(0, '#ffffff'); g.addColorStop(.25, c); g.addColorStop(1, c); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); };
+    for (const it of items) if (it.back) ball(it.x, it.y - it.p[3], it.p[3], it.p[0]);
+    ball(cx, cy - R * .1, R * .12, '#ffe7c4');
+    for (const it of items) if (!it.back) ball(it.x, it.y - it.p[3], it.p[3], it.p[0]);
   }
 };
 
