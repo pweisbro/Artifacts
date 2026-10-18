@@ -36,6 +36,10 @@ Two things make it play itself. **Loop** sets pads repeating: each looping pad g
 
 Everything is synthesized in the browser, so it works offline. Settings are kept in the browser on each device.
 
+### Gravity Wells
+
+`gravity-wells.html` is a multi-touch particle toy. Every finger (or the mouse) becomes a gravity well, and thousands of sparks fall toward it, orbit and slingshot, colored by how fast they move. The longer you hold a well the heavier it gets; let go of a heavy one and it collapses into a shockwave. The dock switches what your fingers do (**Pull**, **Push** or **Swirl**), **Tilt** lets the phone's own tilt pour the particles around (iPhone asks for motion access the first time), and **Big bang** gathers everything into one point and blows it apart.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.

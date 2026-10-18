@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="A home for small interactive apps: an optics bench, a fluid simulation, an ambient sound pad, and whatever comes next.">
+<meta name="description" content="A home for small interactive apps: an optics bench, a fluid simulation, an ambient sound pad, a particle gravity toy, and whatever comes next.">
 <meta name="theme-color" content="#1b1b1e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Unbounded:wght@700&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -82,6 +82,8 @@ body{
 .label h2.t-ink{font:800 24px/1.05 "Bricolage Grotesque","Avenir Next",system-ui,sans-serif;letter-spacing:-.015em}
 /* Drift Pad's own wordmark */
 .label h2.t-pad{font:800 23px/1.05 "Syne","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
+/* Gravity Wells' own wordmark */
+.label h2.t-wells{font:700 21px/1.1 "Unbounded","Avenir Next",system-ui,sans-serif;letter-spacing:-.01em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
 .foot a{color:var(--muted);text-underline-offset:3px}
@@ -105,6 +107,7 @@ body{
         <li><a class="tile" href="spectrum-bench.html"><div class="label"><h2>Spectrum Bench</h2></div></a></li>
         <li><a class="tile" href="resonant-ink.html"><div class="label"><h2>Resonant Ink</h2></div></a></li>
         <li><a class="tile" href="drift-pad.html"><div class="label"><h2>Drift Pad</h2></div></a></li>
+        <li><a class="tile" href="gravity-wells.html"><div class="label"><h2>Gravity Wells</h2></div></a></li>
       </ul>
     </noscript>
   </main>
@@ -145,6 +148,15 @@ const APPS = [
     accent: '#c9b8ff',
     titleClass: 't-pad',
     art: 'pad'
+  },
+  {
+    name: 'Gravity Wells',
+    href: 'gravity-wells.html',
+    blurb: 'Every finger is a little sun. Pull thousands of sparks into orbit, push them away or stir them, then let go and watch them fly.',
+    ground: '#04050b',
+    accent: '#ffc56b',
+    titleClass: 't-wells',
+    art: 'wells'
   }
 ];
 
@@ -414,6 +426,80 @@ ARTS.pad = {
   }
 };
 
+// Sparks orbiting two drifting wells, colored by speed like the app; now and then a well lets go in a shockwave.
+ARTS.wells = {
+  palette: ['#2a3cff', '#40c4ff', '#7ff0ff', '#e8fbff', '#ffe2a0', '#ffb347'],
+  init(s, w, h){
+    const n = Math.round(Math.min(900, Math.max(350, w * h / 80)));
+    s.p = new Float32Array(n * 4);
+    s.fresh = true; s.bang = null;
+  },
+  frame(ctx, s, w, h, t, dt){
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(4,5,11,.22)'; ctx.fillRect(0, 0, w, h);
+    const m = Math.min(w, h);
+    const wells = [
+      [w * (.5 + .26 * Math.sin(t * .37)), h * (.5 + .22 * Math.cos(t * .29))],
+      [w * (.5 + .26 * Math.sin(t * .37 + Math.PI)), h * (.5 + .22 * Math.cos(t * .29 + Math.PI))]
+    ];
+    if (s.fresh){ // start already in orbit around the wells, so the tile is lively from the first frame
+      s.fresh = false; s.nextBang = t + 3;
+      const G0 = m * m * 5, soft0 = (m * .05) ** 2, n0 = s.p.length / 4;
+      for (let i = 0; i < n0; i++){
+        const o = i * 4, [cx, cy] = wells[i % 2];
+        const r = m * (.06 + Math.random() * .4), a = Math.random() * 6.283;
+        const v = Math.sqrt(G0 * r * r / Math.pow(r * r + soft0, 1.5)) * (.8 + Math.random() * .3);
+        s.p[o] = cx + Math.cos(a) * r; s.p[o + 1] = cy + Math.sin(a) * r;
+        s.p[o + 2] = -Math.sin(a) * v; s.p[o + 3] = Math.cos(a) * v;
+      }
+    }
+    if (t > s.nextBang){ s.nextBang = t + 4 + Math.random() * 2; s.bang = { x: wells[0][0], y: wells[0][1], age: 0 }; }
+    if (s.bang && (s.bang.age += dt) > .8) s.bang = null;
+    const G = m * m * 5, soft2 = (m * .05) ** 2, drag = Math.exp(-dt * .3), bs = m * 1.4 / this.palette.length;
+    const segs = this.palette.map(() => []);
+    const p = s.p, n = p.length / 4;
+    for (let i = 0; i < n; i++){
+      const o = i * 4, x = p[o], y = p[o + 1];
+      let ax = 0, ay = 0;
+      for (const [cx, cy] of wells){
+        const dx = cx - x, dy = cy - y, r2 = dx * dx + dy * dy + soft2, f = G / (r2 * Math.sqrt(r2));
+        ax += dx * f; ay += dy * f;
+      }
+      if (s.bang){
+        const dx = x - s.bang.x, dy = y - s.bang.y, d = Math.hypot(dx, dy) + 1;
+        const ring = Math.exp(-(((d - m * (.05 + s.bang.age * 1.2)) / (m * .1)) ** 2)) * (1 - s.bang.age / .8);
+        ax += dx / d * ring * m * 30; ay += dy / d * ring * m * 30;
+      }
+      let u = (p[o + 2] + ax * dt) * drag, v = (p[o + 3] + ay * dt) * drag;
+      const sp = Math.hypot(u, v);
+      if (sp > m * 3){ u *= m * 3 / sp; v *= m * 3 / sp; }
+      let nx = x + u * dt, ny = y + v * dt;
+      if (nx < 0 || nx > w){ u = -u * .6; nx = Math.min(w, Math.max(0, nx)); }
+      if (ny < 0 || ny > h){ v = -v * .6; ny = Math.min(h, Math.max(0, ny)); }
+      p[o] = nx; p[o + 1] = ny; p[o + 2] = u; p[o + 3] = v;
+      segs[Math.min(segs.length - 1, (sp / bs) | 0)].push(x === nx && y === ny ? nx + .6 : x, y, nx, ny);
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round'; ctx.lineWidth = 1.4;
+    segs.forEach((sg, b) => {
+      if (!sg.length) return;
+      ctx.strokeStyle = this.palette[b]; ctx.globalAlpha = .6;
+      ctx.beginPath();
+      for (let j = 0; j < sg.length; j += 4){ ctx.moveTo(sg[j], sg[j + 1]); ctx.lineTo(sg[j + 2], sg[j + 3]); }
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    for (const [cx, cy] of wells){
+      const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, m * .09);
+      g.addColorStop(0, 'rgba(255,197,107,.35)'); g.addColorStop(1, 'rgba(255,197,107,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, m * .09, 0, 7); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#04050b';
+    for (const [cx, cy] of wells){ ctx.beginPath(); ctx.arc(cx, cy, m * .018, 0, 7); ctx.fill(); }
+  }
+};
+
 // Fallback for apps without their own preview: slow glows in the app's accent color.
 ARTS.glow = {
   init(){},
@@ -487,7 +573,7 @@ function sizeTile(tile){
 }
 // With reduced motion, settle each preview into a single still frame.
 function drawStill(tile){
-  const steps = tile.art === ARTS.ink ? 160 : 1;
+  const steps = tile.art === ARTS.ink || tile.art === ARTS.wells ? 160 : 1;
   for (let i = 0; i < steps; i++) tile.art.frame(tile.ctx, tile.state, tile.w, tile.h, tile.t + i / 60, 1 / 60);
 }
 
