@@ -82,6 +82,7 @@ button{font:inherit;color:inherit}
 @media (max-width:400px){ .dock button,.dock .home{width:40px} }
 .dock button[aria-pressed="true"]{color:var(--accent)}
 .dock .mode[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.dock [hidden]{display:none}
 .dock svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 @media (prefers-reduced-motion:reduce){ .hint{transition:none} }
@@ -115,6 +116,9 @@ button{font:inherit;color:inherit}
   <button id="btnTilt" aria-pressed="false" aria-label="Tilt gravity" title="Tilt gravity">
     <svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5" transform="rotate(-18 12 12)"/><path d="M12 14.5v4M10.3 17l1.7 1.7 1.7-1.7"/></svg>
   </button>
+  <button id="btnLevel" hidden aria-label="Set level here" title="Set level here">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+  </button>
   <button id="btnBang" aria-label="Big bang" title="Big bang">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.6"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
   </button>
@@ -146,7 +150,7 @@ let px, py, vx, vy;                  // particle state, CSS pixels and px/s
 let mode = 'pull';
 const wells = new Map();             // pointerId -> { x, y, born, fading, fade, strength }
 const shocks = [];                   // { x, y, age, power }
-let tilt = { on: false, gx: 0, gy: 0, seen: false };
+let tilt = { on: false, gx: 0, gy: 0, seen: false, ref: null, calibrate: false, guessL: 90, guessP: 0 };
 
 /* ---------- setup ---------- */
 function resize(){
@@ -236,19 +240,61 @@ document.getElementById('btnBang').addEventListener('click', () => {
 });
 
 const btnTilt = document.getElementById('btnTilt');
+// Gravity in the device's own frame (x toward its right edge, y toward its top, z out of the screen),
+// from the spec's beta (front-back) and gamma (left-right) angles. Compass heading doesn't matter.
+function deviceGravity(e){
+  const b = e.beta * Math.PI / 180, g = e.gamma * Math.PI / 180;
+  return [Math.sin(g) * Math.cos(b), -Math.sin(b), -Math.cos(g) * Math.cos(b)];
+}
+// The smallest rotation that turns unit vector a into straight down (0, 0, -1), as a 3x3 matrix.
+function levelFrom(a){
+  const c = -a[2];                                   // a . (0,0,-1)
+  if (c < -.999) return [1, 0, 0, 0, -1, 0, 0, 0, -1]; // screen facing the floor: flip about x
+  const vx = -a[1], vy = a[0], k = 1 / (1 + c);      // v = a x (0,0,-1)
+  return [1 - vy * vy * k, vx * vy * k, vy,
+          vx * vy * k, 1 - vx * vx * k, -vx,
+          -vy, vx, 1 - (vx * vx + vy * vy) * k];
+}
+// How far the device is turned from its natural (portrait) orientation, in degrees counterclockwise
+// (90 = turned left, top edge now on the left, as screen.orientation.angle and window.orientation report it).
+// iPad doesn't always report this, and sometimes reports 0 while in landscape; when the reported angle
+// contradicts the window's shape, use the guess made at calibration instead.
+function screenAngle(){
+  let a = screen.orientation && typeof screen.orientation.angle === 'number' ? screen.orientation.angle
+    : typeof window.orientation === 'number' ? window.orientation : null;
+  const landscape = window.innerWidth > window.innerHeight;
+  if (a !== null){ a = ((a % 360) + 360) % 360; if ((a === 90 || a === 270) === landscape) return a; }
+  return landscape ? tilt.guessL : tilt.guessP;
+}
+// device-frame x/y (y up) to screen x/y (y down), for a screen turned by `deg`
+function toScreen(x, y, deg){
+  const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  return [x * c + y * s, -x * s + y * c];
+}
 function onOrient(e){
   if (e.beta == null || e.gamma == null) return;
   tilt.seen = true;
-  // device-frame gravity (x right, y down the screen in portrait), then turned to match the screen
-  const dx = Math.sin(e.gamma * Math.PI / 180), dy = Math.sin(e.beta * Math.PI / 180);
-  const ang = ((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0) * Math.PI / 180;
-  tilt.gx = dx * Math.cos(ang) + dy * Math.sin(ang);
-  tilt.gy = -dx * Math.sin(ang) + dy * Math.cos(ang);
+  const g = deviceGravity(e);
+  if (tilt.calibrate || !tilt.ref){
+    tilt.calibrate = false;
+    tilt.ref = levelFrom(g);
+    // If the screen angle has to be guessed, pick the one that puts "down" toward the bottom of the screen,
+    // which is how a tablet held in the hands leans. Lying flat, keep the previous guess.
+    if (Math.hypot(g[0], g[1]) > .3){
+      const best = (a, b) => toScreen(g[0], -g[1], a)[1] >= toScreen(g[0], -g[1], b)[1] ? a : b;
+      tilt.guessL = best(90, 270); tilt.guessP = best(0, 180);
+    }
+  }
+  // tilt relative to the calibrated pose: rotate so that pose reads as level, then keep the sideways part
+  const R = tilt.ref;
+  const x = R[0] * g[0] + R[1] * g[1] + R[2] * g[2];
+  const y = R[3] * g[0] + R[4] * g[1] + R[5] * g[2];
+  [tilt.gx, tilt.gy] = toScreen(x, -y, screenAngle());
 }
 btnTilt.addEventListener('click', async () => {
   if (tilt.on){
     tilt.on = false; window.removeEventListener('deviceorientation', onOrient);
-    btnTilt.setAttribute('aria-pressed', 'false'); showHint('Tilt off. Particles float freely.');
+    btnTilt.setAttribute('aria-pressed', 'false'); btnLevel.hidden = true; showHint('Tilt off. Particles float freely.');
     return;
   }
   try {
@@ -257,12 +303,16 @@ btnTilt.addEventListener('click', async () => {
       if (r !== 'granted'){ showHint('Tilt needs motion access.'); return; }
     }
   } catch (err){ showHint('Tilt needs motion access.'); return; }
-  tilt.on = true; tilt.seen = false; tilt.gx = 0; tilt.gy = 0;
+  // however the device is held when tilt turns on counts as level
+  tilt.on = true; tilt.seen = false; tilt.gx = 0; tilt.gy = 0; tilt.calibrate = true;
   window.addEventListener('deviceorientation', onOrient);
-  btnTilt.setAttribute('aria-pressed', 'true');
-  showHint('Tilt to pour the particles around.');
+  btnTilt.setAttribute('aria-pressed', 'true'); btnLevel.hidden = false;
+  showHint('Tilt from here to pour. The target button sets a new level.');
   setTimeout(() => { if (tilt.on && !tilt.seen) showHint('No tilt sensor on this device.'); }, 1500);
 });
+
+const btnLevel = document.getElementById('btnLevel');
+btnLevel.addEventListener('click', () => { tilt.calibrate = true; tilt.gx = 0; tilt.gy = 0; showHint('Level set. Tilt from here.'); });
 
 let hintTimer = 0;
 function showHint(text){
