@@ -161,6 +161,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .snd-sec{border-top:1px solid var(--rule);padding-top:12px}
 .meter{height:120px}
 .snd-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.field>.note,.field>.snd-row{margin-top:6px}
 .react{display:grid;gap:6px}
 .react .field{padding-left:50px}
 .tog{display:flex;align-items:center;gap:10px;font-size:14.5px;line-height:1.3;color:var(--text);cursor:pointer;min-height:34px}
@@ -287,9 +288,9 @@ function passColor(el){const s=[0,0,0];for(let l=390;l<=690;l+=6){const t=transO
 
 /* ================= Scene model ================= */
 // Per-piece sound tuning (prisms and liquids): a frequency range whose loudness drives refraction, color spread, reflection and tilt or ripple.
-const SNDDEF={snd:false,sndSens:1,sndLo:40,sndHi:160,sndN:.25,sndBoost:3,sndRefl:0,sndSpin:0,sndRip:.8};
+const SNDDEF={snd:false,sndSens:1,sndLo:40,sndHi:160,sndLevel:'auto',sndCal:false,sndFloor:-80,sndPeak:-40,sndN:.25,sndBoost:3,sndRefl:0,sndSpin:0,sndRip:.8};
 const DEF={
-  light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0,c:0,res:6,aSens:1,aLo:40,aHi:8000,aWave:true,aStyle:'wave',aAmt:16,aLen:150,aSpd:160,aSway:true,aSwayAmt:20,aBright:true,aColor:true},
+  light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0,c:0,res:6,aSens:1,aLo:40,aHi:8000,aLevel:'auto',aCal:false,aFloor:-80,aPeak:-40,aWave:true,aStyle:'wave',aAmt:16,aLen:150,aSpd:160,aSway:true,aSwayAmt:20,aBright:true,aColor:true},
   prism:Object.assign({type:'prism',x:0,y:0,angle:0,shape:'eq',size:150,mat:'flint',boost:1},SNDDEF),
   liquid:Object.assign({type:'liquid',x:0,y:0,angle:0,size:200,mat:'water',boost:1,wob:.55,flow:.6},SNDDEF),
   lens:Object.assign({type:'lens',x:0,y:0,angle:90,power:'conv',form:'bi',mat:'crown',f:160,ap:140,boost:1},SNDDEF),
@@ -301,7 +302,7 @@ const DEF={
   slit:{type:'slit',x:0,y:0,angle:90,len:200,gap:10},
   screen:{type:'screen',x:0,y:0,angle:90,len:260}
 };
-const RANGES={c:[0,100000],res:[2,60],aSens:[.5,4],aLo:[20,20000],aHi:[20,20000],sndSens:[.5,4],aAmt:[4,40],aLen:[60,400],aSpd:[40,600],aSwayAmt:[5,60],sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
+const RANGES={c:[0,100000],res:[2,60],aSens:[.5,4],aLo:[20,20000],aHi:[20,20000],sndSens:[.5,4],aFloor:[-160,0],aPeak:[-160,0],sndFloor:[-160,0],sndPeak:[-160,0],aAmt:[4,40],aLen:[60,400],aSpd:[40,600],aSwayAmt:[5,60],sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
   f:[30,500],ap:[30,260],len:[20,640],lpmm:[100,1500],orders:[1,3],lam:[380,700],bw:[10,200],refl:[5,95],gap:[0,400]};
 const PRISM_SHAPES=['eq','right','hex','block','drop','pipe'];
 function okEnum(t,k,v){
@@ -313,6 +314,7 @@ function okEnum(t,k,v){
     case 'form':return v==='bi'||v==='plano';
     case 'pass':return v==='band'||v==='long'||v==='short';
     case 'aStyle':return v==='wave'||v==='bars';
+    case 'aLevel':case 'sndLevel':return v==='auto'||v==='cal'||v==='off';
     case 'mode':return t==='grating'?(v==='trans'||v==='refl'):(v==='absorb'||v==='dichroic');
     default:return false;
   }
@@ -987,7 +989,8 @@ function lightAudioHTML(el){
     ${rangeField('f-asens','aSens','Sensitivity',.5,4,.1,el.aSens,sensF)}
     ${chipsHTML(el,'aLo','aHi')}
     <div class="fields">${logRange('f-slo','aLo','From',el.aLo)}${logRange('f-shi','aHi','To',el.aHi)}</div>
-    <canvas class="chart bandm" id="f-bandm" aria-label="Live input spectrum, with this light's range highlighted"></canvas>
+    <canvas class="chart bandm" id="f-bandm" aria-label="Live input spectrum, with this light's range and its quiet and loud levels highlighted"></canvas>
+    ${levelHTML(el,'a')}
     <div class="snd-row"><p class="note" id="f-snd-note"></p><button type="button" class="ghost" id="f-open-snd">Open Sound</button></div>
   </div>
   <div class="group"><div class="lab"><span>Reactions</span></div>
@@ -1003,6 +1006,7 @@ function lightAudioHTML(el){
       <p class="note" id="f-ac-note">Works when Spectrum is set to Laser, since a laser makes a single frequency.</p></div>
   </div>
   <div class="readout"><div>The range sets what this light listens to. Its sway, brightness, spectrum bars and pitch color all come from that slice of the sound, so one light can follow the bass while another follows the vocals. The waveform always shows the whole sound.</div>
+  <div>Highs are much quieter than bass in most music, often by 15 to 30 dB, and quieter still through a phone microphone, so Leveling gives each range its own quiet and loud levels: the two lines on the meter.</div>
   <div>The waveform is the microphone’s live signal, about 21 ms of sound stretched across one Length and lined up so a steady note holds still, like an oscilloscope. Spectrum bars sends a running histogram instead: each bar is one slice of the sound, bass to treble, measured as it leaves the light, so beats ride outward as clusters of tall bass bars. Both flow out from the light and follow every bounce and split. A real light wave is far smaller: about half a micron from crest to crest.</div>
   <div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet. Lasers tuned to the same range spread into a chord: the note, a major third up and a fifth up.</div>
   <div>These settings are saved with the setup. They react while Sound is listening, and the overall Sensitivity in Sound scales this light’s own.</div></div>`;
@@ -1082,6 +1086,8 @@ function renderInspector(){
   const os=$('f-open-snd');if(os)os.addEventListener('click',()=>renderSnd());
   box.querySelectorAll('select[data-k]').forEach(n=>n.addEventListener('change',()=>{sel[n.dataset.k]=n.value;onField();}));
   box.querySelectorAll('.seg[data-k]').forEach(n=>n.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel[n.dataset.k]=n.dataset.num?Number(b.dataset.v):b.dataset.v;for(const x of n.children)x.setAttribute('aria-pressed',String(x===b));onField();}));
+  const lev=$('f-lev');if(lev)lev.addEventListener('click',e=>{const P=sel.type==='light'?'a':'snd';CALMSG.delete(sel.id);if(e.target.closest('button')&&sel[P+'Level']==='cal'&&!sel[P+'Cal']&&!CAL)startCal(sel);else calNote(true);});
+  const cb=$('f-cal');if(cb)cb.addEventListener('click',()=>startCal(sel));
   applyVis();updateReadout();
 }
 const BANDS=[['All',40,8000],['Bass',40,160],['Low mids',160,600],['Mids',600,2000],['Highs',2000,8000]];
@@ -1097,7 +1103,8 @@ function sndSection(el){
     ${rangeField('f-ssens','sndSens','Sensitivity',.5,4,.1,el.sndSens,sensF)}
     ${chipsHTML(el,'sndLo','sndHi')}
     <div class="fields">${logRange('f-slo','sndLo','From',el.sndLo)}${logRange('f-shi','sndHi','To',el.sndHi)}</div>
-    <canvas class="chart bandm" id="f-bandm" aria-label="Live level of the chosen sound range"></canvas>
+    <canvas class="chart bandm" id="f-bandm" aria-label="Live level of the chosen sound range, with its quiet and loud levels"></canvas>
+    ${levelHTML(el,'snd')}
     <div class="fields">
       ${rangeField('f-sn','sndN','Refraction',0,.6,.01,el.sndN,v=>'+'+(+v).toFixed(2)+' index')}
       ${rangeField('f-sb','sndBoost','Color spread',1,8,.5,el.sndBoost,v=>'up to '+v+'×')}
@@ -1111,6 +1118,7 @@ function applyVis(){
   const el=sel;if(!el)return;
   const fbs=$('f-bands');if(fbs)for(const b of fbs.children)b.setAttribute('aria-pressed',String(+b.dataset.lo===el[fbs.dataset.klo]&&+b.dataset.hi===el[fbs.dataset.khi]));
   const ws=$('wrap-snd');if(ws)ws.hidden=!el.snd;
+  const lv=$('f-lev');if(lv){const m=el[lv.dataset.k];$('f-lev-note').textContent=LEVNOTE[m]||'';$('wrap-cal').hidden=m!=='cal';calNote(true);}
   if($('f-snd-note')){sndNote(true);drawBandMeter();}
   const t=$('insp-title');if(t)t.textContent=nameOf(el);
   if(el.type==='light'){resNote(true);const wl=$('wrap-laser');if(wl)wl.hidden=el.spectrum!=='laser';const aw=$('wrap-aw');if(aw)aw.hidden=!el.aWave;const as=$('wrap-asw');if(as)as.hidden=!el.aSway;const an=$('f-ac-note');if(an)an.hidden=el.spectrum==='laser';}
@@ -1517,7 +1525,7 @@ function liveScene(){
   return scene.map((el,i)=>{
     let o=null;const cp=()=>o||(o=Object.assign({},el));
     if(el.type==='light'){
-      const A=elAudio(el.id,el.aLo,el.aHi,el.aSens,el.aColor&&el.spectrum==='laser');
+      const A=elAudio(el,'a',el.aColor&&el.spectrum==='laser');
       if(el.aSway)cp().angle=el.angle+el.aSwayAmt*(.6*A.s*Math.sin(t*2.1+i*1.9)+.4*A.kick*A.sg*(i%2?-1:1));
       if(el.aBright)cp().bm=.3+1.05*A.s+.45*A.kick;
       if(el.aWave){
@@ -1530,27 +1538,47 @@ function liveScene(){
       }
     }
     if(el.snd&&(el.type==='prism'||el.type==='liquid'||el.type==='lens')){
-      const lv=elAudio(el.id,el.sndLo,el.sndHi,el.sndSens).s,q=cp();
+      const lv=elAudio(el,'snd').s,q=cp();
       q.lv=lv;q.dn=el.sndN*lv;q.boost=clamp(el.boost+(el.sndBoost-1)*lv,1,8);q.reflx=el.sndRefl*lv;
       if(el.type==='liquid')q.rip=el.sndRip*lv;else q.angle=el.angle+el.sndSpin*lv;
     }
     return o||el;
   });
 }
-// Loudness of one frequency range, 0–1, with its own slowly decaying peak so quiet treble ranges still move.
-function bandLevel(lo,hi,sens){
-  if(!AU.an)return 0;const hz=AU.ctx.sampleRate/AU.an.fftSize,a=Math.max(1,Math.floor(Math.min(lo,hi)/hz)),b=Math.min(AU.fd.length-1,Math.max(a,Math.ceil(Math.max(lo,hi)/hz)));
-  let m=0,c=0;for(let i=a;i<=b;i++){m+=AU.fd[i];c++;}
-  return clamp((m/(c||1)/255+20*Math.log10(sens||1)/70-.3)/.7,0,1);
+// Loudness of one frequency range in dB: the power mean of its bins, so a few loud partials in a wide, mostly quiet treble range still count.
+function bandDb(lo,hi){
+  if(!AU.an||!AU.ps)return -160;const hz=AU.ctx.sampleRate/AU.an.fftSize,n=AU.ff.length,a=clamp(Math.floor(Math.min(lo,hi)/hz),1,n-1),b=clamp(Math.ceil(Math.max(lo,hi)/hz),a,n-1);
+  const p=(AU.ps[b+1]-AU.ps[a])/(b-a+1);return p>1e-16?Math.max(-160,10*Math.log10(p)):-160;
 }
-// Each piece listens on its own: loudness of its range (with its own slowly decaying peak so quiet treble still moves),
-// its own beat detection, and for lasers the strongest musical note inside that range.
+// Leveling turns that dB into 0–1 against a quiet and a loud level. Highs in music are often 15–30 dB below the bass, so each range gets its own.
+// Auto follows the music, Calibrated uses levels measured with Calibrate, Off is one fixed scale for every range.
+const LV_OFF=[-80,-30],CALMS=5000;
+function levelSpan(el,P,st,x,dt){
+  const mode=el[P+'Level'];
+  if(mode==='off')return LV_OFF;
+  if(mode==='cal'&&el[P+'Cal'])return [el[P+'Floor'],Math.max(el[P+'Floor']+6,el[P+'Peak'])];
+  if(st.fl==null){st.fl=x;st.pk=x+12;}
+  st.fl+=(x-st.fl)*(1-Math.exp(-dt/(x<st.fl?1:6)));
+  st.pk=x>st.pk?x:st.pk-3*dt;
+  if(st.pk<st.fl+12)st.pk=st.fl+12;if(st.pk>st.fl+30)st.fl=st.pk-30;
+  return [st.fl,st.pk];
+}
+// Each piece listens on its own: the level of its range, its own beat detection, and for lasers the strongest musical note inside that range.
+// P is the setting prefix: 'a' for a light, 'snd' for prisms, liquids and lenses.
 const ELV=new Map(),RINGS=new Map();
-function elAudio(id,lo,hi,sens,pitch){
-  const v=bandLevel(lo,hi,(sens||1)*AU.cfg.sens);let st=ELV.get(id);
-  if(!st){st={s:0,pk:.2,pv:0,fm:0,fv:0,kick:0,lb:0,sg:1,chs:null,pc:-1,thz:0};ELV.set(id,st);}
-  st.pk=Math.max(v,st.pk*.995,.15);const t=v<.03?0:v/st.pk;st.s+=(t-st.s)*(t>st.s?.5:.12);
-  const flux=Math.max(0,v-st.pv),now=performance.now();st.pv=v;const dv=flux-st.fm;st.fm+=dv*.05;st.fv=st.fv*.95+dv*dv*.05;
+let CAL=null; // the calibration in progress: {id,P,t0,xs}
+const CALMSG=new Map();
+function elAudio(el,P,pitch){
+  const id=el.id,lo=el[P+'Lo'],hi=el[P+'Hi'],now=performance.now();let st=ELV.get(id);
+  if(!st){st={s:0,pv:0,fm:0,fv:0,kick:0,lb:0,sg:1,chs:null,pc:-1,thz:0,fl:null,pk:null,t:now,x:-160,span:LV_OFF,gate:1};ELV.set(id,st);}
+  const dt=clamp((now-st.t)/1000,0,.25);st.t=now;
+  const x=bandDb(lo,hi),span=levelSpan(el,P,st,x,dt);st.x=x;st.span=span;
+  // Auto with nothing playing: fade out rather than amplify the noise floor.
+  st.gate=el[P+'Level']==='off'||(el[P+'Level']==='cal'&&el[P+'Cal'])?1:clamp((span[1]+105)/15,0,1);
+  const sens=(el[P+'Sens']||1)*AU.cfg.sens,v=clamp((x-span[0])/(span[1]-span[0])*sens,0,1)*st.gate;
+  st.s+=(v-st.s)*(v>st.s?.5:.12);
+  if(CAL&&CAL.id===id)CAL.xs.push(x);
+  const flux=Math.max(0,v-st.pv);st.pv=v;const dv=flux-st.fm;st.fm+=dv*.05;st.fv=st.fv*.95+dv*dv*.05;
   if(flux>st.fm+1.6*Math.sqrt(st.fv)&&flux>.02&&now-st.lb>260){st.kick=1;st.lb=now;st.sg=-st.sg;}else st.kick*=.86;
   if(pitch&&AU.an){
     if(!st.chs)st.chs=new Float32Array(12);
@@ -1562,20 +1590,56 @@ function elAudio(id,lo,hi,sens,pitch){
   }
   return st;
 }
-// A light's spectrum-bar history: 16 bands spread across its own range, sampled 30 times a second.
+// A light's spectrum-bar history: 16 bands spread across its own range, sampled 30 times a second, on the same quiet and loud levels as the light.
 function lightRing(el){
   let R=RINGS.get(el.id);if(!R){R={ring:new Float32Array(512*16),last:-1e12};RINGS.set(el.id,R);}
   if(!AU.an)return R.ring;
-  const hz=AU.ctx.sampleRate/AU.an.fftSize,lo=Math.max(30,Math.min(el.aLo,el.aHi)),hi=Math.max(lo*1.5,el.aLo,el.aHi),off=20*Math.log10((el.aSens||1)*AU.cfg.sens)/70,bd=AU.bands;
-  for(let j=0;j<16;j++){const fa=lo*Math.pow(hi/lo,j/16),fb=lo*Math.pow(hi/lo,(j+1)/16);let m=0,c=0;for(let i=Math.floor(fa/hz);i<=Math.ceil(fb/hz);i++){m+=AU.fd[i]||0;c++;}bd[j]=clamp((m/(c||1)/255+off-.3)/.7,0,1);}
+  const st=ELV.get(el.id),span=st?st.span:LV_OFF,g=st?st.gate:1,lo=Math.max(30,Math.min(el.aLo,el.aHi)),hi=Math.max(lo*1.5,el.aLo,el.aHi),sens=(el.aSens||1)*AU.cfg.sens,bd=AU.bands;
+  for(let j=0;j<16;j++){const x=bandDb(lo*Math.pow(hi/lo,j/16),lo*Math.pow(hi/lo,(j+1)/16));bd[j]=clamp((x-span[0])/(span[1]-span[0])*sens,0,1)*g;}
   const slot=Math.floor(performance.now()/1000*30);if(R.last<slot-512)R.last=slot-512;
   for(let q=R.last+1;q<=slot;q++){const b0=(q%512)*16;for(let j=0;j<16;j++)R.ring[b0+j]=bd[j];}R.last=slot;
   return R.ring;
 }
+// Calibrate listens to one piece's range for a few seconds and keeps its quiet (10th percentile) and loud (98th) levels.
+const dbF=v=>(v<0?'−':'')+Math.abs(Math.round(v))+' dB';
+function calText(el,P){
+  if(CAL&&CAL.id===el.id)return `Listening… ${Math.max(1,Math.ceil((CALMS-(performance.now()-CAL.t0))/1000))} s. Play the kind of sound you want it to follow.`;
+  const m=CALMSG.get(el.id);if(m)return m;
+  return el[P+'Cal']?`Calibrated: quiet ${dbF(el[P+'Floor'])}, loud ${dbF(el[P+'Peak'])}.`:'Not calibrated yet. Until then it levels on its own, like Auto.';
+}
+function startCal(el){
+  const P=el.type==='light'?'a':'snd';CALMSG.delete(el.id);
+  if(!AU.on){CAL=null;CALMSG.set(el.id,'Start Sound first, then tap Calibrate.');}
+  else CAL={id:el.id,P,t0:performance.now(),xs:[]};
+  calNote(true);
+}
+function tickCal(){
+  if(!CAL)return;const el=scene.find(e=>e.id===CAL.id);
+  if(!el||!AU.on){if(el)CALMSG.set(el.id,'Sound stopped before calibrating finished.');CAL=null;calNote(true);return;}
+  if(performance.now()-CAL.t0<CALMS)return;
+  const P=CAL.P,xs=CAL.xs.filter(v=>v>-160).sort((a,b)=>a-b);CAL=null;
+  const q=f=>xs[Math.min(xs.length-1,Math.floor(f*(xs.length-1)))];
+  if(xs.length<20){CALMSG.set(el.id,'Heard nothing in this range. Play some sound and try again.');}
+  else{const lo=q(.1),hi=q(.98);
+    if(hi-lo<6)CALMSG.set(el.id,`This range barely changed (${dbF(lo)} to ${dbF(hi)}). Play something with more going on here and try again.`);
+    else{el[P+'Floor']=Math.round(lo*10)/10;el[P+'Peak']=Math.round(hi*10)/10;el[P+'Cal']=true;el[P+'Level']='cal';changed();}}
+  calNote(true);
+}
+let calShown='';
+function calNote(force){
+  const n=$('f-cal-note');if(!n||!sel)return;const P=sel.type==='light'?'a':'snd',t=calText(sel,P);
+  if(force||t!==calShown){calShown=t;n.textContent=t;}
+  const b=$('f-cal');if(b)b.disabled=!!(CAL&&CAL.id===sel.id);
+}
+function levelHTML(el,P){
+  return segField('f-lev',P+'Level','Leveling',[['auto','Auto'],['cal','Calibrated'],['off','Off']],el[P+'Level']).slice(0,-6)+
+    `<p class="note" id="f-lev-note"></p><div class="snd-row" id="wrap-cal"><p class="note" id="f-cal-note" aria-live="polite"></p><button type="button" class="ghost" id="f-cal">Calibrate</button></div></div>`;
+}
+const LEVNOTE={auto:'Finds this range’s own quiet and loud levels as the music plays, so a quiet treble range swings as fully as the bass.',cal:'Uses the quiet and loud levels measured for this range with Calibrate.',off:'One fixed scale for every range, so quiet ranges like the highs barely move.'};
 let sndState=null;
 function sndNote(force){const n=$('f-snd-note'),b=$('f-open-snd');if(!n)return;const st=AU.on?'on':'off';if(!force&&st===sndState)return;sndState=st;const lt=sel&&sel.type==='light';n.textContent=AU.on?(lt?'Listening to sound now.':'Listening. Reacts as this range gets louder. Saved with the setup.'):(lt?'Reacts while Sound is listening.':'Reacts while Sound is listening. Saved with the setup.');b.hidden=AU.on;}
 function drawBandMeter(){
-  sndNote(false);const cv=$('f-bandm');if(!cv||!sel||view!=='insp'||(sel.type!=='light'&&!sel.snd))return;
+  sndNote(false);calNote(false);const cv=$('f-bandm');if(!cv||!sel||view!=='insp'||(sel.type!=='light'&&!sel.snd))return;
   const lt=sel.type==='light',klo=lt?'aLo':'sndLo',khi=lt?'aHi':'sndHi';
   const w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
   if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
@@ -1585,7 +1649,12 @@ function drawBandMeter(){
   if(AU.on&&AU.an){const hz=AU.ctx.sampleRate/AU.an.fftSize,n=60,bw=(R-L)/n;
     for(let b=0;b<n;b++){const fa=f0*Math.pow(f1/f0,b/n),fb=f0*Math.pow(f1/f0,(b+1)/n);let m=0,c=0;for(let i=Math.floor(fa/hz);i<=Math.ceil(fb/hz);i++){m+=AU.fd[i]||0;c++;}
       const v=c?m/c/255:0,y=bot-(bot-top)*v,inR=fb>lo&&fa<hi;g.fillStyle=inR?'#ffb340':'#3b424e';g.fillRect(L+b*bw+1,y,Math.max(1,bw-2),bot-y);}
-    const st=ELV.get(sel.id);g.fillStyle='#dde1e7';g.fillRect(L,h-6,(R-L)*(st?st.s:0),3);
+    const st=ELV.get(sel.id);
+    if(st&&st.span){const dy=d=>bot-(bot-top)*clamp((d-AU.an.minDecibels)/(AU.an.maxDecibels-AU.an.minDecibels),0,1),x0=lx(Math.max(f0,lo)),x1=lx(Math.min(f1,hi));
+      g.lineWidth=1;g.setLineDash([3,3]);g.strokeStyle='rgba(221,225,231,.75)';
+      for(const d of st.span){const y=Math.round(dy(d))+.5;g.beginPath();g.moveTo(x0,y);g.lineTo(x1,y);g.stroke();}
+      g.setLineDash([]);g.fillStyle='#dde1e7';g.fillRect(x0,Math.round(dy(st.x))-1,Math.max(2,x1-x0),2);}
+    g.fillStyle='#dde1e7';g.fillRect(L,h-6,(R-L)*(st?st.s:0),3);
     if(st&&st.kick>.05){g.fillStyle=`rgba(255,179,64,${st.kick.toFixed(2)})`;g.beginPath();g.arc(R-4,top+6,4,0,TAU);g.fill();}
     if(lt&&st&&st.pc>=0&&st.thz){const nm=299792.458/st.thz;g.font='500 11px "IBM Plex Mono",ui-monospace,monospace';g.fillStyle=rgba(colorOf(nm),1);g.textAlign='left';g.fillText(`${NOTE[st.pc]} → ${Math.round(nm)} nm`,L+2,top+10);}}
   g.font='10px "IBM Plex Mono",ui-monospace,monospace';g.fillStyle='#8d949f';g.textAlign='center';
@@ -1596,7 +1665,7 @@ function ensureCtx(){
   if(!AU.ctx){
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;
     AU.ctx=new AC();AU.an=AU.ctx.createAnalyser();AU.an.fftSize=4096;AU.an.smoothingTimeConstant=.6;
-    AU.td=new Float32Array(AU.an.fftSize);AU.fd=new Uint8Array(AU.an.frequencyBinCount);
+    AU.td=new Float32Array(AU.an.fftSize);AU.fd=new Uint8Array(AU.an.frequencyBinCount);AU.ff=new Float32Array(AU.an.frequencyBinCount);AU.ps=new Float64Array(AU.an.frequencyBinCount+1);
   }
   if(AU.ctx.state==='suspended')AU.ctx.resume().catch(()=>{});
   return AU.ctx;
@@ -1604,7 +1673,9 @@ function ensureCtx(){
 function analyze(){
   const an=AU.an,td=AU.td,fd=AU.fd,hz=AU.ctx.sampleRate/an.fftSize;
   an.getFloatTimeDomainData(td);let s=0;for(let i=0;i<td.length;i++)s+=td[i]*td[i];const rms=Math.sqrt(s/td.length)*AU.cfg.sens;
-  an.getByteFrequencyData(fd);
+  // One float read per frame: the byte view for the meters (same −100…−30 dB map as getByteFrequencyData) and a running sum of linear power for band levels.
+  {const ff=AU.ff,ps=AU.ps,d0=an.minDecibels,k=255/(an.maxDecibels-d0);an.getFloatFrequencyData(ff);ps[0]=0;
+    for(let i=0;i<ff.length;i++){const d=ff[i];if(d>-200){fd[i]=d<=d0?0:Math.min(255,(d-d0)*k);ps[i+1]=ps[i]+Math.pow(10,d/10);}else{fd[i]=0;ps[i+1]=ps[i];}}}
   let bass=0,bn=0;for(let i=Math.max(1,Math.floor(30/hz));i<=Math.ceil(160/hz);i++){bass+=fd[i]/255;bn++;}bass/=bn||1;
   const ch=AU.ch;ch.fill(0);let tot=0;
   for(let i=Math.ceil(80/hz);i<Math.min(fd.length,4000/hz);i++){const v=fd[i]/255;if(v<.3)continue;const w=v*v,pc=((Math.round(12*Math.log2(i*hz/261.6256))%12)+12)%12;ch[pc]+=w;tot+=w;}
@@ -1658,13 +1729,13 @@ function drawMeter(){
   if(AU.on&&AU.kick>.05){g.fillStyle=`rgba(255,179,64,${AU.kick.toFixed(2)})`;g.beginPath();g.arc(mx-44,12,5,0,TAU);g.fill();}
 }
 let loopRaf=0;
-function loop(){loopRaf=0;if(AU.on)analyze();draw();drawMeter();drawBandMeter();resNote(false);if(AU.on||hasFlow()||DELAYING)loopRaf=requestAnimationFrame(loop);}
+function loop(){loopRaf=0;if(AU.on)analyze();draw();tickCal();drawMeter();drawBandMeter();resNote(false);if(AU.on||hasFlow()||DELAYING)loopRaf=requestAnimationFrame(loop);}
 function goLive(kind){AU.ring.fill(0);ELV.clear();RINGS.clear();AU.lastSlot=-1e12;AU.on=true;AU.kind=kind;AU.peakR=.01;AU.peakB=.05;AU.low=0;AU.fm=0;AU.fv=0;AU.kick=0;$('b-snd').dataset.live='true';updSnd();if(!loopRaf)loopRaf=requestAnimationFrame(loop);}
 function stopSound(){AU.kick=0;
   if(AU.stream){AU.stream.getTracks().forEach(t=>t.stop());AU.stream=null;}
   if(AU.micNode){try{AU.micNode.disconnect();}catch(e){}AU.micNode=null;}
   if(AU.audio&&!AU.audio.paused)AU.audio.pause();
-  const was=AU.on;AU.on=false;AU.kind=null;AU.lvl=0;AU.bass=0;$('b-snd').dataset.live='false';updSnd();
+  const was=AU.on;AU.on=false;tickCal();AU.kind=null;AU.lvl=0;AU.bass=0;$('b-snd').dataset.live='false';updSnd();
   if(was&&!loopRaf)loopRaf=requestAnimationFrame(loop);
 }
 function sndStatus(t){const n=$('snd-status');if(n)n.textContent=t;}
