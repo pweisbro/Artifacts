@@ -289,7 +289,7 @@ function passColor(el){const s=[0,0,0];for(let l=390;l<=690;l+=6){const t=transO
 // Per-piece sound tuning (prisms and liquids): a frequency range whose loudness drives refraction, color spread, reflection and tilt or ripple.
 const SNDDEF={snd:false,sndLo:40,sndHi:160,sndN:.25,sndBoost:3,sndRefl:0,sndSpin:0,sndRip:.8};
 const DEF={
-  light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0,c:0},
+  light:{type:'light',x:0,y:0,angle:0,spectrum:'sun',laser:532,width:0,spread:0,c:0,aWave:true,aStyle:'wave',aAmt:16,aLen:150,aSpd:160,aSway:true,aSwayAmt:20,aBright:true,aColor:true},
   prism:Object.assign({type:'prism',x:0,y:0,angle:0,shape:'eq',size:150,mat:'flint',boost:1},SNDDEF),
   liquid:Object.assign({type:'liquid',x:0,y:0,angle:0,size:200,mat:'water',boost:1,wob:.55,flow:.6},SNDDEF),
   lens:{type:'lens',x:0,y:0,angle:90,power:'conv',form:'bi',mat:'crown',f:160,ap:140,boost:1},
@@ -301,7 +301,7 @@ const DEF={
   slit:{type:'slit',x:0,y:0,angle:90,len:200,gap:10},
   screen:{type:'screen',x:0,y:0,angle:90,len:260}
 };
-const RANGES={c:[0,100000],sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
+const RANGES={c:[0,100000],aAmt:[4,40],aLen:[60,400],aSpd:[40,600],aSwayAmt:[5,60],sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
   f:[30,500],ap:[30,260],len:[20,640],lpmm:[100,1500],orders:[1,3],lam:[380,700],bw:[10,200],refl:[5,95],gap:[0,400]};
 const PRISM_SHAPES=['eq','right','hex','block','drop','pipe'];
 function okEnum(t,k,v){
@@ -312,6 +312,7 @@ function okEnum(t,k,v){
     case 'power':return v==='conv'||v==='div';
     case 'form':return v==='bi'||v==='plano';
     case 'pass':return v==='band'||v==='long'||v==='short';
+    case 'aStyle':return v==='wave'||v==='bars';
     case 'mode':return t==='grating'?(v==='trans'||v==='refl'):(v==='absorb'||v==='dichroic');
     default:return false;
   }
@@ -441,7 +442,7 @@ function emit(el,stack,keyed){
   const gi=n===1?0:Math.min(7,Math.round(Math.log2(n))); // many parallel rays: fade each ray's glow so the beam doesn't fill in solid
   for(let i=0;i<n;i++){
     const f=n===1?0:i/(n-1)-.5,a=F.a+el.spread*f*D2R,dx=Math.cos(a),dy=Math.sin(a),o=F.L(23,el.width*f);
-    sp.samples.forEach(([l,w],li)=>stack.push({x:o[0],y:o[1],dx,dy,lam:l,I:w,base:sp.base,depth:0,med:null,skip:null,col:colorOf(l),ck:Math.round(l*2),gi,d:0,key:keyed?el.id+':'+i+':'+li:null}));
+    sp.samples.forEach(([l,w],li)=>stack.push({x:o[0],y:o[1],dx,dy,lam:l,I:w,base:sp.base*(el.bm||1),W:el._W||null,depth:0,med:null,skip:null,col:colorOf(l),ck:Math.round(l*2),gi,d:0,key:keyed?el.id+':'+i+':'+li:null}));
   }
 }
 
@@ -449,7 +450,7 @@ function emit(el,stack,keyed){
 function waveSeg(p,r,s0,s1,W){
   const L=Math.min(s1,1800);if(L<=s0)return;
   const nx=-r.dy,ny=r.dx,tb=W.tbl,N=tb.length,st=W.step*(1+r.gi*.6),n=Math.max(1,Math.ceil((L-s0)/st));
-  W.used+=n;
+  W.ctr.n+=n;
   for(let k=0;k<=n;k++){
     const s=Math.min(L,s0+k*st),d=r.d+s,u=(d-W.phase)/W.L,v=tb[((u-Math.floor(u))*N)|0]*W.A*Math.min(1,d/40);
     const x=r.x+r.dx*s+nx*v,y=r.y+r.dy*s+ny*v;
@@ -467,7 +468,7 @@ function barSeg(p,r,s0,s1,W){
     const j=((k%P)+P)%P;if(j>=W.B)continue;
     const v=W.ring[((slot%W.RING)+W.RING)%W.RING*W.B+(W.B-1-j)];if(v<.03)continue;
     const h=W.A*v*Math.min(1,s/40),x=r.x+r.dx*(s-r.d),y=r.y+r.dy*(s-r.d);
-    p.moveTo(x-nx*h,y-ny*h);p.lineTo(x+nx*h,y+ny*h);W.used++;
+    p.moveTo(x-nx*h,y-ny*h);p.lineTo(x+nx*h,y+ny*h);W.ctr.n++;
   }
 }
 function buildS(geos){
@@ -538,7 +539,7 @@ function trace(sc,bright,geos,W,sh){
       // In a slowed beam the same ray is followed from shell to shell. Each shell adds the point where the ray leaves it,
       // and the beam is drawn as a curve through the midpoints between those points (control point at each one),
       // so a bending beam is one smooth curve instead of a chain of straight pieces.
-      const p=bucket(beams,r,a),deco=W&&W.used<W.budget,X=[r.x+r.dx*s1,r.y+r.dy*s1],cont=s1<best;
+      const RW=r.W,p=bucket(beams,r,a),deco=RW&&RW.ctr.n<RW.ctr.max,X=[r.x+r.dx*s1,r.y+r.dy*s1],cont=s1<best;
       const pv0=sh&&r.key&&s0>0?sh.prev.get(r.key):null,pv=pv0&&Math.hypot(pv0.p[0]-X[0],pv0.p[1]-X[1])<sh.jump?pv0:null; // a sudden jump (the beam swept across an edge) starts a fresh curve
       if(sh&&r.key&&!deco){
         const P=pv?pv.p:[r.x+r.dx*s0,r.y+r.dy*s0],M=pv?pv.m:P,E=cont?[(P[0]+X[0])/2,(P[1]+X[1])/2]:X;
@@ -547,13 +548,13 @@ function trace(sc,bright,geos,W,sh){
       }else{
         if(pv){p.moveTo(pv.m[0],pv.m[1]);p.lineTo(pv.p[0],pv.p[1]);p.lineTo(r.x+r.dx*s0,r.y+r.dy*s0);}
         if(sh&&r.key&&cont)sh.next.set(r.key,{p:X,m:X});
-        if(deco)(W.bars?barSeg:waveSeg)(p,r,s0,s1,W);else{p.moveTo(r.x+r.dx*s0,r.y+r.dy*s0);p.lineTo(X[0],X[1]);}
+        if(deco)(RW.bars?barSeg:waveSeg)(p,r,s0,s1,RW);else{p.moveTo(r.x+r.dx*s0,r.y+r.dy*s0);p.lineTo(X[0],X[1]);}
       }
     }
     segs++;
     if(!hs)continue;
     const dh=r.d+best,hitIn=dh>=lo&&dh<hi;
-    const go=(dx,dy,I,med,tg)=>{if(I>=IMIN)stack.push({x:ex,y:ey,dx,dy,lam:r.lam,I,base:r.base,depth:r.depth+1,med,skip:hs,col:r.col,ck:r.ck,gi:r.gi,d:r.d+best,key:r.key?r.key+'|'+hs.el.id+tg:null});};
+    const go=(dx,dy,I,med,tg)=>{if(I>=IMIN)stack.push({x:ex,y:ey,dx,dy,lam:r.lam,I,base:r.base,depth:r.depth+1,med,skip:hs,col:r.col,ck:r.ck,gi:r.gi,W:r.W,d:r.d+best,key:r.key?r.key+'|'+hs.el.id+tg:null});};
     const refl=(I)=>{const d=r.dx*hnx+r.dy*hny;go(r.dx-2*d*hnx,r.dy-2*d*hny,I,r.med,'r');};
     switch(hs.kind){
       case 'mirror':refl(r.I*.95);break;
@@ -608,7 +609,7 @@ const lspdFromSlider=v=>v>=100?0:30*Math.pow(LMAX/30,v/99),lspdToSlider=c=>c>0?c
 const speedF=c=>!(c>0)?'Instant':c<1000?Math.round(c)+' mm/s':(c/1000).toFixed(c<10000?1:0)+' m/s';
 const slowestC=sc=>{let m=0;for(const e of sc)if(e.type==='light'&&e.c>0)m=m?Math.min(m,e.c):e.c;return m;};
 const anySlow=()=>scene.some(e=>e.type==='light'&&e.c>0);
-function sceneSig(sc){return JSON.stringify(sc.map(e=>{const o={};for(const k in e){if(k==='id'||k==='_t'||k==='lv')continue;const v=e[k];o[k]=typeof v==='number'?Math.round(v*100)/100:v;}return o;}));}
+function sceneSig(sc){return JSON.stringify(sc.map(e=>{const o={};for(const k in e){if(k==='id'||k==='_t'||k==='lv'||k==='_W')continue;const v=e[k];o[k]=typeof v==='number'?Math.round(v*100)/100:v;}return o;}));}
 const snap=sc=>sc.map(e=>Object.assign({},e));
 function seedHist(sc){HIST.length=0;HIST.push({t:-1e9,sc:snap(sc)});lastSig=sceneSig(sc);lastChange=-1e9;}
 function recordHist(sc,cMin){
@@ -793,13 +794,10 @@ function draw(){
   NOW=performance.now()/1000;
   ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='source-over';
   if(bgc)ctx.drawImage(bgc,0,0);else{ctx.fillStyle='#0a0c10';ctx.fillRect(0,0,canvas.width,canvas.height);}
-  const sc=AU.on?liveScene():scene,br=AU.on&&AU.cfg.bright?bright*(.3+1.05*AU.lvl+.45*AU.kick):bright;
-  const c=AU.cfg,now=performance.now()/1000;let W=null;
-  if(AU.on&&c.wave&&c.waveStyle==='bars')W={bars:true,ring:AU.ring,RING:AU.RING,B:16,slot:Math.floor(now*30),now,v:c.waveSpd,gap:c.waveLen/18,A:c.waveAmt*1.3,used:0,budget:70000};
-  else if(AU.on&&c.wave&&AU.lvl>.02)W={tbl:AU.wt,L:c.waveLen,A:c.waveAmt*Math.min(1,AU.lvl*1.4),phase:now*c.waveSpd,step:Math.max(4,c.waveLen/22),used:0,budget:70000};
+  const sc=AU.on?liveScene():scene,br=bright;
   const cMin=slowestC(sc);if(cMin>0)recordHist(sc,cMin);
   DELAYING=cMin>0&&NOW-lastChange<=lastMaxD/cMin+.25;
-  last=render(ctx,sc,{dpr,scale,cx,cy},{bright:br,lw:1,wave:W,delay:DELAYING,main:true});
+  last=render(ctx,sc,{dpr,scale,cx,cy},{bright:br,lw:1,wave:null,delay:DELAYING,main:true});
   if(sel){const i=scene.indexOf(sel);if(i>=0)drawSelection(sc[i],last.geos[i]);}
   if(sel&&sel.type==='screen')drawStrip();
 }
@@ -875,6 +873,25 @@ function changed(){request();saveSoon();}
 function syncAngle(){const n=$('f-angle');if(n&&sel){n.value=Math.round(normA(sel.angle));$('f-angle-v').textContent=fmtA(sel.angle);}}
 function setView(v){view=v;$('b-lib').setAttribute('aria-pressed',String(v==='lib'));$('b-snd').setAttribute('aria-pressed',String(v==='snd'));}
 
+let lightTab='light';
+function lightAudioHTML(el){
+  return `<div class="group">
+    <div class="react"><label class="tog" for="f-aw"><input type="checkbox" id="f-aw" data-k="aWave"${el.aWave?' checked':''}><span>Carry the sound on the beam</span></label>
+      <div id="wrap-aw" class="react">${segField('f-ast','aStyle','Style',[['wave','Waveform'],['bars','Spectrum bars']],el.aStyle)}
+      ${rangeField('f-aa','aAmt','Size',4,40,1,el.aAmt,v=>'±'+v+' mm')}
+      ${rangeField('f-al','aLen','Length',60,400,10,el.aLen,v=>v+' mm')}
+      ${rangeField('f-as','aSpd','Travel speed',40,600,10,el.aSpd,v=>v+' mm/s')}</div></div>
+    <div class="react"><label class="tog" for="f-asw"><input type="checkbox" id="f-asw" data-k="aSway"${el.aSway?' checked':''}><span>Loudness and beats sway the beam</span></label>
+      <div id="wrap-asw" class="react">${rangeField('f-aswa','aSwayAmt','Sway',5,60,1,el.aSwayAmt,v=>'±'+v+'°')}</div></div>
+    <div class="react"><label class="tog" for="f-ab"><input type="checkbox" id="f-ab" data-k="aBright"${el.aBright?' checked':''}><span>Volume sets brightness</span></label></div>
+    <div class="react"><label class="tog" for="f-ac"><input type="checkbox" id="f-ac" data-k="aColor"${el.aColor?' checked':''}><span>Pitch picks the laser color</span></label>
+      <p class="note" id="f-ac-note">Works when Spectrum is set to Laser, since a laser makes a single frequency.</p></div>
+    <div class="snd-row"><p class="note" id="f-snd-note"></p><button type="button" class="ghost" id="f-open-snd">Open Sound</button></div>
+  </div>
+  <div class="readout"><div>The waveform is the microphone’s live signal, about 21 ms of sound stretched across one Length and lined up so a steady note holds still, like an oscilloscope. Spectrum bars sends a running histogram instead: each bar is one slice of the sound, bass to treble, measured as it leaves the light, so beats ride outward as clusters of tall bass bars. Both flow out from the light and follow every bounce and split. A real light wave is far smaller: about half a micron from crest to crest.</div>
+  <div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet. With two or three lasers using pitch color, they spread into a chord: the note, a major third up and a fifth up.</div>
+  <div>These settings are saved with the setup. They react while Sound is listening.</div></div>`;
+}
 function renderInspector(){
   setView('insp');FM={};
   const box=$('insp');
@@ -883,6 +900,8 @@ function renderInspector(){
   let h=`<div class="insp-head"><h2 id="insp-title"></h2><div class="acts"><button type="button" class="ghost" id="b-dup">Duplicate</button><button type="button" class="ghost" id="b-del">Remove</button></div></div><div class="fields">`;
   switch(el.type){
     case 'light':
+      h=h.slice(0,-'<div class="fields">'.length)+`<div class="seg" id="f-ltab" role="tablist" aria-label="Light settings">${[['light','Light'],['audio','Audio reactive']].map(([v,t])=>`<button type="button" role="tab" data-v="${v}" aria-selected="${v===lightTab}" aria-pressed="${v===lightTab}">${t}</button>`).join('')}</div><div class="fields">`;
+      if(lightTab==='audio'){h+='</div>'+lightAudioHTML(el);break;}
       h+=selectField('f-spec','spectrum','Spectrum',SPEC_ORDER.map(k=>[k,SPECTRA[k].label]),el.spectrum);
       h+=`<div id="wrap-laser">${rangeField('f-laser','laser','Wavelength',380,700,1,el.laser,v=>v+' nm','spectrum')}</div>`;
       h+=`</div><div class="readout" id="readout"></div><div class="fields">`;
@@ -940,6 +959,7 @@ function renderInspector(){
   box.innerHTML=h;
   $('b-dup').addEventListener('click',()=>{const c=mk(sel.type,Object.assign({},sel,{x:sel.x+30,y:sel.y+30}));scene.push(c);sel=c;renderInspector();changed();});
   $('b-del').addEventListener('click',delSel);
+  const lt=$('f-ltab');if(lt)lt.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===lightTab)return;lightTab=b.dataset.v;renderInspector();});
   box.querySelectorAll('input[type=range][data-k]').forEach(n=>n.addEventListener('input',()=>{const raw=parseFloat(n.value),v=n.dataset.log?Math.round(logF(raw)):n.dataset.lspd?lspdFromSlider(raw):raw,was=sel[n.dataset.k];sel[n.dataset.k]=v;if(n.dataset.lspd&&!(was>0)&&v>0)regrow(sel.id);$(n.id+'-v').textContent=FM[n.id](v);onField();}));
   box.querySelectorAll('input[type=checkbox][data-k]').forEach(n=>n.addEventListener('change',()=>{sel[n.dataset.k]=n.checked;onField();}));
   const fb=$('f-bands');if(fb)fb.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel.sndLo=+b.dataset.lo;sel.sndHi=+b.dataset.hi;for(const [id,k] of [['f-slo','sndLo'],['f-shi','sndHi']]){$(id).value=unlogF(sel[k]);$(id+'-v').textContent=hzF(sel[k]);}onField();});
@@ -972,7 +992,7 @@ function applyVis(){
   const el=sel;if(!el)return;
   const ws=$('wrap-snd');if(ws){ws.hidden=!el.snd;for(const b of $('f-bands').children)b.setAttribute('aria-pressed',String(+b.dataset.lo===el.sndLo&&+b.dataset.hi===el.sndHi));sndNote(true);drawBandMeter();}
   const t=$('insp-title');if(t)t.textContent=nameOf(el);
-  if(el.type==='light')$('wrap-laser').hidden=el.spectrum!=='laser';
+  if(el.type==='light'){const wl=$('wrap-laser');if(wl)wl.hidden=el.spectrum!=='laser';const aw=$('wrap-aw');if(aw)aw.hidden=!el.aWave;const as=$('wrap-asw');if(as)as.hidden=!el.aSway;const an=$('f-ac-note');if(an)an.hidden=el.spectrum==='laser';if($('f-snd-note'))sndNote(true);}
   if(el.type==='lens'){const ideal=el.mat==='ideal';$('wrap-form').hidden=ideal;$('wrap-boost').hidden=ideal;}
   if(el.type==='filter'){$('wrap-bw').hidden=el.pass!=='band';$('f-lam-l').textContent=el.pass==='band'?'Center':'Cutoff';}
 }
@@ -1361,14 +1381,21 @@ function saveSnd(){try{localStorage.setItem(SNDKEY,JSON.stringify(Object.assign(
 const inClaude=!!(window.claude&&typeof window.claude.use==='function');
 
 function liveScene(){
-  const t=performance.now()/1000,c=AU.cfg,CH=[0,4,7];let li=0;
+  const t=performance.now()/1000,c=AU.cfg,CH=[0,4,7],ctr={n:0,max:70000};let li=0; // ctr: one point budget shared by every beam decoration
   const rootPc=AU.thz?12*Math.log(AU.thz/428)/Math.log(789/428):0;
   return scene.map((el,i)=>{
     let o=null;const cp=()=>o||(o=Object.assign({},el));
-    if(c.sway&&el.type==='light'){cp().angle=el.angle+c.swayAmt*(.6*AU.lvl*Math.sin(t*2.1+i*1.9)+.4*AU.kick*AU.beatSign*(i%2?-1:1));}
+    if(el.type==='light'){
+      if(el.aSway)cp().angle=el.angle+el.aSwayAmt*(.6*AU.lvl*Math.sin(t*2.1+i*1.9)+.4*AU.kick*AU.beatSign*(i%2?-1:1));
+      if(el.aBright)cp().bm=.3+1.05*AU.lvl+.45*AU.kick;
+      if(el.aWave){
+        if(el.aStyle==='bars')cp()._W={bars:true,ring:AU.ring,RING:AU.RING,B:16,slot:Math.floor(t*30),now:t,v:el.aSpd,gap:el.aLen/18,A:el.aAmt*1.3,ctr};
+        else if(AU.lvl>.02)cp()._W={tbl:AU.wt,L:el.aLen,A:el.aAmt*Math.min(1,AU.lvl*1.4),phase:t*el.aSpd,step:Math.max(4,el.aLen/22),ctr};
+      }
+    }
     if(c.boost&&!el.snd&&(el.type==='prism'||el.type==='liquid'||(el.type==='lens'&&el.mat!=='ideal')))cp().boost=clamp(el.boost+(c.boostAmt-1)*Math.max(AU.bass*.7,AU.kick),1,8);
     if(el.snd&&(el.type==='prism'||el.type==='liquid')){const lv=elLevel(el),q=cp();q.lv=lv;q.dn=el.sndN*lv;q.boost=clamp(el.boost+(el.sndBoost-1)*lv,1,8);q.reflx=el.sndRefl*lv;if(el.type==='prism')q.angle=el.angle+el.sndSpin*lv;else q.rip=el.sndRip*lv;}
-    if(c.color&&el.type==='light'&&el.spectrum==='laser'&&AU.lam){const pc=((rootPc+CH[li++%3])%12+12)%12;cp().laser=Math.round(299792.458/pcTHz(pc));} // several lasers play a chord
+    if(el.type==='light'&&el.aColor&&el.spectrum==='laser'&&AU.lam){const pc=((rootPc+CH[li++%3])%12+12)%12;cp().laser=Math.round(299792.458/pcTHz(pc));} // several lasers play a chord
     return o||el;
   });
 }
@@ -1384,9 +1411,9 @@ function elLevel(el){
   st.pk=Math.max(v,st.pk*.995,.15);const t=v<.03?0:v/st.pk;st.s+=(t-st.s)*(t>st.s?.5:.12);ELV.set(el.id,st);return st.s;
 }
 let sndState=null;
-function sndNote(force){const n=$('f-snd-note'),b=$('f-open-snd');if(!n)return;const st=AU.on?'on':'off';if(!force&&st===sndState)return;sndState=st;n.textContent=AU.on?'Listening. Reacts as this range gets louder. Saved with the setup.':'Reacts while Sound is listening. Saved with the setup.';b.hidden=AU.on;}
+function sndNote(force){const n=$('f-snd-note'),b=$('f-open-snd');if(!n)return;const st=AU.on?'on':'off';if(!force&&st===sndState)return;sndState=st;const lt=sel&&sel.type==='light';n.textContent=AU.on?(lt?'Listening to sound now.':'Listening. Reacts as this range gets louder. Saved with the setup.'):(lt?'Reacts while Sound is listening.':'Reacts while Sound is listening. Saved with the setup.');b.hidden=AU.on;}
 function drawBandMeter(){
-  const cv=$('f-bandm');if(!cv||!sel||!sel.snd||view!=='insp')return;sndNote(false);
+  sndNote(false);const cv=$('f-bandm');if(!cv||!sel||!sel.snd||view!=='insp')return;
   const w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
   if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
   const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#07080b';g.fillRect(0,0,w,h);
@@ -1419,7 +1446,7 @@ function analyze(){
   AU.peakR=Math.max(rms,AU.peakR*.996,.004);AU.peakB=Math.max(bass,AU.peakB*.996,.03);
   const gate=rms>.0025?1:0,L=gate*clamp(rms/AU.peakR,0,1),B=gate*clamp((bass/AU.peakB-.35)/.65,0,1);
   AU.lvl+=(L-AU.lvl)*(L>AU.lvl?.45:.07);AU.bass+=(B-AU.bass)*(B>AU.bass?.55:.1);
-  if(AU.cfg.wave){
+  if(scene.some(e=>e.type==='light'&&e.aWave&&e.aStyle==='wave')){
     const M=AU.wt.length,dec=4,lim=Math.min(1024,td.length-M*dec);let st=0;
     for(let i=1;i<lim;i++){if(td[i-1]<0&&td[i]>=0){st=i;break;}}
     let mx=0;for(let j=0;j<M;j++){let a=0;for(let q=0;q<dec;q++)a+=td[st+j*dec+q];a/=dec;AU.wt[j]=a;const b=a<0?-a:a;if(b>mx)mx=b;}
@@ -1518,22 +1545,12 @@ function renderSnd(){
   <p class="note" id="snd-status" role="status"></p>
   <canvas class="chart meter" id="snd-meter" aria-label="Live sound spectrum, colored by musical note"></canvas>
   ${rangeField('snd-sens','sens','Sensitivity',.5,4,.1,c.sens,v=>(+v).toFixed(1)+'×')}
-  <div class="group"><div class="lab"><span>What reacts</span></div>
-    <div class="react"><label class="tog" for="snd-wave"><input type="checkbox" id="snd-wave" data-tk="wave"${c.wave?' checked':''}><span>Beams carry the sound</span></label>
-      ${segField('snd-style','waveStyle','Style',[['wave','Waveform'],['bars','Spectrum bars']],c.waveStyle)}
-      ${rangeField('snd-wave-amt','waveAmt','Size',4,40,1,c.waveAmt,v=>'±'+v+' mm')}
-      ${rangeField('snd-wave-len','waveLen','Length',60,400,10,c.waveLen,v=>v+' mm')}
-      ${rangeField('snd-wave-spd','waveSpd','Travel speed',40,600,10,c.waveSpd,v=>v+' mm/s')}</div>
-    <div class="react"><label class="tog" for="snd-sway"><input type="checkbox" id="snd-sway" data-tk="sway"${c.sway?' checked':''}><span>Loudness and beats sway the beams</span></label>
-      ${rangeField('snd-sway-amt','swayAmt','Sway',5,60,1,c.swayAmt,v=>'±'+v+'°')}</div>
+  <div class="group"><div class="lab"><span>Prisms and lenses</span></div>
     <div class="react"><label class="tog" for="snd-boost"><input type="checkbox" id="snd-boost" data-tk="boost"${c.boost?' checked':''}><span>Bass beats pulse the rainbow boost</span></label>
       ${rangeField('snd-boost-amt','boostAmt','Up to',1.5,6,.5,c.boostAmt,v=>v+'×')}</div>
-    <div class="react"><label class="tog" for="snd-bright"><input type="checkbox" id="snd-bright" data-tk="bright"${c.bright?' checked':''}><span>Volume sets brightness</span></label></div>
-    <div class="react"><label class="tog" for="snd-color"><input type="checkbox" id="snd-color" data-tk="color"${c.color?' checked':''}><span>Pitch picks laser colors</span></label></div>
   </div>
-  <div class="readout"><div>The wave on each beam is the microphone’s live signal, about 21 ms of sound stretched across one wave length and lined up so a steady note holds still, like an oscilloscope. It flows out from the light and follows every bounce and split. Spectrum bars sends a running histogram instead: each bar is one slice of the sound, bass to treble, measured as it leaves the light, so beats ride outward as clusters of tall bass bars. Length sets how long one histogram is. A real light wave is far smaller: about half a micron from crest to crest.</div>
-  <div>Visible light spans a bit less than one octave of frequency, from about <b>430</b> to <b>790 THz</b>. Pitch-to-color maps each musical note to the same spot in that light octave: C is red, and the notes climb through the spectrum to B at violet.</div>
-  <div>Only lasers change color with pitch, because they make a single frequency. With two or three lasers on the bench, they spread into a chord: the note, a major third up and a fifth up.</div><div>Rainbow boost reacts on prisms, liquids and glass lenses. You can also tune one prism or liquid to its own frequency range: select it and turn on React to a sound range. The reactions here don’t change your saved setups.</div></div>`;
+  <div class="readout"><div>Beam reactions live on each light. Tap a light and open its <b>Audio reactive</b> tab to have its beam carry the sound, sway, follow the volume or take its color from pitch.</div>
+  <div>Rainbow boost pulses on prisms, liquids and glass lenses that don’t have their own tuning. To tune a single prism or liquid to its own frequency range, select it and turn on React to a sound range.</div></div>`;
   $('snd-done').addEventListener('click',()=>renderInspector());
   $('snd-src').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.v===AU.src)return;stopSound();AU.src=b.dataset.v;for(const x of $('snd-src').children)x.setAttribute('aria-pressed',String(x===b));saveSnd();updSnd();});
   $('snd-go').addEventListener('click',()=>{
@@ -1544,8 +1561,7 @@ function renderSnd(){
   });
   $('snd-pick').addEventListener('click',()=>{ensureCtx();$('snd-file').click();});
   box.querySelectorAll('input[data-tk]').forEach(n=>n.addEventListener('change',()=>{AU.cfg[n.dataset.tk]=n.checked;saveSnd();request();}));
-  $('snd-style').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;AU.cfg.waveStyle=b.dataset.v;for(const x of $('snd-style').children)x.setAttribute('aria-pressed',String(x===b));saveSnd();request();});
-  for(const [id,k] of [['snd-wave-amt','waveAmt'],['snd-wave-len','waveLen'],['snd-wave-spd','waveSpd'],['snd-sway-amt','swayAmt'],['snd-boost-amt','boostAmt'],['snd-sens','sens']]){const n=$(id);n.addEventListener('input',()=>{const v=parseFloat(n.value);AU.cfg[k]=v;$(id+'-v').textContent=FM[id](v);saveSnd();});}
+  for(const [id,k] of [['snd-boost-amt','boostAmt'],['snd-sens','sens']]){const n=$(id);n.addEventListener('input',()=>{const v=parseFloat(n.value);AU.cfg[k]=v;$(id+'-v').textContent=FM[id](v);saveSnd();});}
   updSnd();drawMeter();$('dock').scrollTop=0;
 }
 $('b-snd').addEventListener('click',()=>{if(view==='snd')renderInspector();else renderSnd();});
@@ -1556,7 +1572,7 @@ function saveSoon(){clearTimeout(saveT);saveT=setTimeout(saveCurrent,400);}
 function saveCurrent(){try{localStorage.setItem(KEY,JSON.stringify({scene:serialScene(scene),bright,name:benchName}));}catch(e){}}
 function loadCurrent(){
   try{const s=JSON.parse(localStorage.getItem(KEY)||'null');
-    if(s&&Array.isArray(s.scene)&&s.scene.length){if(+s.c>0)for(const o of s.scene)if(o&&o.type==='light'&&o.c===undefined)o.c=+s.c;const sc=s.scene.map(sanitize).filter(Boolean);if(sc.length){scene=sc;bright=clamp(+s.bright||1,.4,2.5);benchName=typeof s.name==='string'?s.name:null;return true;}}
+    if(s&&Array.isArray(s.scene)&&s.scene.length){if(+s.c>0)for(const o of s.scene)if(o&&o.type==='light'&&o.c===undefined)o.c=+s.c;const g=AU.cfg;for(const o of s.scene)if(o&&o.type==='light'&&o.aWave===undefined)Object.assign(o,{aWave:g.wave,aStyle:g.waveStyle,aAmt:g.waveAmt,aLen:g.waveLen,aSpd:g.waveSpd,aSway:g.sway,aSwayAmt:g.swayAmt,aBright:g.bright,aColor:g.color});const sc=s.scene.map(sanitize).filter(Boolean);if(sc.length){scene=sc;bright=clamp(+s.bright||1,.4,2.5);benchName=typeof s.name==='string'?s.name:null;return true;}}
   }catch(e){}
   return false;
 }
