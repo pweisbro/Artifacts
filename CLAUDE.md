@@ -1,6 +1,6 @@
 # Stim Lab
 
-A static site on GitHub Pages (https://pweisbro.github.io/artifacts/; the repo and URL keep the old "artifacts" name so existing links and Home Screen icons keep working), used mostly as a home-screen web app on iPhone and iPad. `index.html` is the homepage that lists every app; each app is one self-contained HTML page in the repo root.
+A static site on GitHub Pages (https://pweisbro.github.io/Stim-Lab/), used mostly as a home-screen web app on iPhone and iPad. `index.html` is the homepage that lists every app; each app is one self-contained HTML page in the repo root.
 
 ## Whenever an app is added, renamed or removed, update the homepage in the same change
 

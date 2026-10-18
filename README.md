@@ -2,7 +2,7 @@
 
 A home for small interactive web apps. The homepage (`index.html`) shows every app with a live preview; tap one to open it, and the grid button inside each app brings you back.
 
-Open https://pweisbro.github.io/artifacts/ in Safari, then use **Share → Add to Home Screen** with **Open as Web App** on. After the first visit everything works offline.
+Open https://pweisbro.github.io/Stim-Lab/ in Safari, then use **Share → Add to Home Screen** with **Open as Web App** on. After the first visit everything works offline.
 
 ## Apps
 
@@ -24,7 +24,7 @@ The **Effects** tab holds bloom (toned down by default, with intensity and thres
 
 Sixteen built-in presets cover the range, including Comic, Mercury, Arcade and Gallery for the shader styles. **Presets** in the controls lets you save your own looks by name and send them as preset codes: one line of text starting with `RI1:` that holds every setting, audio included, the same way Spectrum Bench shares setups. Paste a code into the same tab to load it. On iPhone, **Share…** sends the code through the share sheet.
 
-Resonant Ink can also go on the Home Screen as its own app, with its own icon: open https://pweisbro.github.io/artifacts/resonant-ink.html in Safari, tap **Share → Add to Home Screen** and keep **Open as Web App** on. It opens straight into the tank, full screen, and works offline after the first visit (songs you load still play from the device).
+Resonant Ink can also go on the Home Screen as its own app, with its own icon: open https://pweisbro.github.io/Stim-Lab/resonant-ink.html in Safari, tap **Share → Add to Home Screen** and keep **Open as Web App** on. It opens straight into the tank, full screen, and works offline after the first visit (songs you load still play from the device).
 
 The microphone needs a secure (https) host such as GitHub Pages and your permission. Songs play locally and are never uploaded. Settings and saved presets are kept in the browser on each device.
 
