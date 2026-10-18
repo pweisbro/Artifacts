@@ -1,7 +1,7 @@
 // Spectrum Bench offline support.
-// The page is fetched fresh when you're online (so updates show up) and served from the cache when you're not.
-const CACHE = 'spectrum-bench-v3';
-const CORE = ['./', './index.html', './manifest.webmanifest', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
+// Pages are fetched fresh when you're online (so updates show up) and served from the cache when you're not.
+const CACHE = 'spectrum-bench-v4';
+const CORE = ['./', './index.html', './resonant-ink.html', './manifest.webmanifest', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
@@ -21,14 +21,19 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   if (req.mode === 'navigate') {
+    // Each page is cached under its own address, so opening Resonant Ink never replaces the bench's offline copy.
+    const isBench = url.pathname.endsWith('/') || url.pathname.endsWith('/index.html');
+    const key = isBench ? './index.html' : req;
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(key, copy));
+          }
           return res;
         })
-        .catch(() => caches.match('./index.html'))
+        .catch(() => caches.match(key, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html')))
     );
     return;
   }

@@ -1,0 +1,1804 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05060a">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Resonant Ink</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+[hidden]{display:none!important}
+/* Layout: full-bleed WebGL tank, a floating pill dock, and a glass control sheet (bottom on phones, side on desktop).
+   Deliberately single dark theme: dye reads best on a black tank. --accent is retuned live to the current dye color. */
+:root{
+  color-scheme: dark;
+  --void:#05060a;
+  --glass:rgba(13,14,21,.66);
+  --glass-strong:rgba(15,16,24,.9);
+  --line:rgba(226,224,255,.09);
+  --track:rgba(226,224,255,.14);
+  --text:#ecebf4;
+  --muted:#8f8da6;
+  --accent:#9fdcff;
+  --accent-ink:#07070c;
+  --warn:#ffb86b;
+  --font-display:'Bricolage Grotesque', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  --font-body:'Instrument Sans', -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
+  --font-mono:'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+html{box-sizing:border-box;height:100%;overflow:hidden;background:var(--void)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  height:100%;overflow:hidden;margin:0;
+  background:var(--void);color:var(--text);
+  font-family:var(--font-body);font-size:14px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#fluid{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+
+/* Wordmark */
+.brand{
+  position:fixed;z-index:5;pointer-events:none;
+  top:calc(14px + env(safe-area-inset-top, 0px));
+  left:calc(16px + env(safe-area-inset-left, 0px));
+  text-shadow:0 1px 10px rgba(0,0,0,.55);
+  transition:opacity .3s, color .3s;
+}
+.brand h1{margin:0;font-family:var(--font-display);font-weight:800;font-size:1.12rem;letter-spacing:-.015em;line-height:1}
+.brand p{margin:5px 0 0;font-family:var(--font-mono);font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.light-ground .brand{color:#16151c;text-shadow:none}
+.light-ground .brand p{color:#5d5b6b}
+
+.hint{
+  position:fixed;z-index:5;left:50%;transform:translateX(-50%);
+  bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+  padding:8px 14px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  font-size:.82rem;color:var(--text);white-space:nowrap;pointer-events:none;
+  transition:opacity .6s;
+}
+.hint.gone{opacity:0}
+
+/* Dock */
+.dock{
+  position:fixed;z-index:6;left:50%;transform:translateX(-50%);
+  bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+  display:flex;gap:2px;padding:5px;
+  background:var(--glass);border:1px solid var(--line);border-radius:999px;
+  -webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
+  transition:opacity .25s, transform .25s;
+}
+.dock button,.ghost{
+  width:44px;height:44px;border:0;border-radius:999px;background:transparent;
+  display:grid;place-items:center;cursor:pointer;color:var(--text);
+}
+.dock button:hover{background:rgba(255,255,255,.07)}
+.dock button[aria-pressed="true"]{color:var(--accent)}
+.dock .lead{background:var(--accent);color:var(--accent-ink)}
+.dock .lead:hover{background:var(--accent);filter:brightness(1.08)}
+.dock svg,.ghost svg,.icon-btn svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#btnAudio svg{transition:transform .08s linear}
+#btnAudio.live{color:var(--accent)}
+.ghost{
+  position:fixed;z-index:6;
+  right:calc(14px + env(safe-area-inset-right, 0px));
+  bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+  background:var(--glass);border:1px solid var(--line);opacity:.45;
+}
+.ghost:hover{opacity:1}
+.ui-hidden .brand,.ui-hidden .dock,.ui-hidden .hint{opacity:0;pointer-events:none}
+
+/* Sheet */
+.sheet{
+  position:fixed;z-index:8;left:0;right:0;bottom:0;
+  max-height:min(66vh, 660px);max-height:min(66dvh, 660px);
+  display:flex;flex-direction:column;
+  background:var(--glass-strong);
+  -webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3);
+  border-top:1px solid var(--line);border-radius:22px 22px 0 0;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+  transform:translateY(104%);
+  transition:transform .34s cubic-bezier(.2,.8,.2,1);
+  visibility:hidden;
+}
+.sheet.open{transform:none;visibility:visible}
+.sheet:not(.open){transition:transform .34s cubic-bezier(.2,.8,.2,1), visibility 0s .34s}
+@media (max-width:899px){ .sheet-open .dock,.sheet-open .hint{opacity:0;pointer-events:none} }
+@media (min-width:900px){
+  .sheet{
+    left:auto;width:372px;max-height:none;
+    top:calc(16px + env(safe-area-inset-top, 0px));
+    bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+    right:calc(16px + env(safe-area-inset-right, 0px));
+    border:1px solid var(--line);border-radius:20px;
+    padding-left:20px;padding-right:20px;padding-bottom:0;
+    transform:translateX(calc(100% + 48px));
+  }
+  .grab{display:none}
+}
+.sheet-head{display:flex;flex-direction:column;gap:12px;padding-top:10px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.grab{width:38px;height:4px;border-radius:4px;background:var(--track);align-self:center}
+.head-row{display:flex;align-items:center;gap:8px}
+.head-row h2{margin:0;font-family:var(--font-display);font-weight:600;font-size:1.05rem;letter-spacing:-.01em;flex:1}
+.text-btn{
+  height:34px;padding:0 12px;border-radius:10px;border:1px solid var(--line);
+  background:transparent;cursor:pointer;font-size:.8rem;font-weight:500;color:var(--text);
+}
+.text-btn:hover{background:rgba(255,255,255,.06)}
+.icon-btn{width:36px;height:36px;border-radius:10px;border:0;background:rgba(255,255,255,.06);display:grid;place-items:center;cursor:pointer;color:var(--text)}
+.icon-btn svg{width:18px;height:18px}
+
+.presets{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:-2px;padding:2px}
+.presets::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto;height:32px;padding:0 13px;border-radius:999px;
+  border:1px solid var(--line);background:rgba(255,255,255,.03);
+  font-size:.8rem;font-weight:500;cursor:pointer;color:var(--text);
+}
+.chip:hover{border-color:var(--track)}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:3px;border-radius:12px;background:rgba(0,0,0,.28)}
+.tab{
+  height:34px;border:0;border-radius:9px;background:transparent;cursor:pointer;
+  font-size:.82rem;font-weight:600;color:var(--muted);letter-spacing:.01em;
+}
+.tab[aria-selected="true"]{background:rgba(255,255,255,.09);color:var(--text)}
+
+.sheet-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:18px}
+.group-label{
+  margin:18px 0 2px;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);
+}
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 12px;padding-block:9px;border-bottom:1px solid var(--line)}
+.ctl:last-child{border-bottom:0}
+.ctl label,.ctl .lbl{font-size:.87rem;font-weight:500}
+.ctl output{font-family:var(--font-mono);font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl .help{grid-column:1/-1;margin:0;font-size:.74rem;line-height:1.4;color:var(--muted)}
+.ctl input[type=range]{grid-column:1/-1}
+
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:30px;margin:0;background:transparent;cursor:pointer;
+  --fill:50%;
+}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:linear-gradient(to right, var(--accent) var(--fill), var(--track) var(--fill))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;border:0;background:var(--text);box-shadow:0 0 0 4px rgba(0,0,0,.28)}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:4px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;border:0;background:var(--text)}
+input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+
+.seg{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;padding-top:6px}
+.seg button{
+  flex:1 1 auto;min-width:52px;height:34px;padding:0 11px;border-radius:10px;
+  border:1px solid var(--line);background:rgba(255,255,255,.03);
+  font-size:.79rem;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.swatch{width:16px;height:10px;border-radius:3px;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+
+.switch{-webkit-appearance:none;appearance:none;width:44px;height:26px;border-radius:999px;background:var(--track);position:relative;cursor:pointer;margin:0;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--text);transition:transform .2s}
+.switch:checked{background:var(--accent)}
+.switch:checked::after{transform:translateX(18px);background:var(--accent-ink)}
+
+input[type=color]{-webkit-appearance:none;appearance:none;width:48px;height:30px;border:1px solid var(--line);border-radius:9px;padding:0;background:none;cursor:pointer}
+input[type=color]::-webkit-color-swatch-wrapper{padding:3px}
+input[type=color]::-webkit-color-swatch{border:0;border-radius:6px}
+input[type=color]::-moz-color-swatch{border:0;border-radius:6px}
+
+/* Audio pane */
+.src-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:14px}
+.src{
+  height:42px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+  display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;
+  font-size:.82rem;font-weight:600;color:var(--text);
+}
+.src svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.src[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.src:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.transport{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px;border-radius:12px;background:rgba(0,0,0,.25)}
+.tr-info{flex:1;min-width:0}
+.tr-name{font-size:.84rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-time{font-family:var(--font-mono);font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.note{margin:10px 0 0;font-size:.75rem;line-height:1.45;color:var(--muted)}
+.note.warn{color:var(--warn)}
+.meter-wrap{position:relative;margin-top:14px}
+#meter{display:block;width:100%;height:92px;border-radius:12px;background:rgba(0,0,0,.35);touch-action:pan-y;cursor:ew-resize}
+.meter-scale{position:relative;height:16px;margin-top:4px;margin-right:22px;font-family:var(--font-mono);font-size:.62rem;color:var(--muted)}
+.meter-scale span{position:absolute;top:0;transform:translateX(-50%)}
+.meter-scale span:first-child{transform:none}
+.meter-scale span:last-child{transform:translateX(-100%)}
+.band-presets{padding-top:10px}
+
+.fatal{
+  position:fixed;inset:0;z-index:20;display:grid;place-items:center;text-align:center;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+  background:var(--void);color:var(--text);
+}
+.fatal p{max-width:34ch;line-height:1.5;color:var(--muted)}
+.fatal h2{font-family:var(--font-display);margin:0 0 8px}
+
+@media (prefers-reduced-motion: reduce){
+  .sheet,.dock,.hint,.brand{transition:none}
+}
+</style>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<canvas id="fluid" aria-label="Fluid simulation. Drag to stir the dye."></canvas>
+
+<div class="brand" id="brand">
+  <h1>Resonant Ink</h1>
+  <p>stable fluids · audio reactive</p>
+</div>
+<div class="hint" id="hint">Drag to stir. Try several fingers at once.</div>
+
+<nav class="dock" id="dock" aria-label="Simulation">
+  <button id="btnPanel" class="lead" aria-label="Open controls" title="Controls">
+    <svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+  </button>
+  <button id="btnAudio" aria-label="Audio" title="Audio">
+    <svg viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>
+  </button>
+  <button id="btnSplash" aria-label="Random splash" title="Splash (S)">
+    <svg viewBox="0 0 24 24"><path d="M12 3.5c3.2 4.2 5.2 6.8 5.2 9.4a5.2 5.2 0 0 1-10.4 0c0-2.6 2-5.2 5.2-9.4z"/><path d="M10 14.5a2 2 0 0 0 2 2"/></svg>
+  </button>
+  <button id="btnClear" aria-label="Clear the tank" title="Clear (C)">
+    <svg viewBox="0 0 24 24"><path d="M7 20h11"/><path d="M5.6 15.6l8.8-8.8a2 2 0 0 1 2.8 0l1.4 1.4a2 2 0 0 1 0 2.8L12 17.6H7.6z"/><path d="M10 11l4 4"/></svg>
+  </button>
+  <button id="btnPause" aria-label="Pause simulation" aria-pressed="false" title="Pause (Space)">
+    <svg viewBox="0 0 24 24" id="icoPause"><path d="M9 5v14M15 5v14"/></svg>
+  </button>
+  <button id="btnFull" aria-label="Fullscreen" title="Fullscreen" hidden>
+    <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  </button>
+  <button id="btnHide" aria-label="Hide interface" title="Hide interface (H)">
+    <svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 6.1c.5-.1.9-.1 1.4-.1 5 0 9 6 9 6a16.8 16.8 0 0 1-3.2 3.7M6.6 6.6A16.8 16.8 0 0 0 3 12s4 6 9 6c1.5 0 2.9-.4 4.2-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+  </button>
+</nav>
+<button class="ghost" id="btnShow" aria-label="Show interface" title="Show interface (H)" hidden>
+  <svg viewBox="0 0 24 24"><path d="M3 12s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="3"/></svg>
+</button>
+
+<section class="sheet" id="sheet" aria-label="Controls">
+  <header class="sheet-head">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="head-row">
+      <h2>Controls</h2>
+      <button class="text-btn" id="btnReset" title="Restore default look">Reset look</button>
+      <button class="icon-btn" id="btnClose" aria-label="Close controls">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="presets" id="presets" role="group" aria-label="Presets"></div>
+    <div class="tabs" role="tablist" aria-label="Control groups">
+      <button class="tab" role="tab" id="tab-fluid" aria-controls="pane-fluid" aria-selected="true">Fluid</button>
+      <button class="tab" role="tab" id="tab-color" aria-controls="pane-color" aria-selected="false">Color</button>
+      <button class="tab" role="tab" id="tab-audio" aria-controls="pane-audio" aria-selected="false">Audio</button>
+      <button class="tab" role="tab" id="tab-touch" aria-controls="pane-touch" aria-selected="false">Touch</button>
+    </div>
+  </header>
+  <div class="sheet-body" id="sheetBody">
+    <div class="pane" id="pane-fluid" role="tabpanel" aria-labelledby="tab-fluid"></div>
+    <div class="pane" id="pane-color" role="tabpanel" aria-labelledby="tab-color" hidden></div>
+    <div class="pane" id="pane-audio" role="tabpanel" aria-labelledby="tab-audio" hidden>
+      <div class="src-row">
+        <button class="src" id="srcDemo" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/></svg>Demo beat
+        </button>
+        <label class="src" id="srcSong" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>Song
+          <input type="file" id="songFile" class="sr-only" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac">
+        </label>
+        <button class="src" id="srcMic" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>Mic
+        </button>
+      </div>
+      <div class="transport" id="transport" hidden>
+        <button class="icon-btn" id="btnPlay" aria-label="Pause audio">
+          <svg viewBox="0 0 24 24" id="icoPlay"><path d="M9 5v14M15 5v14"/></svg>
+        </button>
+        <div class="tr-info">
+          <div class="tr-name" id="trName">Demo beat</div>
+          <div class="tr-time" id="trTime">0:00</div>
+        </div>
+        <button class="text-btn" id="btnStop">Stop</button>
+      </div>
+      <p class="note" id="audioNote">Pick a source. Songs play locally in your browser and are never uploaded.</p>
+      <div class="meter-wrap">
+        <canvas id="meter" aria-label="Spectrum meter. Drag across it to choose the trigger band."></canvas>
+        <div class="meter-scale" aria-hidden="true">
+          <span style="left:0%">20 Hz</span><span style="left:24.1%">100</span><span style="left:58.6%">1k</span><span style="left:82.7%">5k</span><span style="left:100%">16k</span>
+        </div>
+      </div>
+      <p class="note">Drag across the spectrum to pick the band that fires spots. The bar on the right is that band's level; spots fire when it crosses the line.</p>
+      <div class="seg band-presets" id="bandPresets" role="group" aria-label="Band presets"></div>
+      <div id="audioCtls"></div>
+    </div>
+    <div class="pane" id="pane-touch" role="tabpanel" aria-labelledby="tab-touch" hidden></div>
+  </div>
+</section>
+
+<div class="fatal" id="fatal" hidden>
+  <div>
+    <h2>This browser can't run the tank</h2>
+    <p id="fatalMsg">The simulation needs WebGL with half-float textures. Try a current version of Safari, Chrome or Firefox.</p>
+  </div>
+</div>
+
+<audio id="songEl" loop preload="auto" playsinline></audio>
+
+<script>
+(() => {
+'use strict';
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const TAU = Math.PI * 2;
+
+/* ------------------------------------------------------------------ */
+/* Parameters                                                          */
+/* ------------------------------------------------------------------ */
+const VISUAL_DEFAULTS = {
+  quality: 'med', vorticity: 30, dyeAmount: 1, dyeDiss: 1, velDiss: 0.2,
+  viscosity: 0, diffusion: 0, pressure: 0.8, pressureIters: 20,
+  palette: 'rainbow', monoColor: '#5fd4ff', cycleSpeed: 1, blend: 'glow', bg: '#000000',
+  shading: true, bloom: true, bloomIntensity: 0.8, bloomThreshold: 0.6,
+  hueSpin: 0, saturation: 1, exposure: 1, posterize: 0,
+  splatRadius: 0.25, splatForce: 6000, symmetry: 'off', tapBurst: true,
+};
+const AUDIO_DEFAULTS = {
+  bandLow: 40, bandHigh: 140, sensitivity: 0.6, autoGain: true, react: 'burst',
+  spots: 3, layout: 'random', burstStrength: 1, burstSize: 1, cooldown: 140,
+  audioColor: 'palette', monitor: 0.8,
+};
+const DEFAULTS = { ...VISUAL_DEFAULTS, ...AUDIO_DEFAULTS };
+const STORE_KEY = 'resonant-ink-v1';
+const P = { ...DEFAULTS };
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+  if (saved && typeof saved === 'object') {
+    for (const k in DEFAULTS) if (k in saved && typeof saved[k] === typeof DEFAULTS[k]) P[k] = saved[k];
+  }
+} catch (e) {}
+let saveTimer = 0;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(P)); } catch (e) {} }, 400);
+}
+
+const PRESETS = {
+  Classic: {},
+  Ink: { palette: 'ocean', blend: 'ink', bg: '#ecebe6', vorticity: 18, dyeDiss: 0.25, velDiss: 0.3, shading: false, bloom: false, dyeAmount: 1.4, saturation: 1.1 },
+  Smoke: { palette: 'mono', monoColor: '#d6dce8', vorticity: 6, dyeDiss: 0.5, velDiss: 0.1, viscosity: 0.15, diffusion: 0.25, shading: false, bloomIntensity: 0.4, saturation: 0.25, splatRadius: 0.5 },
+  Lava: { palette: 'fire', vorticity: 8, velDiss: 0.9, dyeDiss: 0.12, viscosity: 0.6, splatRadius: 0.45, bloomIntensity: 1.1, bloomThreshold: 0.4, dyeAmount: 1.6 },
+  Neon: { palette: 'neon', vorticity: 45, dyeDiss: 1.4, velDiss: 0.25, bloomIntensity: 1.5, bloomThreshold: 0.25, exposure: 1.2, splatRadius: 0.15 },
+  Silk: { palette: 'aurora', vorticity: 0, velDiss: 0.05, dyeDiss: 0.35, bloomIntensity: 0.5, splatRadius: 0.2 },
+  Galaxy: { palette: 'sunset', vorticity: 50, symmetry: '6', hueSpin: 0.06, bloomIntensity: 1.1, dyeDiss: 0.6 },
+  Toon: { palette: 'rainbow', posterize: 4, shading: false, bloom: false, vorticity: 25, saturation: 1.3, dyeAmount: 1.5 },
+};
+let activePreset = null;
+
+/* ------------------------------------------------------------------ */
+/* Color                                                               */
+/* ------------------------------------------------------------------ */
+function hexToRgb(h) {
+  const n = parseInt(h.replace('#', ''), 16);
+  return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 };
+}
+function hsv(h, s, v) {
+  h = ((h % 1) + 1) % 1;
+  const i = Math.floor(h * 6), f = h * 6 - i, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+  const m = [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]][i % 6];
+  return { r: m[0], g: m[1], b: m[2] };
+}
+const PALETTES = {
+  rainbow: { name: 'Rainbow', stops: null },
+  fire:    { name: 'Fire',    stops: ['#a30e00', '#ff4d00', '#ffb000', '#ff6a00'] },
+  ocean:   { name: 'Ocean',   stops: ['#0b3dff', '#00a3ff', '#00e0cc', '#2a62ff'] },
+  neon:    { name: 'Neon',    stops: ['#ff2bd6', '#00f0ff', '#7cff3a', '#9d4bff'] },
+  aurora:  { name: 'Aurora',  stops: ['#00ff9c', '#00c2ff', '#8a5cff', '#ff5ec4'] },
+  sunset:  { name: 'Sunset',  stops: ['#ff3d77', '#ff8a3d', '#ffd166', '#c04cfd'] },
+  mono:    { name: 'Mono',    stops: null },
+};
+const stopCache = {};
+function paletteColor(t, key = P.palette) {
+  t = ((t % 1) + 1) % 1;
+  if (key === 'rainbow') return hsv(t, 1, 1);
+  if (key === 'mono') {
+    const c = hexToRgb(P.monoColor), k = 0.85 + 0.15 * Math.sin(t * TAU);
+    return { r: c.r * k, g: c.g * k, b: c.b * k };
+  }
+  const stops = stopCache[key] || (stopCache[key] = PALETTES[key].stops.map(hexToRgb));
+  const x = t * stops.length, i = Math.floor(x), f = x - i;
+  const a = stops[i % stops.length], b = stops[(i + 1) % stops.length];
+  const s = f * f * (3 - 2 * f);
+  return { r: a.r + (b.r - a.r) * s, g: a.g + (b.g - a.g) * s, b: a.b + (b.b - a.b) * s };
+}
+function paletteCss(key) {
+  if (key === 'rainbow') return 'linear-gradient(90deg,#f33,#fc3,#3f6,#3cf,#63f,#f3c)';
+  if (key === 'mono') return P.monoColor;
+  return `linear-gradient(90deg,${PALETTES[key].stops.join(',')})`;
+}
+function pitchColor(hz) {
+  const t = clamp(Math.log(Math.max(hz, 20) / 20) / Math.log(800), 0, 1);
+  return hsv(t * 0.85, 1, 1);
+}
+function scaleColor(c, k) { return { r: c.r * k, g: c.g * k, b: c.b * k }; }
+
+/* ------------------------------------------------------------------ */
+/* WebGL setup                                                         */
+/* ------------------------------------------------------------------ */
+const canvas = $('#fluid');
+function fatal(msg) { if (msg) $('#fatalMsg').textContent = msg; $('#fatal').hidden = false; }
+
+const ctxParams = { alpha: false, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' };
+let gl = canvas.getContext('webgl2', ctxParams);
+const isWebGL2 = !!gl;
+if (!gl) gl = canvas.getContext('webgl', ctxParams) || canvas.getContext('experimental-webgl', ctxParams);
+if (!gl) { fatal(); return; }
+
+const ext = (() => {
+  let halfFloatType, linear;
+  if (isWebGL2) {
+    gl.getExtension('EXT_color_buffer_float');
+    gl.getExtension('EXT_color_buffer_half_float');
+    gl.getExtension('OES_texture_float_linear');
+    halfFloatType = gl.HALF_FLOAT;
+    linear = true; // 16F formats are filterable in WebGL2
+  } else {
+    const hf = gl.getExtension('OES_texture_half_float');
+    linear = !!gl.getExtension('OES_texture_half_float_linear');
+    gl.getExtension('EXT_color_buffer_half_float');
+    halfFloatType = hf && hf.HALF_FLOAT_OES;
+  }
+  if (!halfFloatType) return null;
+  function canRender(internalFormat, format, type) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, 4, 4, 0, format, type, null);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(fbo); gl.deleteTexture(tex);
+    return ok;
+  }
+  function fmt(internalFormat, format) {
+    if (canRender(internalFormat, format, halfFloatType)) return { internalFormat, format };
+    if (!isWebGL2) return null;
+    if (internalFormat === gl.R16F) return fmt(gl.RG16F, gl.RG);
+    if (internalFormat === gl.RG16F) return fmt(gl.RGBA16F, gl.RGBA);
+    return null;
+  }
+  const rgba = isWebGL2 ? fmt(gl.RGBA16F, gl.RGBA) : fmt(gl.RGBA, gl.RGBA);
+  const rg = isWebGL2 ? fmt(gl.RG16F, gl.RG) : fmt(gl.RGBA, gl.RGBA);
+  const r = isWebGL2 ? fmt(gl.R16F, gl.RED) : fmt(gl.RGBA, gl.RGBA);
+  if (!rgba || !rg || !r) return null;
+  return { halfFloatType, linear, rgba, rg, r };
+})();
+if (!ext) { fatal('This device can\'t render to half-float textures, which the solver needs. Try a current version of Chrome or Safari.'); return; }
+
+/* ------------------------------------------------------------------ */
+/* Shaders                                                             */
+/* ------------------------------------------------------------------ */
+const SRC = {
+  baseVS: `
+    precision highp float;
+    attribute vec2 aPosition;
+    varying vec2 vUv, vL, vR, vT, vB;
+    uniform vec2 texelSize;
+    void main () {
+      vUv = aPosition * 0.5 + 0.5;
+      vL = vUv - vec2(texelSize.x, 0.0);
+      vR = vUv + vec2(texelSize.x, 0.0);
+      vT = vUv + vec2(0.0, texelSize.y);
+      vB = vUv - vec2(0.0, texelSize.y);
+      gl_Position = vec4(aPosition, 0.0, 1.0);
+    }`,
+  copy: `
+    precision mediump float; precision mediump sampler2D;
+    varying highp vec2 vUv;
+    uniform sampler2D uTexture;
+    uniform float value;
+    void main () { gl_FragColor = value * texture2D(uTexture, vUv); }`,
+  splat: `
+    precision highp float; precision highp sampler2D;
+    varying vec2 vUv;
+    uniform sampler2D uTarget;
+    uniform float aspectRatio, radius;
+    uniform vec3 color;
+    uniform vec2 point, radialSwirl;
+    void main () {
+      vec2 p = vUv - point;
+      p.x *= aspectRatio;
+      float g = exp(-dot(p, p) / radius);
+      vec3 s = color * g;
+      if (radialSwirl.x != 0.0 || radialSwirl.y != 0.0) {
+        vec2 d = p / (length(p) + 1e-5);
+        s = vec3((d * radialSwirl.x + vec2(-d.y, d.x) * radialSwirl.y) * g, 0.0);
+      }
+      gl_FragColor = vec4(texture2D(uTarget, vUv).xyz + s, 1.0);
+    }`,
+  advection: `
+    precision highp float; precision highp sampler2D;
+    varying vec2 vUv;
+    uniform sampler2D uVelocity, uSource;
+    uniform vec2 texelSize, dyeTexelSize;
+    uniform float dt, dissipation;
+    vec4 bilerp (sampler2D sam, vec2 uv, vec2 tsize) {
+      vec2 st = uv / tsize - 0.5;
+      vec2 iuv = floor(st);
+      vec2 fuv = fract(st);
+      vec4 a = texture2D(sam, (iuv + vec2(0.5, 0.5)) * tsize);
+      vec4 b = texture2D(sam, (iuv + vec2(1.5, 0.5)) * tsize);
+      vec4 c = texture2D(sam, (iuv + vec2(0.5, 1.5)) * tsize);
+      vec4 d = texture2D(sam, (iuv + vec2(1.5, 1.5)) * tsize);
+      return mix(mix(a, b, fuv.x), mix(c, d, fuv.x), fuv.y);
+    }
+    void main () {
+    #ifdef MANUAL_FILTERING
+      vec2 coord = vUv - dt * bilerp(uVelocity, vUv, texelSize).xy * texelSize;
+      vec4 result = bilerp(uSource, coord, dyeTexelSize);
+    #else
+      vec2 coord = vUv - dt * texture2D(uVelocity, vUv).xy * texelSize;
+      vec4 result = texture2D(uSource, coord);
+    #endif
+      gl_FragColor = result / (1.0 + dissipation * dt);
+    }`,
+  divergence: `
+    precision mediump float; precision mediump sampler2D;
+    varying highp vec2 vUv, vL, vR, vT, vB;
+    uniform sampler2D uVelocity;
+    void main () {
+      float L = texture2D(uVelocity, vL).x;
+      float R = texture2D(uVelocity, vR).x;
+      float T = texture2D(uVelocity, vT).y;
+      float B = texture2D(uVelocity, vB).y;
+      vec2 C = texture2D(uVelocity, vUv).xy;
+      if (vL.x < 0.0) L = -C.x;
+      if (vR.x > 1.0) R = -C.x;
+      if (vT.y > 1.0) T = -C.y;
+      if (vB.y < 0.0) B = -C.y;
+      gl_FragColor = vec4(0.5 * (R - L + T - B), 0.0, 0.0, 1.0);
+    }`,
+  curl: `
+    precision mediump float; precision mediump sampler2D;
+    varying highp vec2 vUv, vL, vR, vT, vB;
+    uniform sampler2D uVelocity;
+    void main () {
+      float L = texture2D(uVelocity, vL).y;
+      float R = texture2D(uVelocity, vR).y;
+      float T = texture2D(uVelocity, vT).x;
+      float B = texture2D(uVelocity, vB).x;
+      gl_FragColor = vec4(0.5 * (R - L - T + B), 0.0, 0.0, 1.0);
+    }`,
+  vorticity: `
+    precision highp float; precision highp sampler2D;
+    varying vec2 vUv, vL, vR, vT, vB;
+    uniform sampler2D uVelocity, uCurl;
+    uniform float curl, dt;
+    void main () {
+      float L = texture2D(uCurl, vL).x;
+      float R = texture2D(uCurl, vR).x;
+      float T = texture2D(uCurl, vT).x;
+      float B = texture2D(uCurl, vB).x;
+      float C = texture2D(uCurl, vUv).x;
+      vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
+      force /= length(force) + 0.0001;
+      force *= curl * C;
+      force.y *= -1.0;
+      vec2 vel = texture2D(uVelocity, vUv).xy + force * dt;
+      gl_FragColor = vec4(clamp(vel, -1000.0, 1000.0), 0.0, 1.0);
+    }`,
+  pressure: `
+    precision mediump float; precision mediump sampler2D;
+    varying highp vec2 vUv, vL, vR, vT, vB;
+    uniform sampler2D uPressure, uDivergence;
+    void main () {
+      float L = texture2D(uPressure, vL).x;
+      float R = texture2D(uPressure, vR).x;
+      float T = texture2D(uPressure, vT).x;
+      float B = texture2D(uPressure, vB).x;
+      float div = texture2D(uDivergence, vUv).x;
+      gl_FragColor = vec4((L + R + B + T - div) * 0.25, 0.0, 0.0, 1.0);
+    }`,
+  gradient: `
+    precision mediump float; precision mediump sampler2D;
+    varying highp vec2 vUv, vL, vR, vT, vB;
+    uniform sampler2D uPressure, uVelocity;
+    void main () {
+      float L = texture2D(uPressure, vL).x;
+      float R = texture2D(uPressure, vR).x;
+      float T = texture2D(uPressure, vT).x;
+      float B = texture2D(uPressure, vB).x;
+      vec2 vel = texture2D(uVelocity, vUv).xy - vec2(R - L, T - B);
+      gl_FragColor = vec4(vel, 0.0, 1.0);
+    }`,
+  diffuse: `
+    precision highp float; precision highp sampler2D;
+    varying vec2 vUv, vL, vR, vT, vB;
+    uniform sampler2D uX, uB;
+    uniform float alpha, rBeta;
+    void main () {
+      vec4 n = texture2D(uX, vL) + texture2D(uX, vR) + texture2D(uX, vT) + texture2D(uX, vB);
+      gl_FragColor = (texture2D(uB, vUv) + alpha * n) * rBeta;
+    }`,
+  bloomPrefilter: `
+    precision mediump float; precision mediump sampler2D;
+    varying vec2 vUv;
+    uniform sampler2D uTexture;
+    uniform vec3 curve;
+    uniform float threshold;
+    void main () {
+      vec3 c = texture2D(uTexture, vUv).rgb;
+      float br = max(c.r, max(c.g, c.b));
+      float rq = clamp(br - curve.x, 0.0, curve.y);
+      rq = curve.z * rq * rq;
+      c *= max(rq, br - threshold) / max(br, 0.0001);
+      gl_FragColor = vec4(c, 0.0);
+    }`,
+  bloomBlur: `
+    precision mediump float; precision mediump sampler2D;
+    varying vec2 vL, vR, vT, vB;
+    uniform sampler2D uTexture;
+    void main () {
+      vec4 sum = texture2D(uTexture, vL) + texture2D(uTexture, vR) + texture2D(uTexture, vT) + texture2D(uTexture, vB);
+      gl_FragColor = sum * 0.25;
+    }`,
+  display: `
+    precision highp float; precision highp sampler2D;
+    varying vec2 vUv, vL, vR, vT, vB;
+    uniform sampler2D uTexture, uBloom;
+    uniform vec2 texelSize;
+    uniform float uShading, uBloomIntensity, uHue, uSaturation, uExposure, uPosterize, uInk;
+    uniform vec3 uBg;
+    vec3 hueRotate (vec3 c, float a) {
+      const vec3 k = vec3(0.57735);
+      float ca = cos(a);
+      return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+    }
+    void main () {
+      vec3 c = texture2D(uTexture, vUv).rgb;
+      if (uShading > 0.5) {
+        vec3 lc = texture2D(uTexture, vL).rgb;
+        vec3 rc = texture2D(uTexture, vR).rgb;
+        vec3 tc = texture2D(uTexture, vT).rgb;
+        vec3 bc = texture2D(uTexture, vB).rgb;
+        float dx = length(rc) - length(lc);
+        float dy = length(tc) - length(bc);
+        vec3 n = normalize(vec3(dx, dy, length(texelSize)));
+        c *= clamp(n.z + 0.7, 0.7, 1.0);
+      }
+      c += texture2D(uBloom, vUv).rgb * uBloomIntensity;
+      c *= uExposure;
+      if (abs(uHue) > 0.0001) c = max(hueRotate(c, uHue), 0.0);
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = max(mix(vec3(l), c, uSaturation), 0.0);
+      if (uPosterize > 0.5) c = floor(c * uPosterize + 0.5) / uPosterize;
+      vec3 col;
+      if (uInk > 0.5) {
+        float d = max(c.r, max(c.g, c.b));
+        vec3 hc = c / max(d, 1e-4);
+        col = uBg * exp(-d * (1.0 - hc * 0.9) * 1.8);
+      } else {
+        float a = clamp(max(c.r, max(c.g, c.b)), 0.0, 1.0);
+        col = c + uBg * (1.0 - a);
+      }
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+};
+
+function compile(type, src, keywords) {
+  if (keywords && keywords.length) src = keywords.map((k) => `#define ${k}\n`).join('') + src;
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+const baseVS = compile(gl.VERTEX_SHADER, SRC.baseVS);
+function program(fsSrc, keywords) {
+  const p = gl.createProgram();
+  gl.attachShader(p, baseVS);
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc, keywords));
+  gl.bindAttribLocation(p, 0, 'aPosition');
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  const u = {};
+  const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) {
+    const name = gl.getActiveUniform(p, i).name;
+    u[name] = gl.getUniformLocation(p, name);
+  }
+  return { u, bind() { gl.useProgram(p); } };
+}
+const prog = {
+  copy: program(SRC.copy),
+  splat: program(SRC.splat),
+  advection: program(SRC.advection, ext.linear ? [] : ['MANUAL_FILTERING']),
+  divergence: program(SRC.divergence),
+  curl: program(SRC.curl),
+  vorticity: program(SRC.vorticity),
+  pressure: program(SRC.pressure),
+  gradient: program(SRC.gradient),
+  diffuse: program(SRC.diffuse),
+  bloomPrefilter: program(SRC.bloomPrefilter),
+  bloomBlur: program(SRC.bloomBlur),
+  display: program(SRC.display),
+};
+
+// Full-screen quad
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), gl.STATIC_DRAW);
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]), gl.STATIC_DRAW);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(0);
+
+function blit(target) {
+  if (target == null) {
+    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  } else {
+    gl.viewport(0, 0, target.width, target.height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
+  }
+  gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+}
+
+/* ------------------------------------------------------------------ */
+/* Framebuffers                                                        */
+/* ------------------------------------------------------------------ */
+function createFBO(w, h, f, filter) {
+  gl.activeTexture(gl.TEXTURE0);
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, f.internalFormat, w, h, 0, f.format, ext.halfFloatType, null);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.viewport(0, 0, w, h);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  return {
+    texture, fbo, width: w, height: h, texelSizeX: 1 / w, texelSizeY: 1 / h, f, filter,
+    attach(id) { gl.activeTexture(gl.TEXTURE0 + id); gl.bindTexture(gl.TEXTURE_2D, texture); return id; },
+  };
+}
+function destroyFBO(o) { if (!o) return; gl.deleteTexture(o.texture); gl.deleteFramebuffer(o.fbo); }
+function createDouble(w, h, f, filter) {
+  let a = createFBO(w, h, f, filter), b = createFBO(w, h, f, filter);
+  return {
+    width: w, height: h, texelSizeX: 1 / w, texelSizeY: 1 / h,
+    get read() { return a; }, set read(v) { a = v; },
+    get write() { return b; }, set write(v) { b = v; },
+    swap() { const t = a; a = b; b = t; },
+  };
+}
+function resizeFBO(src, w, h) {
+  const n = createFBO(w, h, src.f, src.filter);
+  prog.copy.bind();
+  gl.uniform1i(prog.copy.u.uTexture, src.attach(0));
+  gl.uniform1f(prog.copy.u.value, 1);
+  blit(n);
+  destroyFBO(src);
+  return n;
+}
+function resizeDouble(d, w, h, f, filter) {
+  if (d.width === w && d.height === h) return d;
+  const nd = createDouble(1, 1, f, filter);
+  destroyFBO(nd.read); destroyFBO(nd.write);
+  nd.read = resizeFBO(d.read, w, h);
+  destroyFBO(d.write);
+  nd.write = createFBO(w, h, f, filter);
+  nd.width = w; nd.height = h; nd.texelSizeX = 1 / w; nd.texelSizeY = 1 / h;
+  return nd;
+}
+function clearFBO(o) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, o.fbo);
+  gl.viewport(0, 0, o.width, o.height);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+}
+
+const SIM_RES = { low: 64, med: 128, high: 256 };
+const DYE_RES = { low: 512, med: 1024, high: 1440 };
+function getResolution(res) {
+  let ar = gl.drawingBufferWidth / gl.drawingBufferHeight;
+  if (ar < 1) ar = 1 / ar;
+  const min = Math.round(res), max = Math.round(res * ar);
+  return gl.drawingBufferWidth > gl.drawingBufferHeight ? { w: max, h: min } : { w: min, h: max };
+}
+
+let dye, velocity, divergence, curl, pressure, velTemp, dyeTemp, bloom, bloomChain = [];
+function initFramebuffers() {
+  const sim = getResolution(SIM_RES[P.quality] || 128);
+  const dr = getResolution(DYE_RES[P.quality] || 1024);
+  const lin = ext.linear ? gl.LINEAR : gl.NEAREST;
+  gl.disable(gl.BLEND);
+  dye = dye ? resizeDouble(dye, dr.w, dr.h, ext.rgba, lin) : createDouble(dr.w, dr.h, ext.rgba, lin);
+  velocity = velocity ? resizeDouble(velocity, sim.w, sim.h, ext.rg, lin) : createDouble(sim.w, sim.h, ext.rg, lin);
+  [divergence, curl, velTemp, dyeTemp].forEach(destroyFBO);
+  if (pressure) { destroyFBO(pressure.read); destroyFBO(pressure.write); }
+  divergence = createFBO(sim.w, sim.h, ext.r, gl.NEAREST);
+  curl = createFBO(sim.w, sim.h, ext.r, gl.NEAREST);
+  pressure = createDouble(sim.w, sim.h, ext.r, gl.NEAREST);
+  velTemp = null; dyeTemp = null;
+  initBloom();
+}
+function initBloom() {
+  destroyFBO(bloom); bloomChain.forEach(destroyFBO); bloomChain = [];
+  const res = getResolution(256);
+  const lin = ext.linear ? gl.LINEAR : gl.NEAREST;
+  bloom = createFBO(res.w, res.h, ext.rgba, lin);
+  for (let i = 0; i < 8; i++) {
+    const w = res.w >> (i + 1), h = res.h >> (i + 1);
+    if (w < 2 || h < 2) break;
+    bloomChain.push(createFBO(w, h, ext.rgba, lin));
+  }
+}
+
+function resizeCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+  const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; return true; }
+  return false;
+}
+
+/* ------------------------------------------------------------------ */
+/* Simulation                                                          */
+/* ------------------------------------------------------------------ */
+function step(dt) {
+  gl.disable(gl.BLEND);
+  const vx = velocity.texelSizeX, vy = velocity.texelSizeY;
+
+  prog.curl.bind();
+  gl.uniform2f(prog.curl.u.texelSize, vx, vy);
+  gl.uniform1i(prog.curl.u.uVelocity, velocity.read.attach(0));
+  blit(curl);
+
+  prog.vorticity.bind();
+  gl.uniform2f(prog.vorticity.u.texelSize, vx, vy);
+  gl.uniform1i(prog.vorticity.u.uVelocity, velocity.read.attach(0));
+  gl.uniform1i(prog.vorticity.u.uCurl, curl.attach(1));
+  gl.uniform1f(prog.vorticity.u.curl, P.vorticity);
+  gl.uniform1f(prog.vorticity.u.dt, dt);
+  blit(velocity.write); velocity.swap();
+
+  prog.divergence.bind();
+  gl.uniform2f(prog.divergence.u.texelSize, vx, vy);
+  gl.uniform1i(prog.divergence.u.uVelocity, velocity.read.attach(0));
+  blit(divergence);
+
+  prog.copy.bind();
+  gl.uniform1i(prog.copy.u.uTexture, pressure.read.attach(0));
+  gl.uniform1f(prog.copy.u.value, P.pressure);
+  blit(pressure.write); pressure.swap();
+
+  prog.pressure.bind();
+  gl.uniform2f(prog.pressure.u.texelSize, vx, vy);
+  gl.uniform1i(prog.pressure.u.uDivergence, divergence.attach(0));
+  for (let i = 0; i < P.pressureIters; i++) {
+    gl.uniform1i(prog.pressure.u.uPressure, pressure.read.attach(1));
+    blit(pressure.write); pressure.swap();
+  }
+
+  prog.gradient.bind();
+  gl.uniform2f(prog.gradient.u.texelSize, vx, vy);
+  gl.uniform1i(prog.gradient.u.uPressure, pressure.read.attach(0));
+  gl.uniform1i(prog.gradient.u.uVelocity, velocity.read.attach(1));
+  blit(velocity.write); velocity.swap();
+
+  const adv = prog.advection;
+  adv.bind();
+  gl.uniform2f(adv.u.texelSize, vx, vy);
+  if (!ext.linear) gl.uniform2f(adv.u.dyeTexelSize, vx, vy);
+  const vid = velocity.read.attach(0);
+  gl.uniform1i(adv.u.uVelocity, vid);
+  gl.uniform1i(adv.u.uSource, vid);
+  gl.uniform1f(adv.u.dt, dt);
+  gl.uniform1f(adv.u.dissipation, P.velDiss);
+  blit(velocity.write); velocity.swap();
+
+  if (P.viscosity > 0.001) {
+    if (!velTemp) velTemp = createFBO(velocity.width, velocity.height, ext.rg, ext.linear ? gl.LINEAR : gl.NEAREST);
+    diffuse(velocity, velTemp, P.viscosity * P.viscosity * 24 * dt * 60, 10);
+  }
+
+  adv.bind();
+  if (!ext.linear) gl.uniform2f(adv.u.dyeTexelSize, dye.texelSizeX, dye.texelSizeY);
+  gl.uniform1i(adv.u.uVelocity, velocity.read.attach(0));
+  gl.uniform1i(adv.u.uSource, dye.read.attach(1));
+  gl.uniform1f(adv.u.dissipation, P.dyeDiss);
+  blit(dye.write); dye.swap();
+
+  if (P.diffusion > 0.001) {
+    if (!dyeTemp) dyeTemp = createFBO(dye.width, dye.height, ext.rgba, ext.linear ? gl.LINEAR : gl.NEAREST);
+    diffuse(dye, dyeTemp, P.diffusion * P.diffusion * 6 * dt * 60, 8);
+  }
+}
+// Implicit diffusion: Jacobi iterations of (I - alpha * Laplacian) x = b
+function diffuse(field, temp, alpha, iters) {
+  prog.copy.bind();
+  gl.uniform1i(prog.copy.u.uTexture, field.read.attach(0));
+  gl.uniform1f(prog.copy.u.value, 1);
+  blit(temp);
+  const d = prog.diffuse;
+  d.bind();
+  gl.uniform2f(d.u.texelSize, field.texelSizeX, field.texelSizeY);
+  gl.uniform1f(d.u.alpha, alpha);
+  gl.uniform1f(d.u.rBeta, 1 / (1 + 4 * alpha));
+  gl.uniform1i(d.u.uB, temp.attach(0));
+  for (let i = 0; i < iters; i++) {
+    gl.uniform1i(d.u.uX, field.read.attach(1));
+    blit(field.write); field.swap();
+  }
+}
+
+function correctRadius(r) {
+  const ar = canvas.width / canvas.height;
+  return ar > 1 ? r * ar : r;
+}
+// One splat into velocity and dye. radial: [outward, swirl] replaces the directional push.
+function splat(x, y, dx, dy, color, radiusMul = 1, radial = null) {
+  const s = prog.splat;
+  s.bind();
+  gl.uniform1f(s.u.aspectRatio, canvas.width / canvas.height);
+  gl.uniform2f(s.u.point, x, y);
+  gl.uniform1f(s.u.radius, correctRadius((P.splatRadius / 100) * radiusMul));
+  gl.uniform1i(s.u.uTarget, velocity.read.attach(0));
+  gl.uniform3f(s.u.color, dx, dy, 0);
+  gl.uniform2f(s.u.radialSwirl, radial ? radial[0] : 0, radial ? radial[1] : 0);
+  blit(velocity.write); velocity.swap();
+  if (color) {
+    gl.uniform1i(s.u.uTarget, dye.read.attach(0));
+    gl.uniform3f(s.u.color, color.r, color.g, color.b);
+    gl.uniform2f(s.u.radialSwirl, 0, 0);
+    blit(dye.write); dye.swap();
+  }
+}
+// Applies the symmetry setting, then splats every copy.
+function emit(x, y, dx, dy, color, radiusMul = 1, radial = null) {
+  const sym = P.symmetry;
+  if (sym === 'off') return splat(x, y, dx, dy, color, radiusMul, radial);
+  if (sym === 'mirror') {
+    splat(x, y, dx, dy, color, radiusMul, radial);
+    splat(1 - x, y, -dx, dy, color, radiusMul, radial ? [radial[0], -radial[1]] : null);
+    return;
+  }
+  const n = +sym, ar = canvas.width / canvas.height;
+  const px = (x - 0.5) * ar, py = y - 0.5;
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * TAU, c = Math.cos(a), s = Math.sin(a);
+    splat((px * c - py * s) / ar + 0.5, px * s + py * c + 0.5, dx * c - dy * s, dx * s + dy * c, color, radiusMul, radial);
+  }
+}
+function burstAt(x, y, strength, color, size = 1) {
+  const swirl = (Math.random() < 0.5 ? -1 : 1) * strength * 0.35;
+  emit(x, y, 0, 0, color, 2.2 * size, [strength, swirl]);
+}
+function randomSplats(n) {
+  for (let i = 0; i < n; i++) {
+    const c = scaleColor(paletteColor(Math.random()), 1.1 * P.dyeAmount);
+    emit(Math.random(), Math.random(), 1000 * (Math.random() - 0.5), 1000 * (Math.random() - 0.5), c);
+  }
+}
+function clearAll() {
+  [dye, velocity, pressure].forEach((d) => { clearFBO(d.read); clearFBO(d.write); });
+}
+
+function applyBloom(source, dest) {
+  if (bloomChain.length < 2) return;
+  gl.disable(gl.BLEND);
+  const knee = 0.7, thr = P.bloomThreshold;
+  const pf = prog.bloomPrefilter;
+  pf.bind();
+  gl.uniform3f(pf.u.curve, thr - knee, knee * 2, 0.25 / knee);
+  gl.uniform1f(pf.u.threshold, thr);
+  gl.uniform1i(pf.u.uTexture, source.attach(0));
+  blit(dest);
+  const bl = prog.bloomBlur;
+  bl.bind();
+  let last = dest;
+  for (const t of bloomChain) {
+    gl.uniform2f(bl.u.texelSize, last.texelSizeX, last.texelSizeY);
+    gl.uniform1i(bl.u.uTexture, last.attach(0));
+    blit(t); last = t;
+  }
+  gl.blendFunc(gl.ONE, gl.ONE);
+  gl.enable(gl.BLEND);
+  for (let i = bloomChain.length - 2; i >= 0; i--) {
+    const t = bloomChain[i];
+    gl.uniform2f(bl.u.texelSize, last.texelSizeX, last.texelSizeY);
+    gl.uniform1i(bl.u.uTexture, last.attach(0));
+    blit(t); last = t;
+  }
+  gl.disable(gl.BLEND);
+  prog.copy.bind();
+  gl.uniform1i(prog.copy.u.uTexture, last.attach(0));
+  gl.uniform1f(prog.copy.u.value, 1);
+  blit(dest);
+}
+
+let hueAngle = 0;
+function render(dt) {
+  if (P.bloom) applyBloom(dye.read, bloom);
+  gl.disable(gl.BLEND);
+  hueAngle = (hueAngle + P.hueSpin * TAU * dt) % TAU;
+  const d = prog.display;
+  d.bind();
+  gl.uniform2f(d.u.texelSize, dye.texelSizeX, dye.texelSizeY);
+  gl.uniform1i(d.u.uTexture, dye.read.attach(0));
+  gl.uniform1i(d.u.uBloom, bloom.attach(1));
+  gl.uniform1f(d.u.uShading, P.shading ? 1 : 0);
+  gl.uniform1f(d.u.uBloomIntensity, P.bloom ? P.bloomIntensity : 0);
+  gl.uniform1f(d.u.uHue, hueAngle);
+  gl.uniform1f(d.u.uSaturation, P.saturation);
+  gl.uniform1f(d.u.uExposure, P.exposure);
+  gl.uniform1f(d.u.uPosterize, P.posterize);
+  gl.uniform1f(d.u.uInk, P.blend === 'ink' ? 1 : 0);
+  const bg = hexToRgb(P.bg);
+  gl.uniform3f(d.u.uBg, bg.r, bg.g, bg.b);
+  blit(null);
+}
+
+/* ------------------------------------------------------------------ */
+/* Touch / pointer input                                               */
+/* ------------------------------------------------------------------ */
+let colorClock = 0; // advances with the color cycle
+const pointers = new Map();
+let pointerSeq = 0;
+function uv(e) {
+  const r = canvas.getBoundingClientRect();
+  return [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height];
+}
+function pointerColor(p) { return paletteColor(colorClock + p.idx * 0.17); }
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  const [x, y] = uv(e);
+  const p = { x, y, dx: 0, dy: 0, moved: false, idx: pointerSeq++, t0: performance.now(), travel: 0 };
+  pointers.set(e.pointerId, p);
+  emit(x, y, 0, 0, scaleColor(pointerColor(p), 0.35 * P.dyeAmount), 0.8);
+  dismissHint();
+  requestWakeLock();
+});
+canvas.addEventListener('pointermove', (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  const [x, y] = uv(e);
+  const ar = canvas.width / canvas.height;
+  let dx = x - p.x, dy = y - p.y;
+  if (ar < 1) dx *= ar;
+  if (ar > 1) dy /= ar;
+  p.dx += dx; p.dy += dy; p.travel += Math.hypot(dx, dy);
+  p.x = x; p.y = y; p.moved = true;
+});
+function endPointer(e) {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  pointers.delete(e.pointerId);
+  if (e.type === 'pointerup' && P.tapBurst && p.travel < 0.012 && performance.now() - p.t0 < 280) {
+    burstAt(p.x, p.y, 520, scaleColor(pointerColor(p), 0.9 * P.dyeAmount), 1.2);
+  }
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+function applyPointers() {
+  for (const p of pointers.values()) {
+    if (!p.moved) continue;
+    p.moved = false;
+    const c = scaleColor(pointerColor(p), 0.18 * P.dyeAmount);
+    emit(p.x, p.y, p.dx * P.splatForce, p.dy * P.splatForce, c);
+    p.dx = 0; p.dy = 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Audio                                                               */
+/* ------------------------------------------------------------------ */
+const A = {
+  ctx: null, analyser: null, monitor: null, data: null, mode: 'none', playing: false,
+  level: 0, peak: 0.2, armed: true, lastTrig: 0, flash: 0, domHz: 0,
+  songSrc: null, songUrl: null, micStream: null, micSrc: null,
+  demoBus: null, demoTimer: 0, demoNext: 0, demoStep: 0, demoStart: 0, noise: null,
+};
+const songEl = $('#songEl');
+function ensureAudio() {
+  if (!A.ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (_) {}
+    A.ctx = new AC();
+    A.analyser = A.ctx.createAnalyser();
+    A.analyser.fftSize = 4096;
+    A.analyser.smoothingTimeConstant = 0.5;
+    A.analyser.minDecibels = -92;
+    A.analyser.maxDecibels = -18;
+    A.data = new Uint8Array(A.analyser.frequencyBinCount);
+    A.monitor = A.ctx.createGain();
+    A.monitor.gain.value = P.monitor;
+    A.analyser.connect(A.monitor);
+    A.monitor.connect(A.ctx.destination);
+  }
+  if (A.ctx.state === 'suspended') A.ctx.resume();
+  return true;
+}
+function stopAudio() {
+  clearTimeout(A.demoTimer);
+  if (A.demoBus) { try { A.demoBus.disconnect(); } catch (_) {} A.demoBus = null; }
+  songEl.pause();
+  if (A.micStream) { A.micStream.getTracks().forEach((t) => t.stop()); A.micStream = null; }
+  if (A.micSrc) { try { A.micSrc.disconnect(); } catch (_) {} A.micSrc = null; }
+  if (A.monitor) A.monitor.gain.value = P.monitor;
+  A.mode = 'none'; A.playing = false;
+  updateAudioUI();
+}
+
+// --- Demo beat: a small synth so the reactive spots work with no file ---
+const BPM = 118, STEP = 60 / BPM / 4;
+const CHORDS = [
+  { bass: 55.0, arp: [440.0, 523.25, 659.25] },  // Am
+  { bass: 43.65, arp: [349.23, 440.0, 523.25] }, // F
+  { bass: 65.41, arp: [523.25, 659.25, 783.99] }, // C
+  { bass: 49.0, arp: [392.0, 493.88, 587.33] },  // G
+];
+function noiseBuffer() {
+  if (A.noise) return A.noise;
+  const len = A.ctx.sampleRate;
+  const b = A.ctx.createBuffer(1, len, A.ctx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return (A.noise = b);
+}
+function env(g, t, peak, attack, decay) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+}
+function kick(t) {
+  const o = A.ctx.createOscillator(), g = A.ctx.createGain();
+  o.frequency.setValueAtTime(150, t);
+  o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
+  env(g, t, 1, 0.003, 0.34);
+  o.connect(g).connect(A.demoBus); o.start(t); o.stop(t + 0.4);
+}
+function snare(t) {
+  const n = A.ctx.createBufferSource(); n.buffer = noiseBuffer();
+  const f = A.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 0.7;
+  const g = A.ctx.createGain(); env(g, t, 0.55, 0.002, 0.18);
+  n.connect(f).connect(g).connect(A.demoBus); n.start(t, Math.random() * 0.5); n.stop(t + 0.22);
+  const o = A.ctx.createOscillator(), og = A.ctx.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(190, t);
+  env(og, t, 0.35, 0.002, 0.09);
+  o.connect(og).connect(A.demoBus); o.start(t); o.stop(t + 0.12);
+}
+function hat(t, open) {
+  const n = A.ctx.createBufferSource(); n.buffer = noiseBuffer();
+  const f = A.ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7500;
+  const g = A.ctx.createGain(); env(g, t, open ? 0.18 : 0.12, 0.001, open ? 0.22 : 0.035);
+  n.connect(f).connect(g).connect(A.demoBus); n.start(t, Math.random() * 0.5); n.stop(t + 0.3);
+}
+function bass(t, hz) {
+  const o = A.ctx.createOscillator(), f = A.ctx.createBiquadFilter(), g = A.ctx.createGain();
+  o.type = 'sawtooth'; o.frequency.value = hz * 2;
+  f.type = 'lowpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(180, t + 0.18);
+  env(g, t, 0.32, 0.005, 0.2);
+  o.connect(f).connect(g).connect(A.demoBus); o.start(t); o.stop(t + 0.26);
+}
+function pluck(t, hz) {
+  const o = A.ctx.createOscillator(), g = A.ctx.createGain();
+  o.type = 'triangle'; o.frequency.value = hz;
+  env(g, t, 0.09, 0.004, 0.16);
+  o.connect(g).connect(A.demoBus); o.start(t); o.stop(t + 0.2);
+}
+function scheduleStep(s, t) {
+  const bar = Math.floor(s / 16) % 4, i = s % 16, ch = CHORDS[bar];
+  if (i % 4 === 0 || (bar === 3 && i === 14)) kick(t);
+  if (i === 4 || i === 12) snare(t);
+  if (i % 2 === 1) hat(t, i === 15);
+  if (i % 2 === 0 && i !== 4 && i !== 12) bass(t, ch.bass);
+  if (bar % 2 === 1 || i < 8) pluck(t, ch.arp[(s * 2 + bar) % 3] * (i >= 12 ? 2 : 1));
+}
+function demoTick() {
+  while (A.demoNext < A.ctx.currentTime + 0.12) {
+    scheduleStep(A.demoStep, A.demoNext);
+    A.demoNext += STEP;
+    A.demoStep = (A.demoStep + 1) % 64;
+  }
+  A.demoTimer = setTimeout(demoTick, 25);
+}
+function startDemo() {
+  if (!ensureAudio()) return audioNote('Audio isn\'t supported in this browser.', true);
+  stopAudio();
+  A.demoBus = A.ctx.createGain();
+  A.demoBus.gain.value = 0.7;
+  A.demoBus.connect(A.analyser);
+  A.mode = 'demo';
+  resumeDemo();
+  audioNote('Demo beat playing. Kick sits around 40–140 Hz, snare near 2 kHz, hats above 7 kHz.');
+}
+function resumeDemo() {
+  A.demoNext = A.ctx.currentTime + 0.06;
+  A.demoStart = performance.now();
+  A.playing = true;
+  demoTick();
+  updateAudioUI();
+}
+
+// --- Song file ---
+$('#songFile').addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!ensureAudio()) return audioNote('Audio isn\'t supported in this browser.', true);
+  stopAudio();
+  if (A.songUrl) URL.revokeObjectURL(A.songUrl);
+  A.songUrl = URL.createObjectURL(file);
+  if (!A.songSrc) {
+    A.songSrc = A.ctx.createMediaElementSource(songEl);
+    A.songSrc.connect(A.analyser);
+  }
+  songEl.src = A.songUrl;
+  A.mode = 'song';
+  $('#trName').textContent = file.name.replace(/\.[^.]+$/, '');
+  songEl.play().then(() => { A.playing = true; updateAudioUI(); })
+    .catch(() => audioNote('That file wouldn\'t play. Try an MP3, M4A or WAV.', true));
+  audioNote('Playing locally. The file stays on this device.');
+  updateAudioUI();
+  e.target.value = '';
+});
+songEl.addEventListener('pause', () => { if (A.mode === 'song') { A.playing = false; updateAudioUI(); } });
+songEl.addEventListener('play', () => { if (A.mode === 'song') { A.playing = true; updateAudioUI(); } });
+
+// --- Microphone ---
+$('#srcMic').addEventListener('click', async () => {
+  if (A.mode === 'mic') { stopAudio(); return; }
+  if (!ensureAudio()) return audioNote('Audio isn\'t supported in this browser.', true);
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return audioNote('Microphone input isn\'t available here. Load a song or play the demo beat instead.', true);
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    stopAudio();
+    A.micStream = stream;
+    A.micSrc = A.ctx.createMediaStreamSource(stream);
+    A.micSrc.connect(A.analyser);
+    A.monitor.gain.value = 0; // never play the mic back out (feedback)
+    A.mode = 'mic'; A.playing = true;
+    $('#trName').textContent = 'Microphone';
+    audioNote('Listening to the microphone. Nothing is recorded or sent anywhere.');
+    updateAudioUI();
+  } catch (err) {
+    audioNote('The microphone is blocked in this view. Load a song file or play the demo beat instead.', true);
+  }
+});
+
+$('#srcDemo').addEventListener('click', () => { if (A.mode === 'demo') stopAudio(); else startDemo(); });
+$('#btnStop').addEventListener('click', stopAudio);
+$('#btnPlay').addEventListener('click', () => {
+  if (A.mode === 'demo') {
+    if (A.playing) { clearTimeout(A.demoTimer); A.playing = false; updateAudioUI(); }
+    else { ensureAudio(); resumeDemo(); }
+  } else if (A.mode === 'song') {
+    ensureAudio();
+    if (songEl.paused) songEl.play().catch(() => {}); else songEl.pause();
+  } else if (A.mode === 'mic') stopAudio();
+});
+function audioNote(msg, warn = false) {
+  const n = $('#audioNote');
+  n.textContent = msg;
+  n.classList.toggle('warn', !!warn);
+}
+function updateAudioUI() {
+  $('#srcDemo').setAttribute('aria-pressed', A.mode === 'demo');
+  $('#srcSong').setAttribute('aria-pressed', A.mode === 'song');
+  $('#srcMic').setAttribute('aria-pressed', A.mode === 'mic');
+  $('#transport').hidden = A.mode === 'none';
+  if (A.mode === 'demo') $('#trName').textContent = 'Demo beat · 118 BPM';
+  const playIco = A.playing
+    ? '<path d="M9 5v14M15 5v14"/>'
+    : '<path d="M7 5l12 7-12 7z"/>';
+  $('#icoPlay').innerHTML = playIco;
+  $('#btnPlay').setAttribute('aria-label', A.playing ? 'Pause audio' : 'Play audio');
+  $('#btnAudio').classList.toggle('live', A.mode !== 'none' && A.playing);
+  if (A.mode === 'none') $('#btnAudio').querySelector('svg').style.transform = '';
+}
+function fmtTime(s) {
+  if (!isFinite(s)) return '0:00';
+  s = Math.max(0, Math.floor(s));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+const f2x = (f) => Math.log(clamp(f, 20, 16000) / 20) / Math.log(800);
+const x2f = (x) => 20 * Math.pow(800, clamp(x, 0, 1));
+const threshold = () => 0.95 - 0.88 * P.sensitivity;
+
+function spotPos(i, n) {
+  if (P.layout === 'center') return [0.5, 0.5];
+  if (P.layout === 'ring') {
+    const W = canvas.width, H = canvas.height, S = Math.min(W, H) * 0.3;
+    const a = (i / n) * TAU + colorClock * 0.8;
+    return [0.5 + (Math.cos(a) * S) / W, 0.5 + (Math.sin(a) * S) / H];
+  }
+  return [0.14 + 0.72 * Math.random(), 0.14 + 0.72 * Math.random()];
+}
+function spotColor(i, k) {
+  const c = P.audioColor === 'pitch' ? pitchColor(A.domHz) : paletteColor(colorClock + i * 0.21);
+  return scaleColor(c, k * P.dyeAmount);
+}
+function audioUpdate(dt, now) {
+  if (!A.analyser || A.mode === 'none') { A.level += (0 - A.level) * Math.min(1, dt * 8); return; }
+  A.analyser.getByteFrequencyData(A.data);
+  const binHz = A.ctx.sampleRate / A.analyser.fftSize, len = A.data.length;
+  let lo = clamp(Math.floor(P.bandLow / binHz), 1, len - 1);
+  let hi = clamp(Math.ceil(P.bandHigh / binHz), lo, len - 1);
+  let sum = 0, max = -1, maxI = lo;
+  for (let i = lo; i <= hi; i++) {
+    const v = A.data[i];
+    sum += v;
+    if (v > max) { max = v; maxI = i; }
+  }
+  const raw = sum / ((hi - lo + 1) * 255);
+  A.peak = Math.max(raw, A.peak * Math.exp(-dt / 4), 0.04);
+  const lvl = P.autoGain ? Math.min(1, raw / A.peak) : Math.min(1, raw * 1.4);
+  A.level += (lvl - A.level) * Math.min(1, dt * 40);
+  A.domHz = maxI * binHz;
+  A.flash = Math.max(0, A.flash - dt * 4);
+  if (!A.playing) return;
+  const thr = threshold();
+  if (A.level < thr - 0.06) A.armed = true;
+  const doBurst = P.react === 'burst' || P.react === 'both';
+  const doFlow = P.react === 'flow' || P.react === 'both';
+  if (doBurst && A.armed && A.level > thr && now - A.lastTrig > P.cooldown) {
+    A.armed = false; A.lastTrig = now; A.flash = 1;
+    const strength = 460 * P.burstStrength * (0.7 + A.level * 0.5);
+    for (let i = 0; i < P.spots; i++) {
+      const [x, y] = spotPos(i, P.spots);
+      burstAt(x, y, strength, spotColor(i, 0.9), P.burstSize);
+    }
+  }
+  if (doFlow && A.level > thr && !paused) {
+    const e = (A.level - thr) / Math.max(0.05, 1 - thr);
+    for (let i = 0; i < P.spots; i++) {
+      const [x, y] = P.layout === 'random' ? flowSpot(i) : spotPos(i, P.spots);
+      const a = (i / P.spots) * TAU + now * 0.0013 * (i % 2 ? -1 : 1);
+      const f = 320 * P.burstStrength * e;
+      emit(x, y, Math.cos(a) * f, Math.sin(a) * f, spotColor(i, 0.16 * e), 0.9 * P.burstSize);
+    }
+  }
+}
+// Random layout in flow mode: slowly wandering emitters instead of jumping every frame.
+const wander = [];
+function flowSpot(i) {
+  if (!wander[i]) wander[i] = { x: Math.random(), y: Math.random(), a: Math.random() * TAU };
+  const w = wander[i];
+  w.a += (Math.random() - 0.5) * 0.3;
+  w.x = clamp(w.x + Math.cos(w.a) * 0.003, 0.12, 0.88);
+  w.y = clamp(w.y + Math.sin(w.a) * 0.003, 0.12, 0.88);
+  if (w.x <= 0.12 || w.x >= 0.88 || w.y <= 0.12 || w.y >= 0.88) w.a += Math.PI * 0.5;
+  return [w.x, w.y];
+}
+
+// --- Spectrum meter ---
+const meter = $('#meter');
+const mctx = meter.getContext('2d');
+const LEVEL_W = 14, LEVEL_GAP = 8;
+function drawMeter() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cw = meter.clientWidth, ch = meter.clientHeight;
+  if (!cw) return;
+  if (meter.width !== Math.round(cw * dpr)) { meter.width = Math.round(cw * dpr); meter.height = Math.round(ch * dpr); }
+  const W = meter.width, H = meter.height, lw = LEVEL_W * dpr, specW = W - lw - LEVEL_GAP * dpr;
+  mctx.clearRect(0, 0, W, H);
+  const xLo = f2x(P.bandLow) * specW, xHi = f2x(P.bandHigh) * specW;
+  const acc = accentRgb;
+  mctx.fillStyle = `rgba(${acc},${0.1 + A.flash * 0.35})`;
+  mctx.fillRect(xLo, 0, Math.max(2 * dpr, xHi - xLo), H);
+  if (A.data && A.mode !== 'none') {
+    const binHz = A.ctx.sampleRate / A.analyser.fftSize;
+    const path = new Path2D();
+    path.moveTo(0, H);
+    for (let x = 0; x <= specW; x += 2 * dpr) {
+      const fi = x2f(x / specW) / binHz;
+      const i0 = Math.floor(fi), fr = fi - i0;
+      const v = (A.data[i0] || 0) * (1 - fr) + (A.data[i0 + 1] || 0) * fr;
+      path.lineTo(x, H - (v / 255) * H * 0.94);
+    }
+    path.lineTo(specW, H);
+    path.closePath();
+    mctx.fillStyle = 'rgba(236,235,244,.22)';
+    mctx.fill(path);
+    mctx.save();
+    mctx.beginPath(); mctx.rect(xLo, 0, xHi - xLo, H); mctx.clip();
+    mctx.fillStyle = `rgba(${acc},.9)`;
+    mctx.fill(path);
+    mctx.restore();
+  } else {
+    mctx.fillStyle = 'rgba(143,141,166,.9)';
+    mctx.font = `${12 * dpr}px ${getComputedStyle(document.body).fontFamily}`;
+    mctx.textAlign = 'center'; mctx.textBaseline = 'middle';
+    mctx.fillText('No audio playing', specW / 2, H / 2);
+  }
+  // band edge handles
+  mctx.fillStyle = `rgba(${acc},1)`;
+  mctx.fillRect(xLo - dpr, 0, 2 * dpr, H);
+  mctx.fillRect(xHi - dpr, 0, 2 * dpr, H);
+  // level bar + threshold
+  const lx = W - lw;
+  mctx.fillStyle = 'rgba(226,224,255,.12)';
+  mctx.fillRect(lx, 0, lw, H);
+  const thr = threshold();
+  mctx.fillStyle = A.level > thr ? `rgba(${acc},1)` : 'rgba(236,235,244,.55)';
+  mctx.fillRect(lx, H - A.level * H, lw, A.level * H);
+  mctx.fillStyle = '#ffb86b';
+  mctx.fillRect(lx - 3 * dpr, H - thr * H - dpr, lw + 3 * dpr, 2 * dpr);
+}
+let meterDrag = null;
+function meterFreq(e) {
+  const r = meter.getBoundingClientRect();
+  return x2f((e.clientX - r.left) / (r.width - LEVEL_W - LEVEL_GAP));
+}
+meter.addEventListener('pointerdown', (e) => {
+  const f = meterFreq(e);
+  meterDrag = { start: f, id: e.pointerId };
+  try { meter.setPointerCapture(e.pointerId); } catch (_) {}
+  setBand(f / 1.25, f * 1.25);
+});
+meter.addEventListener('pointermove', (e) => {
+  if (!meterDrag || e.pointerId !== meterDrag.id) return;
+  const f = meterFreq(e), a = Math.min(meterDrag.start, f), b = Math.max(meterDrag.start, f);
+  if (b / a < 1.3) setBand(Math.sqrt(a * b) / 1.15, Math.sqrt(a * b) * 1.15);
+  else setBand(a, b);
+});
+['pointerup', 'pointercancel'].forEach((t) => meter.addEventListener(t, () => { meterDrag = null; }));
+function setBand(lo, hi) {
+  P.bandLow = Math.round(clamp(lo, 20, 15000));
+  P.bandHigh = Math.round(clamp(hi, P.bandLow + 5, 16000));
+  syncAll(); save();
+}
+
+/* ------------------------------------------------------------------ */
+/* Controls UI                                                         */
+/* ------------------------------------------------------------------ */
+const fx = {
+  n0: (v) => v.toFixed(0),
+  n2: (v) => v.toFixed(2),
+  rate: (v) => (v === 0 ? 'off' : `${v.toFixed(2)} /s`),
+  mult: (v) => `${v.toFixed(2)}×`,
+  pct: (v) => `${Math.round(v * 100)}%`,
+  hz: (f) => (f < 1000 ? `${Math.round(f)} Hz` : `${(f / 1000).toFixed(f < 10000 ? 1 : 0)} kHz`),
+  ms: (v) => `${Math.round(v)} ms`,
+};
+const logHz = {
+  min: 0, max: 1000, step: 1,
+  map: (u) => Math.round(x2f(u / 1000)),
+  unmap: (f) => f2x(f) * 1000,
+};
+const CONTROLS = {
+  fluid: [
+    { group: 'Motion' },
+    { k: 'vorticity', label: 'Vorticity', min: 0, max: 60, step: 1, fmt: fx.n0, help: 'Vorticity confinement. Feeds energy back into small eddies so curls keep spinning.' },
+    { k: 'velDiss', label: 'Velocity damping', min: 0, max: 4, step: 0.05, fmt: fx.rate, help: 'How fast motion dies out on its own.' },
+    { k: 'viscosity', label: 'Viscosity', min: 0, max: 1, step: 0.01, fmt: fx.n2, help: 'Thickness. High values move like honey or lava.' },
+    { group: 'Dye' },
+    { k: 'dyeAmount', label: 'Dye density', min: 0.1, max: 3, step: 0.05, fmt: fx.mult, help: 'How much pigment each stroke and spot drops in.' },
+    { k: 'dyeDiss', label: 'Dye fade', min: 0, max: 4, step: 0.05, fmt: fx.rate, help: 'At zero the dye never fades and the tank fills up.' },
+    { k: 'diffusion', label: 'Dye diffusion', min: 0, max: 1, step: 0.01, fmt: fx.n2, help: 'Soft bleeding of color into its surroundings, like ink on wet paper.' },
+    { group: 'Solver' },
+    { k: 'pressure', label: 'Pressure carry-over', min: 0, max: 1, step: 0.01, fmt: fx.pct, help: 'How much of last frame\'s pressure seeds the next solve. Higher feels bouncier.' },
+    { k: 'pressureIters', label: 'Pressure iterations', min: 4, max: 50, step: 1, fmt: fx.n0, help: 'Jacobi passes per frame. More is more incompressible and slower.' },
+    { k: 'quality', label: 'Grid resolution', type: 'seg', options: [['low', 'Low'], ['med', 'Medium'], ['high', 'High']], help: 'Velocity grid 64 / 128 / 256 cells, dye 512 / 1024 / 1440 px on the short side.' },
+  ],
+  color: [
+    { group: 'Dye color' },
+    { k: 'palette', label: 'Palette', type: 'seg', options: Object.keys(PALETTES).map((k) => [k, PALETTES[k].name]), swatch: true },
+    { k: 'monoColor', label: 'Mono color', type: 'color' },
+    { k: 'cycleSpeed', label: 'Color cycle', min: 0, max: 5, step: 0.05, fmt: fx.mult, help: 'How quickly new strokes walk through the palette.' },
+    { group: 'Ground' },
+    { k: 'blend', label: 'Blend', type: 'seg', options: [['glow', 'Glow (light on dark)'], ['ink', 'Ink (absorbs light)']] },
+    { k: 'bg', label: 'Background', type: 'color' },
+    { group: 'Post effects' },
+    { k: 'shading', label: '3D shading', type: 'toggle' },
+    { k: 'bloom', label: 'Bloom', type: 'toggle' },
+    { k: 'bloomIntensity', label: 'Bloom intensity', min: 0, max: 2, step: 0.05, fmt: fx.n2 },
+    { k: 'bloomThreshold', label: 'Bloom threshold', min: 0, max: 1, step: 0.01, fmt: fx.n2 },
+    { k: 'hueSpin', label: 'Hue drift', min: -0.5, max: 0.5, step: 0.01, fmt: (v) => (v === 0 ? 'off' : `${Math.round(v * 360)}°/s`), help: 'Rotates every color on screen over time.' },
+    { k: 'saturation', label: 'Saturation', min: 0, max: 2, step: 0.01, fmt: fx.pct },
+    { k: 'exposure', label: 'Exposure', min: 0.2, max: 3, step: 0.05, fmt: fx.mult },
+    { k: 'posterize', label: 'Posterize', min: 0, max: 12, step: 1, fmt: (v) => (v === 0 ? 'off' : `${v} bands`), help: 'Quantizes color into flat cel-shaded bands.' },
+  ],
+  touch: [
+    { group: 'Brush' },
+    { k: 'splatRadius', label: 'Brush size', min: 0.03, max: 1, step: 0.01, fmt: fx.n2 },
+    { k: 'splatForce', label: 'Stir force', min: 500, max: 20000, step: 100, fmt: fx.n0 },
+    { k: 'tapBurst', label: 'Tap to burst', type: 'toggle', help: 'A quick tap blows a ring outward from your finger.' },
+    { group: 'Symmetry' },
+    { k: 'symmetry', label: 'Kaleidoscope', type: 'seg', options: [['off', 'Off'], ['mirror', 'Mirror'], ['3', '3'], ['4', '4'], ['6', '6'], ['8', '8']], help: 'Repeats every stroke and audio spot around the center.' },
+  ],
+  audio: [
+    { group: 'Trigger band' },
+    { k: 'bandLow', label: 'Low edge', ...logHz, fmt: fx.hz },
+    { k: 'bandHigh', label: 'High edge', ...logHz, fmt: fx.hz },
+    { k: 'sensitivity', label: 'Sensitivity', min: 0, max: 1, step: 0.01, fmt: fx.pct, help: 'Moves the orange line on the level bar. Higher fires on quieter hits.' },
+    { k: 'autoGain', label: 'Auto gain', type: 'toggle', help: 'Normalizes to the band\'s recent peak, so quiet and loud tracks both trigger.' },
+    { k: 'cooldown', label: 'Minimum gap', min: 40, max: 800, step: 10, fmt: fx.ms, help: 'Shortest time between two bursts.' },
+    { group: 'Spots' },
+    { k: 'react', label: 'Reaction', type: 'seg', options: [['burst', 'Bursts'], ['flow', 'Flow'], ['both', 'Both']], help: 'Bursts fire on hits. Flow pours continuously while the band is over the line.' },
+    { k: 'layout', label: 'Placement', type: 'seg', options: [['random', 'Random'], ['ring', 'Ring'], ['center', 'Center']] },
+    { k: 'spots', label: 'Spot count', min: 1, max: 8, step: 1, fmt: fx.n0 },
+    { k: 'burstStrength', label: 'Force', min: 0.1, max: 3, step: 0.05, fmt: fx.mult },
+    { k: 'burstSize', label: 'Size', min: 0.3, max: 3, step: 0.05, fmt: fx.mult },
+    { k: 'audioColor', label: 'Spot color', type: 'seg', options: [['palette', 'Palette'], ['pitch', 'Pitch']], help: 'Pitch maps the loudest frequency in the band to hue: low is red, high is violet.' },
+    { group: 'Output' },
+    { k: 'monitor', label: 'Playback volume', min: 0, max: 1, step: 0.01, fmt: fx.pct, help: 'Only affects what you hear. The spots react the same at any volume.' },
+  ],
+};
+const syncers = [];
+function syncAll() { syncers.forEach((f) => f()); }
+
+function buildControl(c, parent) {
+  if (c.group) {
+    const g = document.createElement('p');
+    g.className = 'group-label';
+    g.textContent = c.group;
+    parent.appendChild(g);
+    return;
+  }
+  const row = document.createElement('div');
+  row.className = 'ctl';
+  const id = `c-${c.k}`;
+  const type = c.type || 'range';
+  if (type === 'range') {
+    row.innerHTML = `<label for="${id}">${c.label}</label><output for="${id}"></output><input type="range" id="${id}">`;
+    const input = row.querySelector('input'), out = row.querySelector('output');
+    input.min = c.min; input.max = c.max; input.step = c.step;
+    const sync = () => {
+      const u = c.unmap ? c.unmap(P[c.k]) : P[c.k];
+      input.value = u;
+      out.textContent = c.fmt(P[c.k]);
+      input.style.setProperty('--fill', `${((u - c.min) / (c.max - c.min)) * 100}%`);
+    };
+    input.addEventListener('input', () => {
+      let v = c.map ? c.map(+input.value) : +input.value;
+      P[c.k] = v;
+      if (c.k === 'bandLow' && P.bandLow >= P.bandHigh) P.bandHigh = Math.min(16000, Math.round(P.bandLow * 1.2));
+      if (c.k === 'bandHigh' && P.bandHigh <= P.bandLow) P.bandLow = Math.max(20, Math.round(P.bandHigh / 1.2));
+      changed(c.k);
+    });
+    syncers.push(sync);
+  } else if (type === 'seg') {
+    row.innerHTML = `<span class="lbl" id="${id}-l">${c.label}</span><span></span><div class="seg" role="group" aria-labelledby="${id}-l"></div>`;
+    const seg = row.querySelector('.seg');
+    const btns = c.options.map(([val, text]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.v = val;
+      if (c.swatch) {
+        const sw = document.createElement('span');
+        sw.className = 'swatch';
+        b.appendChild(sw);
+      }
+      b.appendChild(document.createTextNode(text));
+      b.addEventListener('click', () => { P[c.k] = val; changed(c.k); });
+      seg.appendChild(b);
+      return b;
+    });
+    syncers.push(() => btns.forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.v) === String(P[c.k]));
+      if (c.swatch) b.firstChild.style.background = paletteCss(b.dataset.v);
+    }));
+  } else if (type === 'toggle') {
+    row.innerHTML = `<label for="${id}">${c.label}</label><input type="checkbox" class="switch" id="${id}" role="switch">`;
+    const input = row.querySelector('input');
+    input.addEventListener('change', () => { P[c.k] = input.checked; changed(c.k); });
+    syncers.push(() => { input.checked = !!P[c.k]; });
+  } else if (type === 'color') {
+    row.innerHTML = `<label for="${id}">${c.label}</label><input type="color" id="${id}">`;
+    const input = row.querySelector('input');
+    input.addEventListener('input', () => { P[c.k] = input.value; changed(c.k); });
+    syncers.push(() => { input.value = P[c.k]; });
+  }
+  if (c.help) {
+    const h = document.createElement('p');
+    h.className = 'help';
+    h.textContent = c.help;
+    row.appendChild(h);
+  }
+  parent.appendChild(row);
+}
+for (const tab of ['fluid', 'color', 'touch']) CONTROLS[tab].forEach((c) => buildControl(c, $(`#pane-${tab}`)));
+CONTROLS.audio.forEach((c) => buildControl(c, $('#audioCtls')));
+
+const BAND_PRESETS = [['Kick', 40, 140], ['Bass', 60, 250], ['Snare', 1200, 3500], ['Vocals', 300, 3000], ['Hats', 7000, 15000], ['Full', 20, 16000]];
+const bandBtns = BAND_PRESETS.map(([name, lo, hi]) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = name;
+  b.addEventListener('click', () => setBand(lo, hi));
+  $('#bandPresets').appendChild(b);
+  return { b, lo, hi };
+});
+syncers.push(() => bandBtns.forEach(({ b, lo, hi }) => b.setAttribute('aria-pressed', P.bandLow === lo && P.bandHigh === hi)));
+
+const presetBtns = Object.keys(PRESETS).map((name) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'chip';
+  b.textContent = name;
+  b.addEventListener('click', () => applyPreset(name));
+  $('#presets').appendChild(b);
+  return b;
+});
+syncers.push(() => presetBtns.forEach((b) => b.setAttribute('aria-pressed', b.textContent === activePreset)));
+
+function applyPreset(name) {
+  const prevQuality = P.quality;
+  Object.assign(P, VISUAL_DEFAULTS, { quality: prevQuality }, PRESETS[name]);
+  activePreset = name;
+  syncAll(); save(); onLookChange();
+  randomSplats(5);
+}
+$('#btnReset').addEventListener('click', () => applyPreset('Classic'));
+
+function changed(k) {
+  if (k in VISUAL_DEFAULTS && k !== 'quality') activePreset = null;
+  if (k === 'quality') initFramebuffers();
+  if (k === 'monitor' && A.monitor && A.mode !== 'mic') A.monitor.gain.value = P.monitor;
+  if (k === 'palette' || k === 'monoColor' || k === 'blend' || k === 'bg') onLookChange();
+  syncAll(); save();
+}
+function onLookChange() {
+  const bg = hexToRgb(P.bg);
+  const lum = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
+  document.body.classList.toggle('light-ground', lum > 0.55);
+  lastAccent = -1;
+}
+
+// Tabs
+const tabs = ['fluid', 'color', 'audio', 'touch'];
+let currentTab = 'fluid';
+function showTab(t) {
+  currentTab = t;
+  tabs.forEach((x) => {
+    $(`#tab-${x}`).setAttribute('aria-selected', x === t);
+    $(`#pane-${x}`).hidden = x !== t;
+  });
+  $('#sheetBody').scrollTop = 0;
+}
+tabs.forEach((t) => $(`#tab-${t}`).addEventListener('click', () => showTab(t)));
+
+// Sheet + dock
+const sheet = $('#sheet');
+function openSheet(tab) {
+  if (tab) showTab(tab);
+  sheet.classList.add('open');
+  document.body.classList.add('sheet-open');
+  $('#btnPanel').setAttribute('aria-expanded', 'true');
+}
+function closeSheet() {
+  sheet.classList.remove('open');
+  document.body.classList.remove('sheet-open');
+  $('#btnPanel').setAttribute('aria-expanded', 'false');
+}
+$('#btnPanel').addEventListener('click', () => (sheet.classList.contains('open') && currentTab !== 'audio' ? closeSheet() : openSheet(currentTab === 'audio' ? 'fluid' : null)));
+$('#btnAudio').addEventListener('click', () => (sheet.classList.contains('open') && currentTab === 'audio' ? closeSheet() : openSheet('audio')));
+$('#btnClose').addEventListener('click', closeSheet);
+$('#btnSplash').addEventListener('click', () => randomSplats(Math.floor(Math.random() * 6) + 5));
+$('#btnClear').addEventListener('click', clearAll);
+let paused = false;
+function togglePause() {
+  paused = !paused;
+  $('#btnPause').setAttribute('aria-pressed', paused);
+  $('#btnPause').setAttribute('aria-label', paused ? 'Resume simulation' : 'Pause simulation');
+  $('#icoPause').innerHTML = paused ? '<path d="M7 5l12 7-12 7z"/>' : '<path d="M9 5v14M15 5v14"/>';
+}
+$('#btnPause').addEventListener('click', togglePause);
+function setUiHidden(h) {
+  document.body.classList.toggle('ui-hidden', h);
+  $('#btnShow').hidden = !h;
+  if (h) closeSheet();
+}
+$('#btnHide').addEventListener('click', () => setUiHidden(true));
+$('#btnShow').addEventListener('click', () => setUiHidden(false));
+if (document.fullscreenEnabled && document.documentElement.requestFullscreen) {
+  $('#btnFull').hidden = false;
+  $('#btnFull').addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else document.documentElement.requestFullscreen().catch(() => { $('#btnFull').hidden = true; });
+  });
+}
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest && e.target.closest('input, button, label') && e.key === ' ') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === ' ') { e.preventDefault(); togglePause(); }
+  else if (k === 'c') clearAll();
+  else if (k === 's') randomSplats(7);
+  else if (k === 'h') setUiHidden(!document.body.classList.contains('ui-hidden'));
+  else if (k === 'escape') closeSheet();
+});
+
+let hintTimer = setTimeout(dismissHint, 7000);
+function dismissHint() { clearTimeout(hintTimer); $('#hint').classList.add('gone'); }
+
+let wakeLock = null;
+function requestWakeLock() {
+  if (wakeLock || !navigator.wakeLock) return;
+  navigator.wakeLock.request('screen').then((l) => { wakeLock = l; l.addEventListener('release', () => { wakeLock = null; }); }).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && pointers.size === 0) wakeLock = null; });
+
+// Accent follows the dye
+let accentRgb = '159,220,255', lastAccent = -1;
+function updateAccent(now) {
+  if (now - lastAccent < 150 && lastAccent >= 0) return;
+  lastAccent = now;
+  const c = paletteColor(colorClock);
+  const m = (v) => Math.round((v * 0.62 + 0.38) * 255);
+  accentRgb = `${m(c.r)},${m(c.g)},${m(c.b)}`;
+  document.documentElement.style.setProperty('--accent', `rgb(${accentRgb})`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Main loop                                                           */
+/* ------------------------------------------------------------------ */
+resizeCanvas();
+initFramebuffers();
+syncAll();
+onLookChange();
+updateAudioUI();
+randomSplats(7);
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 1 / 60);
+  last = now;
+  if (resizeCanvas()) initFramebuffers();
+  colorClock += dt * 0.08 * P.cycleSpeed;
+  updateAccent(now);
+  applyPointers();
+  audioUpdate(dt, now);
+  if (!paused) step(dt);
+  render(dt);
+  if (A.mode !== 'none') {
+    const s = 1 + A.level * 0.35;
+    $('#btnAudio').querySelector('svg').style.transform = `scaleY(${s.toFixed(3)})`;
+    if (A.mode === 'song') $('#trTime').textContent = `${fmtTime(songEl.currentTime)} / ${fmtTime(songEl.duration)}`;
+    else if (A.mode === 'demo') $('#trTime').textContent = A.playing ? fmtTime((now - A.demoStart) / 1000) : 'paused';
+    else $('#trTime').textContent = `peak ${fx.hz(A.domHz)}`;
+  }
+  if (sheet.classList.contains('open') && currentTab === 'audio') drawMeter();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
