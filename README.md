@@ -10,7 +10,7 @@ Open https://pweisbro.github.io/artifacts/ in Safari, then use **Share → Add t
 
 `spectrum-bench.html` is a playable optics bench: light sources, prisms, lenses, flat and curved mirrors, diffraction gratings, color filters, beam splitters, slits and screens.
 
-**Sound** makes the bench react to the microphone or a song file. Each beam can carry the live sound wave like an oscilloscope trace, flowing out from the light and through every bounce and split. Loudness and beats sway the beams, bass pulses rainbow boost, volume sets brightness, and pitch picks laser colors.
+**Sound** makes the bench react to the microphone or a song file. Each beam can carry the sound in one of two styles: the live waveform like an oscilloscope trace, or spectrum bars, a running bass-to-treble histogram whose bars ride outward from the light. Both follow every bounce and split. Loudness and beats sway the beams, bass pulses rainbow boost, volume sets brightness, and pitch picks laser colors.
 
 ### Resonant Ink
 
