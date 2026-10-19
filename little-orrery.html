@@ -37,6 +37,7 @@ body{margin:0;background:radial-gradient(ellipse 90% 70% at 50% 40%, #4a4a86, #2
 #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
 .lab{position:absolute;left:0;top:0;transform:translate(-50%,-100%);padding:3px 9px;border-radius:999px;background:rgba(40,36,90,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font:600 12px/1 var(--f-head);letter-spacing:.03em;color:var(--ink);white-space:nowrap;opacity:0;transition:opacity .25s}
 .lab.on{opacity:1}
+.lab.small{font-size:10px;padding:2px 6px;background:rgba(40,36,90,.45)}
 
 .badge{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:max(16px, env(safe-area-inset-left,0px));display:flex;align-items:center;gap:10px;pointer-events:none;text-shadow:0 1px 10px rgba(40,34,90,.55)}
 .badge h1{margin:0;font:600 18px/1 var(--f-head);letter-spacing:.02em}
@@ -101,38 +102,73 @@ body{margin:0;background:radial-gradient(ellipse 90% 70% at 50% 40%, #4a4a86, #2
 /* ---------- the model's facts and the dock, with no 3D needed ---------- */
 window.LO = (() => {
   const $ = id => document.getElementById(id);
-  // radius: Earth = 1; au: distance from the Sun, Earth = 1; year: orbit time in Earth years; day: spin in Earth days (negative = backwards)
+  // kind: planet, dwarf or craft. radius: Earth = 1; au: semi-major axis, Earth = 1; year: orbit time in Earth years; day: spin in Earth days (negative = backwards)
+  // e, inc, node, peri: the real orbit shape (eccentricity, inclination, ascending node and longitude of perihelion, degrees). Used only at true scale.
   const BODIES = [
-    { key: 'sun',     name: 'The Sun', color: '#ffe7c4', glow: '#ffd3b0', radius: 109, au: 0,     year: 0,     day: 25,    tilt: 7,    fact: 'A warm clay lamp in the middle. Everything else circles it.' },
-    { key: 'mercury', name: 'Mercury', color: '#cfc6d8', glow: '#d9d2e6', radius: .38, au: .39,   year: .24,   day: 58.6,  tilt: 0,    fact: 'The smallest and the quickest, round the Sun in 88 days.' },
-    { key: 'venus',   name: 'Venus',   color: '#ffd4a8', glow: '#ffc9a1', radius: .95, au: .72,   year: .62,   day: -243,  tilt: 177,  fact: 'Spins backwards, so slowly that its day is longer than its year.' },
-    { key: 'earth',   name: 'Earth',   color: '#9fd3ff', glow: '#a6e3cc', radius: 1,   au: 1,     year: 1,     day: 1,     tilt: 23.4, fact: 'Home. One little moon keeps it company.' },
-    { key: 'mars',    name: 'Mars',    color: '#ffb09a', glow: '#ffa58f', radius: .53, au: 1.52,  year: 1.88,  day: 1.03,  tilt: 25,   fact: 'Rusty, about half the size of Earth, with a day almost the same length.' },
-    { key: 'jupiter', name: 'Jupiter', color: '#ffdcb8', glow: '#ffd0a6', radius: 11.2, au: 5.2,  year: 11.86, day: .41,   tilt: 3,    fact: 'The giant. Eleven Earths wide, and it spins once every ten hours.' },
-    { key: 'saturn',  name: 'Saturn',  color: '#fff0c2', glow: '#ffe9b0', radius: 9.45, au: 9.54, year: 29.46, day: .45,   tilt: 26.7, fact: 'Wears a clay ring. Light enough to float, if you had a big enough bath.' },
-    { key: 'uranus',  name: 'Uranus',  color: '#bdf0e4', glow: '#a6e3cc', radius: 4,   au: 19.2,  year: 84,    day: -.72,  tilt: 98,   fact: 'Tipped on its side, so it rolls around the Sun.' },
-    { key: 'neptune', name: 'Neptune', color: '#b3bcff', glow: '#a9b4ff', radius: 3.9, au: 30.1,  year: 164.8, day: .67,   tilt: 28,   fact: 'The far edge. One trip round the Sun takes 165 years.' },
+    { key: 'sun',     kind: 'sun',    name: 'The Sun', color: '#ffe7c4', glow: '#ffd3b0', radius: 109, au: 0,     year: 0,     day: 25,    tilt: 7,    fact: 'A warm clay lamp in the middle. Everything else circles it.' },
+    { key: 'mercury', kind: 'planet', name: 'Mercury', color: '#cfc6d8', glow: '#d9d2e6', radius: .38, au: .387,  year: .24,   day: 58.6,  tilt: 0,    e: .2056, inc: 7.0, node: 48.3, peri: 77.5,  fact: 'The smallest and the quickest, round the Sun in 88 days on a clearly lopsided orbit.' },
+    { key: 'venus',   kind: 'planet', name: 'Venus',   color: '#ffd4a8', glow: '#ffc9a1', radius: .95, au: .723,  year: .62,   day: -243,  tilt: 177,  e: .0068, inc: 3.4, node: 76.7, peri: 131.6, fact: 'Spins backwards, so slowly that its day is longer than its year.' },
+    { key: 'earth',   kind: 'planet', name: 'Earth',   color: '#9fd3ff', glow: '#a6e3cc', radius: 1,   au: 1,     year: 1,     day: 1,     tilt: 23.4, e: .0167, inc: 0,   node: 0,    peri: 102.9, fact: 'Home. One little moon keeps it company, and Hubble and Webb keep watch.' },
+    { key: 'mars',    kind: 'planet', name: 'Mars',    color: '#ffb09a', glow: '#ffa58f', radius: .53, au: 1.524, year: 1.88,  day: 1.03,  tilt: 25,   e: .0934, inc: 1.9, node: 49.6, peri: 336.0, fact: 'Rusty, about half the size of Earth, with two potato moons and a whole fleet of rovers parked on it.' },
+    { key: 'jupiter', kind: 'planet', name: 'Jupiter', color: '#ffdcb8', glow: '#ffd0a6', radius: 11.2, au: 5.203, year: 11.86, day: .41,  tilt: 3,    e: .0484, inc: 1.3, node: 100.5, peri: 14.8, fact: 'The giant. Eleven Earths wide, and it spins once every ten hours.' },
+    { key: 'saturn',  kind: 'planet', name: 'Saturn',  color: '#fff0c2', glow: '#ffe9b0', radius: 9.45, au: 9.537, year: 29.46, day: .45, tilt: 26.7, e: .0539, inc: 2.5, node: 113.7, peri: 92.4, fact: 'Wears a clay ring. Light enough to float, if you had a big enough bath.' },
+    { key: 'uranus',  kind: 'planet', name: 'Uranus',  color: '#bdf0e4', glow: '#a6e3cc', radius: 4,   au: 19.19, year: 84,    day: -.72,  tilt: 98,   e: .0473, inc: .8,  node: 74.0, peri: 170.9, fact: 'Tipped on its side, so it rolls around the Sun.' },
+    { key: 'neptune', kind: 'planet', name: 'Neptune', color: '#b3bcff', glow: '#a9b4ff', radius: 3.9, au: 30.07, year: 164.8, day: .67,   tilt: 28,   e: .0086, inc: 1.8, node: 131.8, peri: 45.0, fact: 'The last planet. One trip round the Sun takes 165 years.' },
+    { key: 'ceres',    kind: 'dwarf', name: 'Ceres',    color: '#d9d2e6', glow: '#d9d2e6', radius: .074, au: 2.77, year: 4.6,  day: .38,  tilt: 4,   e: .079, inc: 10.6, node: 80.3, peri: 153.2, fact: 'The biggest rock in the asteroid belt, and the only dwarf planet on the near side of Jupiter.' },
+    { key: 'pluto',    kind: 'dwarf', name: 'Pluto',    color: '#ffd9c9', glow: '#ffc9b4', radius: .186, au: 39.48, year: 248, day: -6.4, tilt: 120, e: .2488, inc: 17.2, node: 110.3, peri: 224.1, fact: 'The famous one. Its tilted, stretched orbit sometimes brings it inside Neptune\'s.' },
+    { key: 'haumea',   kind: 'dwarf', name: 'Haumea',   color: '#f3f0ff', glow: '#e0dcff', radius: .13,  au: 43.1,  year: 283, day: .16,  tilt: 0,   e: .195, inc: 28.2, node: 122.2, peri: 240.4, fact: 'Spins so fast it has stretched into an egg.' },
+    { key: 'makemake', kind: 'dwarf', name: 'Makemake', color: '#ffc8b0', glow: '#ffb59a', radius: .11,  au: 45.4,  year: 306, day: .95,  tilt: 0,   e: .161, inc: 29.0, node: 79.4, peri: 296.5, fact: 'A reddish ice world out in the Kuiper belt.' },
+    { key: 'eris',     kind: 'dwarf', name: 'Eris',     color: '#eef2ff', glow: '#dbe3ff', radius: .18,  au: 67.8,  year: 559, day: 1.08, tilt: 0,   e: .44,  inc: 44.0, node: 35.9, peri: 187.1, fact: 'Nearly Pluto\'s twin, three times farther out, on an orbit tipped 44 degrees.' },
+    // craft in flight: a direction (ecliptic longitude and latitude, degrees), a distance in AU, and how fast it is still heading out
+    { key: 'voyager1',    kind: 'craft', name: 'Voyager 1',    color: '#f6f3ff', glow: '#c9c0ff', au: 165, lon: 258, lat: 35,  vel: 3.6, fact: 'Launched 1977, now the farthest human-made thing, 165 AU out and still calling home.' },
+    { key: 'voyager2',    kind: 'craft', name: 'Voyager 2',    color: '#f6f3ff', glow: '#c9c0ff', au: 138, lon: 291, lat: -35, vel: 3.2, fact: 'Launched 1977, the only craft to visit Uranus and Neptune, now leaving the solar system southward.' },
+    { key: 'newhorizons', kind: 'craft', name: 'New Horizons', color: '#f6f3ff', glow: '#c9c0ff', au: 61,  lon: 293, lat: -1,  vel: 2.9, fact: 'Flew past Pluto in 2015 and is now out in the Kuiper belt.' },
+    // craft near Earth: a distance in Earth radii, a period in days (0 = it sits still beside Earth)
+    { key: 'webb',   kind: 'sat', host: 'earth', name: 'Webb',   color: '#ffe3a8', glow: '#ffd37a', er: 235, period: 0,    fact: 'The James Webb Space Telescope sits at L2, 1.5 million km beyond Earth, always in the planet\'s shade.' },
+    { key: 'hubble', kind: 'sat', host: 'earth', name: 'Hubble', color: '#f6f3ff', glow: '#c9c0ff', er: 1.085, period: .066, fact: 'The Hubble Space Telescope, 540 km up, round the Earth every 95 minutes since 1990.' },
+    // moons: a distance in host radii, a size in host radii, a period in days
+    { key: 'moon',   kind: 'moon', host: 'earth', name: 'The Moon', color: '#e6e2f2', glow: '#e6e2f2', hr: 60.3, size: .273, period: 27.3, fact: 'Our Moon, a quarter of Earth\'s width, 30 Earths away.' },
+    { key: 'phobos', kind: 'moon', host: 'mars',  name: 'Phobos',   color: '#b8aed0', glow: '#b8aed0', hr: 2.76, size: .0066, period: .319, fact: 'A lumpy potato 22 km across, whizzing round Mars three times a day and slowly spiralling in.' },
+    { key: 'deimos', kind: 'moon', host: 'mars',  name: 'Deimos',   color: '#c9c0d8', glow: '#c9c0d8', hr: 6.92, size: .0037, period: 1.263, fact: 'Mars\'s smaller, farther moon, 12 km across.' },
+  ];
+  // landers and rovers, pinned to the surface of the world they reached (latitude, east longitude, degrees)
+  const LANDERS = [
+    ['mars', 'Viking 1', 1976, 22.3, 312.0], ['mars', 'Viking 2', 1976, 48.0, 134.0], ['mars', 'Pathfinder', 1997, 19.1, 326.8], ['mars', 'Spirit', 2004, -14.6, 175.5],
+    ['mars', 'Opportunity', 2004, -1.9, 354.5], ['mars', 'Phoenix', 2008, 68.2, 234.2], ['mars', 'Curiosity', 2012, -4.6, 137.4], ['mars', 'InSight', 2018, 4.5, 135.6],
+    ['mars', 'Perseverance', 2021, 18.4, 77.5], ['mars', 'Zhurong', 2021, 25.1, 109.9],
+    ['venus', 'Venera 7', 1970, -5.0, 351.0], ['venus', 'Venera 9', 1975, 31.0, 291.0], ['venus', 'Venera 13', 1982, -7.5, 303.0], ['venus', 'Vega 2', 1985, -7.1, 177.7],
+    ['moon', 'Luna 9', 1966, 7.1, 295.6], ['moon', 'Apollo 11', 1969, .7, 23.5], ['moon', 'Lunokhod 1', 1970, 38.3, 325.0], ['moon', 'Apollo 17', 1972, 20.2, 30.8],
+    ['moon', 'Chang\'e 4', 2019, -45.5, 177.6], ['moon', 'Chandrayaan-3', 2023, -69.4, 32.3],
+    ['jupiter', 'Galileo probe', 1995, 6.5, 355.6],
   ];
   // two scales. Cute: planets shrink by square root and distances by a log, so the small ones stay visible and the big ones still look big.
-  // True: planet sizes and orbit distances are in real proportion to each other (Neptune at 110 units); only the Sun is shrunk, since at
-  // true size (109 Earths wide) it would swallow Mercury's orbit on any screen.
+  // True: planet sizes and orbit distances are in real proportion to each other (1 AU = 2.2 units), and orbits take their real shape.
+  // Only the Sun is shrunk, since at true proportion to the planets it would swallow Mercury's orbit on any screen.
+  const cuteD = au => au < 32 ? 4.3 + 2.55 * Math.log(1 + 4 * au) : 17.9 + (au - 32) * .045;
   for (const b of BODIES) {
-    b.r0 = b.key === 'sun' ? 2.3 : .17 + .3 * Math.sqrt(b.radius);
-    b.d0 = b.au ? 4.3 + 2.55 * Math.log(1 + 4 * b.au) : 0;
-    b.r1 = b.key === 'sun' ? .8 : .085 * b.radius;
-    b.d1 = b.au * 110 / 30.1;
-    b.r = b.r0; b.d = b.d0;
+    if (b.kind === 'sun') { b.r0 = 2.3; b.r1 = .5; b.d0 = b.d1 = 0; }
+    else if (b.kind === 'planet' || b.kind === 'dwarf') { b.r0 = .17 + .3 * Math.sqrt(b.radius); b.r1 = .085 * b.radius; b.d0 = cuteD(b.au); b.d1 = b.au * 2.2; }
+    else if (b.kind === 'craft') { b.r0 = .16; b.r1 = .1; b.d0 = 21.5 + (b.au - 61) * .012; b.d1 = b.au * 2.2; }
+    b.r = b.r0 ?? 0; b.d = b.d0 ?? 0;
   }
   const speedIn = $('speed'), speedVal = $('speedVal'), pauseBtn = $('pause'), labelsBtn = $('labelsBtn'), orbitsBtn = $('orbitsBtn'), scaleBtn = $('scaleBtn'), resetBtn = $('reset');
   const cardDot = $('cardDot'), cardName = $('cardName'), cardText = $('cardText'), clockEl = $('clock');
   const LO = {
-    BODIES, paused: false, labels: true, orbits: true, scale: false, yearSec: 12, follow: null, reset: 0,
+    BODIES, LANDERS, paused: false, labels: true, orbits: true, scale: false, yearSec: 12, follow: null, reset: 0,
     years: 0,
     showCard(b) {
-      if (!b) { cardDot.style.setProperty('--c', '#ffd3b0'); cardDot.style.background = '#ffe7c4'; cardName.textContent = 'The Sun'; cardText.innerHTML = 'Drag to spin the model, pinch to zoom, and tap a planet to follow it.'; return; }
+      if (!b) { cardDot.style.setProperty('--c', '#ffd3b0'); cardDot.style.background = '#ffe7c4'; cardName.textContent = 'The Sun'; cardText.innerHTML = 'Drag to spin the model, pinch to zoom, and tap anything to follow it.'; return; }
       cardDot.style.setProperty('--c', b.glow); cardDot.style.background = b.color; cardName.textContent = b.name;
-      const yr = b.year < 1 ? Math.round(b.year * 365) + ' days' : (b.year % 1 ? b.year.toFixed(1) : b.year) + ' years';
-      cardText.innerHTML = b.key === 'sun' ? (LO.scale ? b.fact + ' <b>Shown 9× too small</b> here: at true size it would reach past Mercury on this screen.' : b.fact) : b.key === 'earth' ? b.fact + ' The yardstick: <b>1 AU</b> from the Sun, <b>1 year</b> to go round.' : b.fact + ' <b>' + (b.radius >= 1 ? b.radius + '× Earth\'s width' : Math.round(b.radius * 100) + '% of Earth\'s width') + '</b>, <b>' + b.au + ' AU</b> out, a year of <b>' + yr + '</b>.';
+      let t = b.fact;
+      if (b.kind === 'sun' && LO.scale) t += ' <b>Shown about 20× too small</b> next to the planets here; at their scale it would reach past Mercury.';
+      else if (b.key === 'earth') t += ' The yardstick: <b>1 AU</b> from the Sun, <b>1 year</b> to go round.';
+      else if (b.kind === 'planet' || b.kind === 'dwarf') {
+        const yr = b.year < 1 ? Math.round(b.year * 365) + ' days' : (b.year % 1 ? b.year.toFixed(1) : b.year) + ' years';
+        t += ' <b>' + (b.radius >= 1 ? b.radius + '× Earth\'s width' : Math.round(b.radius * 100) + '% of Earth\'s width') + '</b>, <b>' + b.au + ' AU</b> out, a year of <b>' + yr + '</b>.';
+      }
+      const pins = LANDERS.filter(l => l[0] === b.key);
+      if (pins.length) t += ' <b>' + pins.length + ' landing' + (pins.length > 1 ? 's' : '') + '</b> pinned on the surface.';
+      cardText.innerHTML = t;
     },
     tickClock() { const y = Math.floor(LO.years); clockEl.textContent = y === 1 ? 'Year 1' : 'Year ' + y; },
   };
@@ -162,7 +198,7 @@ window.LO = (() => {
   orbitsBtn.addEventListener('click', () => { LO.orbits = !LO.orbits; orbitsBtn.setAttribute('aria-pressed', String(LO.orbits)); save(); });
   scaleBtn.addEventListener('click', () => {
     LO.scale = !LO.scale; scaleBtn.setAttribute('aria-pressed', String(LO.scale)); save();
-    if (!LO.follow) { cardName.textContent = LO.scale ? 'To scale' : 'Cute scale'; cardText.innerHTML = LO.scale ? 'Real proportions: Jupiter is 11 Earths wide and Neptune is 77 times farther out than Mercury. Zoom in to find the small ones. Only the Sun is shrunk.' : 'Sizes and distances squeezed so every planet stays in view.'; }
+    if (!LO.follow) { cardName.textContent = LO.scale ? 'To scale' : 'Cute scale'; cardText.innerHTML = LO.scale ? 'Real proportions and real orbit shapes: Jupiter is 11 Earths wide, Neptune is 77 times farther out than Mercury, and Pluto\'s stretched, tilted loop dips inside Neptune\'s. Zoom in to find the small ones. Only the Sun is shrunk.' : 'Sizes and distances squeezed so everything stays in view, on tidy round orbits.'; }
     else LO.showCard(LO.follow);
   });
   resetBtn.addEventListener('click', () => { LO.follow = null; LO.reset++; LO.showCard(null); });
@@ -205,7 +241,7 @@ try {
   scene.background = new THREE.Color('#1b1a3c');
   let seed = 11;
   const rand = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-  const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t, RAD = Math.PI / 180;
 
   /* ---------- clay surface: soft lumps and thumbprints, turned into a tiling normal map (as in Grainfall) ---------- */
   function clayNormalTex() {
@@ -263,6 +299,8 @@ try {
     venus: paintTex('#ffd4a8', g => blotches(g, '#ffe0bf', 14, 20, 50)),
     mercury: paintTex('#cfc6d8', g => blotches(g, '#bfb4cc', 24, 6, 18)),
     sun: paintTex('#ffe7c4', g => blotches(g, '#fff1d8', 20, 20, 50)),
+    pluto: paintTex('#ffd9c9', g => { blotches(g, '#f7f3ff', 1, 50, 60, 90, 160); blotches(g, '#e9a98f', 8, 14, 30); }),
+    rock: paintTex('#cfc6d8', g => blotches(g, '#bfb4cc', 24, 6, 18)),
   };
   // Saturn's rings as a flat disc: the real bands (C, B, the Cassini gap, A) from 1.24 to 2.27 planet radii, painted and cut out with an alpha map
   const ringTex = (bandsDef) => {
@@ -272,7 +310,6 @@ try {
     alpha.colorSpace = THREE.NoColorSpace;
     return { col, alpha };
   };
-  // flat ring geometry whose u runs from the inner edge (0) to the outer edge (1), so a 1-D texture paints the bands
   function ringGeo(inner, outer, seg = 96) {
     const g = new THREE.RingGeometry(inner, outer, seg, 1);
     const uv = g.attributes.uv, pos = g.attributes.position;
@@ -280,13 +317,13 @@ try {
     return g;
   }
 
-  /* ---------- lights: a cool fill from the sky, and the Sun as a warm point light ---------- */
+  /* ---------- lights ---------- */
   scene.add(new THREE.HemisphereLight('#dcd8ff', '#3b3670', 1.1));
   const fill = new THREE.DirectionalLight('#ffffff', .4); fill.position.set(-10, 20, 14); scene.add(fill);
   const sunLight = new THREE.PointLight('#ffd9b0', 60, 0, 1.6); scene.add(sunLight);
 
-  /* ---------- the sky: a big dome painted with pastel nebula clouds, stars at three depths, and a few haze clouds near the model ---------- */
-  const DOME = 700;
+  /* ---------- the sky: a painted nebula dome, stars at three depths, and haze puffs kept out in the background ---------- */
+  const DOME = 1800;
   {
     const sky = paintTex('#1b1a3c', (g, w, h) => {
       const cols = ['rgba(120,96,210,.16)', 'rgba(255,170,190,.11)', 'rgba(120,200,220,.11)', 'rgba(200,150,255,.12)', 'rgba(255,210,170,.08)'];
@@ -295,7 +332,6 @@ try {
         const gr = g.createRadialGradient(x, y, 0, x, y, r); const c = cols[(rand() * cols.length) | 0];
         gr.addColorStop(0, c); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
       }
-      // a soft band across the middle, like a far-off milky way
       const band = g.createLinearGradient(0, h * .35, 0, h * .65); band.addColorStop(0, 'rgba(230,220,255,0)'); band.addColorStop(.5, 'rgba(230,220,255,.09)'); band.addColorStop(1, 'rgba(230,220,255,0)');
       g.fillStyle = band; g.fillRect(0, 0, w, h);
       g.fillStyle = 'rgba(255,255,255,.5)'; for (let i = 0; i < 900; i++) { const r = rand() < .1 ? 1.6 : .9; g.beginPath(); g.arc(rand() * w, rand() * h, r, 0, 6.3); g.fill(); }
@@ -321,87 +357,110 @@ try {
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('col', new THREE.BufferAttribute(col, 3)); g.setAttribute('sz', new THREE.BufferAttribute(sz, 1));
     const m = starMat(size), p = new THREE.Points(g, m); p.frustumCulled = false; scene.add(p); starLayers.push(m); return p;
   }
-  stars(1400, 380, 640, 1.0, .9);   // far
-  stars(500, 140, 320, .5, .75);    // middle
-  stars(260, 30, 120, .22, .6);     // near, drifting past as you orbit
+  stars(1400, 1000, 1700, 2.6, .9);  // far
+  stars(500, 350, 800, 1.3, .75);     // middle
+  stars(260, 70, 300, .55, .6);       // near, drifting past as you orbit
   const softTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const r = g.createRadialGradient(64, 64, 0, 64, 64, 64); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.5, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  // haze: big, faint, additive puffs scattered through the model's space, so the view has depth
+  // haze: big, faint, additive puffs in a shell well outside the model, so the sky has depth but the planets stay clear
   const haze = [];
   {
     const cols = ['#9c8ce0', '#e9a8c6', '#9fd6e6', '#c9a8ff', '#ffd3b0'];
     for (let i = 0; i < 34; i++) {
-      const m = new THREE.SpriteMaterial({ map: softTex, color: cols[(rand() * cols.length) | 0], transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .035 + rand() * .035 });
-      const sp = new THREE.Sprite(m); const r = 8 + rand() * 40, th = rand() * 6.283;
-      sp.position.set(Math.cos(th) * r, (rand() - .4) * 14, Math.sin(th) * r); sp.scale.setScalar(16 + rand() * 30); sp.userData.base = sp.position.clone(); sp.userData.ph = rand() * 6.3;
+      const m = new THREE.SpriteMaterial({ map: softTex, color: cols[(rand() * cols.length) | 0], transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .045 + rand() * .04 });
+      const sp = new THREE.Sprite(m); const th = rand() * 6.283, ph = Math.acos(rand() * 1.2 - .5);
+      sp.userData.dir = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph) * .5, Math.sin(ph) * Math.sin(th)); sp.userData.k = .8 + rand() * .6; sp.userData.ph = rand() * 6.3;
       scene.add(sp); haze.push(sp);
     }
   }
 
+  /* ---------- orbits: Kepler's ellipse. At cute scale they are flat and round; at true scale the real shape, tilt and direction ---------- */
+  const solveE = (M, e) => { let E = M; for (let i = 0; i < 6; i++) E = E - (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); return E; };
+  const o1 = new THREE.Vector3(), q1 = new THREE.Quaternion(), qN = new THREE.Quaternion(), qI = new THREE.Quaternion(), qW = new THREE.Quaternion();
+  const Y = new THREE.Vector3(0, 1, 0), X = new THREE.Vector3(1, 0, 0);
+  // position on an orbit of semi-major axis a, at mean anomaly M (radians), with the orbit's real elements scaled by k (0 cute, 1 true)
+  function orbitPos(b, a, M, k, out) {
+    const e = (b.e || 0) * k, inc = (b.inc || 0) * RAD * k, node = (b.node || 0) * RAD, w = ((b.peri || 0) - (b.node || 0)) * RAD * k;
+    const E = solveE(M, e), nu = 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2)), r = a * (1 - e * Math.cos(E));
+    o1.set(r * Math.cos(nu + w), 0, -r * Math.sin(nu + w));
+    qN.setFromAxisAngle(Y, node); qI.setFromAxisAngle(X, -inc);
+    q1.copy(qN).multiply(qI);
+    return out.copy(o1).applyQuaternion(q1);
+  }
+
   /* ---------- the Sun, a warm clay lamp with a halo ---------- */
-  const S = LO.BODIES.find(b => b.key === 'sun'), PLANETS = LO.BODIES.filter(b => b.key !== 'sun');
-  const sphere = new THREE.SphereGeometry(1, 48, 32);
+  const S = LO.BODIES.find(b => b.key === 'sun');
+  const sphere = new THREE.SphereGeometry(1, 48, 32), lowSphere = new THREE.SphereGeometry(1, 20, 14), rockGeo = new THREE.DodecahedronGeometry(1, 0);
   const sun = new THREE.Mesh(sphere, clay('#ffe7c4', { map: TEX.sun, rough: .6, bump: .35, emissive: '#ffb57a', ei: .55 }));
   scene.add(sun);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: '#ffd9b8', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .5 }));
   scene.add(halo);
 
-  /* ---------- orbit rings: thin glowing clay hoops floating in space, rebuilt when the scale changes ---------- */
-  const orbitMat = new THREE.MeshStandardMaterial({ color: '#b9b0ff', roughness: .8, emissive: '#7a6fd0', emissiveIntensity: .55 });
-  const orbitRings = PLANETS.map(() => { const m = new THREE.Mesh(new THREE.TorusGeometry(1, .05, 6, 200), orbitMat); m.rotation.x = Math.PI / 2; scene.add(m); return m; });
-  let ringsBuiltAt = -1;
-  function buildRings() {
-    orbitRings.forEach((m, i) => { m.geometry.dispose(); m.geometry = new THREE.TorusGeometry(PLANETS[i].d, Math.max(.035, PLANETS[i].d * .003), 6, 240); });
-  }
-
-  /* ---------- the planets: each one shaped like itself (flattened giants, real ring proportions, the Moon at its real size) ---------- */
+  /* ---------- every orbiting thing: planets, dwarf planets, moons, satellites, and craft heading out ---------- */
   const SAT = ringTex([[0, .22, '#f3dfb0', .35], [.22, .62, '#fff0c8', .9], [.62, .67, '#000000', 0], [.67, 1, '#ffe9b6', .7]]);
   const URA = ringTex([[0, .55, '#000000', 0], [.55, .62, '#d8f7ef', .5], [.75, .8, '#d8f7ef', .35], [.9, 1, '#e8fbf5', .55]]);
-  const bodies = [];
-  for (const b of PLANETS) {
-    const pivot = new THREE.Group(); scene.add(pivot);
-    const tiltG = new THREE.Group(); tiltG.rotation.z = b.tilt * Math.PI / 180; pivot.add(tiltG);
-    const mesh = new THREE.Mesh(sphere, clay(b.color, { map: TEX[b.key], bump: .45, rep: 1 }));
-    const flat = { jupiter: .935, saturn: .9, uranus: .977, neptune: .983 }[b.key] || 1; // real oblateness, so the gas giants are a little squashed
+  const pinGeo = new THREE.SphereGeometry(1, 10, 8), pinMat = new THREE.MeshStandardMaterial({ color: '#ff8e7a', emissive: '#ff6a55', emissiveIntensity: .7, roughness: .6 });
+  const craftGeo = (() => { const g = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .5), clay('#e8e4ff', { bump: .3 })); g.add(body); const dish = new THREE.Mesh(new THREE.SphereGeometry(.9, 16, 10, 0, 6.3, 0, 1.0), clay('#fff6e8', { bump: .2, side: THREE.DoubleSide })); dish.rotation.x = Math.PI; dish.position.y = .95; g.add(dish); const boom = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 2.4, 6), clay('#c9c0ff')); boom.rotation.z = Math.PI / 2; boom.position.x = 1.1; g.add(boom); return g; })();
+  const telescope = () => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.CylinderGeometry(.35, .35, 1.6, 12), clay('#f6f3ff', { bump: .3 }))); const w = new THREE.Mesh(new THREE.BoxGeometry(3, .04, .7), clay('#a6b8ff')); g.add(w); return g; };
+  const bodies = [], byKey = { sun: { b: S, mesh: sun, node: sun } };
+  for (const b of LO.BODIES) {
+    if (b.kind === 'sun') continue;
+    const node = new THREE.Group(); scene.add(node);
+    const tiltG = new THREE.Group(); tiltG.rotation.z = (b.tilt || 0) * RAD; node.add(tiltG);
+    let mesh;
+    if (b.kind === 'craft') { mesh = craftGeo.clone(); mesh.rotation.set(.4, .8, .2); }
+    else if (b.kind === 'sat') { mesh = b.key === 'webb' ? (() => { const g = new THREE.Group(); const sh = new THREE.Mesh(new THREE.BoxGeometry(2.2, .05, 1.4), clay('#ffd37a', { emissive: '#ff9a3c', ei: .25 })); g.add(sh); const m = new THREE.Mesh(new THREE.CylinderGeometry(.9, .9, .12, 6), clay('#ffe3a8', { emissive: '#ffb347', ei: .4 })); m.position.y = .5; g.add(m); return g; })() : telescope(); }
+    else if (b.kind === 'moon' && b.size < .05) { mesh = new THREE.Mesh(rockGeo, clay(b.color, { bump: .6, rough: .95 })); }
+    else { mesh = new THREE.Mesh(b.kind === 'planet' ? sphere : lowSphere, clay(b.color, { map: TEX[b.key] || (b.kind === 'moon' ? TEX.rock : null), bump: .45 })); }
+    const flat = { jupiter: .935, saturn: .9, uranus: .977, neptune: .983, haumea: .62 }[b.key] || 1; // real oblateness; Haumea is a spun-out egg
     mesh.userData.flat = flat; tiltG.add(mesh);
-    const extra = {};
-    if (b.key === 'saturn') {
-      const ring = new THREE.Mesh(ringGeo(1.24, 2.27), clay('#ffffff', { map: SAT.col, alpha: SAT.alpha, rough: .85, bump: .2, side: THREE.DoubleSide }));
-      ring.rotation.x = -Math.PI / 2; tiltG.add(ring); extra.ring = ring;
+    const x = { b, node, tiltG, mesh };
+    if (b.key === 'saturn') { x.ring = new THREE.Mesh(ringGeo(1.24, 2.27), clay('#ffffff', { map: SAT.col, alpha: SAT.alpha, rough: .85, bump: .2, side: THREE.DoubleSide })); x.ring.rotation.x = -Math.PI / 2; tiltG.add(x.ring); }
+    if (b.key === 'uranus') { x.ring = new THREE.Mesh(ringGeo(1.6, 2.05), clay('#ffffff', { map: URA.col, alpha: URA.alpha, rough: .85, bump: .2, side: THREE.DoubleSide })); x.ring.rotation.x = -Math.PI / 2; tiltG.add(x.ring); }
+    if (b.kind === 'planet' || b.kind === 'dwarf') {
+      // a thin glowing hoop for the orbit, rebuilt whenever the scale morphs
+      x.hoop = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ color: b.kind === 'dwarf' ? '#d7b8ff' : '#b9b0ff', roughness: .8, emissive: b.kind === 'dwarf' ? '#9a6fd0' : '#7a6fd0', emissiveIntensity: .55 }));
+      scene.add(x.hoop);
     }
-    if (b.key === 'uranus') {
-      const ring = new THREE.Mesh(ringGeo(1.6, 2.05), clay('#ffffff', { map: URA.col, alpha: URA.alpha, rough: .85, bump: .2, side: THREE.DoubleSide }));
-      ring.rotation.x = -Math.PI / 2; tiltG.add(ring); extra.ring = ring;
+    x.pins = [];
+    for (const [host, name, year, lat, lon] of LO.LANDERS) {
+      if (host !== b.key) continue;
+      const p = new THREE.Mesh(pinGeo, pinMat); const la = lat * RAD, lo = lon * RAD;
+      p.position.set(Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)).multiplyScalar(1.01); p.scale.setScalar(.045);
+      mesh.add(p); x.pins.push({ p, name: name + ' ’' + String(year).slice(2) });
     }
-    if (b.key === 'earth') {
-      const mp = new THREE.Group(); mp.rotation.x = 5.1 * Math.PI / 180; tiltG.add(mp);
-      const moon = new THREE.Mesh(sphere, clay('#e6e2f2', { map: TEX.mercury, bump: .5 })); mp.add(moon);
-      extra.moonPivot = mp; extra.moon = moon;
-    }
-    pivot.rotation.y = rand() * Math.PI * 2;
-    bodies.push({ b, pivot, tiltG, mesh, ...extra });
+    x.M0 = rand() * Math.PI * 2;
+    bodies.push(x); byKey[b.key] = x;
   }
+  for (const x of bodies) if (x.b.host) x.host = byKey[x.b.host];
+
   // lay the model out for the current scale: 0 is the cute squeeze, 1 is true proportion, in between while it morphs
-  let scaleE = LO.scale ? 1 : 0, outer = 1;
+  let scaleE = LO.scale ? 1 : 0, scaleK = 0, outer = 1;
+  const hv = new THREE.Vector3();
   function layout(e) {
-    const k = e * e * (3 - 2 * e);
-    for (const b of LO.BODIES) { b.r = lerp(b.r0, b.r1, k); b.d = lerp(b.d0, b.d1, k); }
-    sun.scale.setScalar(S.r); sun.position.y = 0; sunLight.position.copy(sun.position);
-    halo.position.copy(sun.position); halo.scale.setScalar(S.r * 4.2);
+    const k = scaleK = e * e * (3 - 2 * e);
+    for (const b of LO.BODIES) { b.r = lerp(b.r0 ?? 0, b.r1 ?? 0, k); b.d = lerp(b.d0 ?? 0, b.d1 ?? 0, k); }
+    sun.scale.setScalar(S.r); halo.position.copy(sun.position); halo.scale.setScalar(S.r * 4.2);
     for (const x of bodies) {
-      const r = x.b.r; x.mesh.scale.set(r, r * x.mesh.userData.flat, r);
-      x.tiltG.position.set(x.b.d, 0, 0);
+      const b = x.b;
+      if (b.kind === 'moon') { const hr = x.host.b.r; b.r = Math.max(b.size, lerp(.07, .03, k)) * hr; b.d = hr * lerp(1.5 + .9 * Math.min(1, b.hr / 7), b.hr <= 10 ? b.hr : b.hr * .35, k); }
+      if (b.kind === 'sat') { const hr = x.host.b.r; b.r = hr * lerp(.09, .12, k); b.d = b.period ? hr * lerp(1.5, 1.12, k) : hr * lerp(3.2, 4, k); }
+      const r = b.r; x.mesh.scale.set(r, r * x.mesh.userData.flat, r);
       if (x.ring) x.ring.scale.setScalar(r);
-      if (x.moon) { x.moon.scale.setScalar(r * .27); x.moon.position.x = lerp(r * 2.3, r * 60 * .35, k); } // the Moon is 60 Earth radii out; true scale shows a third of that so it stays in the same shot
+      if (x.hoop) {
+        const pts = []; for (let i = 0; i < 180; i++) orbitPos(b, b.d, i / 180 * Math.PI * 2, k, hv), pts.push(hv.clone());
+        x.hoop.geometry.dispose(); x.hoop.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 240, Math.max(.035, b.d * .003), 5, true);
+      }
     }
-    outer = PLANETS[PLANETS.length - 1].d + 2;
-    buildRings();
+    outer = lerp(19.7, 112, k);
+    const hz = lerp(60, 340, k);
+    for (const sp of haze) { sp.position.copy(sp.userData.dir).multiplyScalar(hz * sp.userData.k); sp.scale.setScalar(hz * (.35 + sp.userData.k * .3)); }
   }
   layout(scaleE);
 
-  /* ---------- meteors: little streaks that cross the sky now and then, and a belt of tumbling clay pebbles between Mars and Jupiter ---------- */
+  /* ---------- meteors, the asteroid belt and the Kuiper belt ---------- */
   const meteors = [];
   {
-    const geo = new THREE.CylinderGeometry(.06, .012, 1, 6, 1, true); geo.translate(0, -.5, 0); geo.rotateX(Math.PI / 2); // tip at the origin, tail along -z
+    const geo = new THREE.CylinderGeometry(.06, .012, 1, 6, 1, true); geo.translate(0, -.5, 0); geo.rotateX(Math.PI / 2);
     const cnt = geo.attributes.position.count, alpha = new Float32Array(cnt);
     for (let i = 0; i < cnt; i++) alpha[i] = 1 - clamp(-geo.attributes.position.getZ(i), 0, 1);
     geo.setAttribute('al', new THREE.BufferAttribute(alpha, 1));
@@ -423,27 +482,29 @@ try {
     mt.len = dist * (.08 + rand() * .1); mt.life = 1.2 + rand() * 1.4; mt.t = 0; mt.m.visible = true;
     mt.m.lookAt(mt.m.position.clone().add(mt.vel)); mt.m.scale.set(1, 1, mt.len);
   }
-  const belt = (() => {
-    const n = 140, g = new THREE.DodecahedronGeometry(1, 0), m = new THREE.InstancedMesh(g, clay('#a79dc4', { rough: .95, bump: .6 }), n);
+  function pebbleBelt(n, color, period, szMin, szMax, thick) {
+    const m = new THREE.InstancedMesh(rockGeo, clay(color, { rough: .95, bump: .6 }), n);
     const M = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s = new THREE.Vector3();
-    const rocks = []; for (let i = 0; i < n; i++) rocks.push({ a: rand() * 6.283, f: rand(), y: (rand() - .5) * .12, sz: .03 + rand() * .05, spin: rand() * 6.3, sp: (rand() - .5) * 2, e });
-    // the real belt sits between 2.2 and 3.3 AU; in the cute squeeze that lands between Mars and Jupiter
-    m.update = (yrs, dIn, dOut) => {
+    const rocks = []; for (let i = 0; i < n; i++) rocks.push({ a: rand() * 6.283, f: rand(), y: (rand() - .5) * thick, sz: szMin + rand() * (szMax - szMin), spin: rand() * 6.3, sp: (rand() - .5) * 2 });
+    m.update = (yrs, dIn, dOut, shrink) => {
       for (let i = 0; i < n; i++) {
-        const k = rocks[i], d = lerp(dIn, dOut, k.f), ang = k.a + yrs * 6.283 / 4.6;
+        const k = rocks[i], d = lerp(dIn, dOut, k.f), ang = k.a + yrs * 6.283 / (period * (0.8 + k.f * .5));
         v.set(Math.cos(ang) * d, k.y * d, Math.sin(ang) * d); e.set(k.spin + yrs * k.sp, k.spin * 2, 0); q.setFromEuler(e);
-        const sz = k.sz * lerp(1, .5, scaleE); s.set(sz, sz * .8, sz * 1.2);
+        const sz = k.sz * shrink; s.set(sz, sz * .8, sz * 1.2);
         M.compose(v, q, s); m.setMatrixAt(i, M);
       }
       m.instanceMatrix.needsUpdate = true;
     };
     scene.add(m); return m;
-  })();
+  }
+  const belt = pebbleBelt(140, '#a79dc4', 4.6, .03, .08, .12);      // the real belt sits between 2.2 and 3.3 AU
+  const kuiper = pebbleBelt(260, '#b9c4e8', 250, .03, .09, .16);     // the Kuiper belt, 30 to 50 AU, Pluto's neighbourhood
+  const dOf = au => lerp(au < 32 ? 4.3 + 2.55 * Math.log(1 + 4 * au) : 17.9 + (au - 32) * .045, au * 2.2, scaleK);
 
-  /* ---------- camera: orbit with one finger, zoom with two, follow a planet when tapped ---------- */
-  const cam = new THREE.PerspectiveCamera(36, 1, .1, 2000);
+  /* ---------- camera: orbit with one finger, zoom with two, follow anything when tapped ---------- */
+  const cam = new THREE.PerspectiveCamera(36, 1, .05, 5000);
   const view = { yaw: .7, pitch: .5, dist: 80, tYaw: .7, tPitch: .5, tDist: 80, auto: true };
-  const HOME = { yaw: .7, pitch: .5, dist: 80 };
+  const HOME = { yaw: .7, pitch: .5 };
   let vw = 1, vh = 1, avail = 1;
   const target = new THREE.Vector3(), tgtGoal = new THREE.Vector3(), tmp = new THREE.Vector3();
   let lastReset = LO.reset, followE = 0;
@@ -453,11 +514,11 @@ try {
     const k = reduce ? 1 : 1 - Math.exp(-dtc / .28);
     if (view.auto && !reduce) view.tYaw += dtc * .05;
     view.yaw += (view.tYaw - view.yaw) * k; view.pitch += (view.tPitch - view.pitch) * k; view.dist += (view.tDist - view.dist) * k;
-    const f = LO.follow ? bodies.find(x => x.b === LO.follow) : null;
+    const f = LO.follow ? byKey[LO.follow.key] : null;
     followE += ((f ? 1 : 0) - followE) * k;
-    if (f) { f.tiltG.getWorldPosition(tgtGoal); } else tgtGoal.set(0, 0, 0);
+    if (f) { f.mesh.getWorldPosition(tgtGoal); } else tgtGoal.set(0, 0, 0);
     target.lerp(tgtGoal, f ? Math.min(1, k * 1.5) : k);
-    const d = f ? lerp(view.dist, f.b.r * 7 + 1.2, followE) : view.dist;
+    const d = f ? lerp(view.dist, f.b.r * 7 + (f.b.kind === 'planet' || f.b.kind === 'sun' ? 1.2 : .25), followE) : view.dist;
     cam.position.set(target.x + d * Math.cos(view.pitch) * Math.sin(view.yaw), target.y + d * Math.sin(view.pitch), target.z + d * Math.cos(view.pitch) * Math.cos(view.yaw));
     cam.lookAt(target); cam.updateMatrixWorld();
   }
@@ -487,7 +548,6 @@ try {
 
   function resize() {
     vw = innerWidth; vh = innerHeight; avail = Math.min(vh, LO.availH());
-    // shift the projection so the model centers in the space above the dock
     const fullH = 2 * vh - avail, oy = vh - avail;
     cam.aspect = vw / fullH; cam.fov = 2 * Math.atan(Math.tan(18 * Math.PI / 180) * fullH / vh) * 180 / Math.PI;
     cam.setViewOffset(vw, fullH, 0, oy, vw, vh); cam.updateProjectionMatrix();
@@ -504,15 +564,16 @@ try {
   /* ---------- touch ---------- */
   const canvas = renderer.domElement, ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   const ptrs = new Map(); let moved = 0, pinch0 = 0, dist0 = 0, downT = 0;
+  const pxOf = (worldLen, camD) => worldLen / camD * (vh / 2) / Math.tan(cam.fov * Math.PI / 360);
   const pick = e => {
     ndc.set(e.clientX / vw * 2 - 1, -(e.clientY / vh) * 2 + 1); ray.setFromCamera(ndc, cam);
-    // a generous hit area: the nearest body whose screen-space distance is within a thumb
+    // a generous hit area: the nearest body whose screen-space distance is within a thumb; tiny things need to be at least a dot on screen
     let best = null, bd = 1e9;
-    for (const x of [{ b: S, mesh: sun }, ...bodies]) {
-      x.mesh.getWorldPosition(tmp); const r = x.b.r; const dist = ray.ray.distanceToPoint(tmp); const camD = tmp.distanceTo(cam.position);
-      const px = dist / camD * (vh / 2) / Math.tan(cam.fov * Math.PI / 360);
-      const rpx = r / camD * (vh / 2) / Math.tan(cam.fov * Math.PI / 360);
-      if (px < Math.max(rpx + 6, 26) && camD < bd) { best = x; bd = camD; }
+    for (const x of [byKey.sun, ...bodies]) {
+      x.mesh.getWorldPosition(tmp); const dist = ray.ray.distanceToPoint(tmp); const camD = tmp.distanceTo(cam.position);
+      const px = pxOf(dist, camD), rpx = pxOf(x.b.r, camD);
+      if (rpx < .6 && x.b.kind !== 'planet') continue;
+      if (px < Math.max(rpx + 6, 24) && camD < bd) { best = x; bd = camD; }
     }
     return best;
   };
@@ -527,7 +588,7 @@ try {
     const dx = e.clientX - p.x, dy = e.clientY - p.y; moved += Math.abs(dx) + Math.abs(dy);
     p.x = e.clientX; p.y = e.clientY;
     if (ptrs.size === 1) { view.tYaw -= dx * .006; view.tPitch = clamp(view.tPitch + dy * .005, -.3, 1.45); view.auto = false; }
-    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0 > 0) view.tDist = clamp(dist0 * pinch0 / d, 1.5, 500); }
+    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0 > 0) view.tDist = clamp(dist0 * pinch0 / d, .3, 1200); }
   });
   const endPtr = e => {
     if (!ptrs.has(e.pointerId)) return;
@@ -541,18 +602,27 @@ try {
     if (ptrs.size === 1) pinch0 = 0;
   };
   canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr); canvas.addEventListener('lostpointercapture', endPtr);
-  canvas.addEventListener('wheel', e => { e.preventDefault(); view.tDist = clamp(view.tDist * (1 + e.deltaY * .0015), 1.5, 500); }, { passive: false });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); view.tDist = clamp(view.tDist * (1 + e.deltaY * .0015), .3, 1200); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-  /* ---------- labels: planet names projected to the screen ---------- */
+  /* ---------- labels: names projected to the screen; small things only get one when they are big enough to see ---------- */
   const labelsEl = document.getElementById('labels');
-  const labs = [{ b: S, mesh: sun }, ...bodies].map(x => { const d = document.createElement('div'); d.className = 'lab'; d.textContent = x.b.name; labelsEl.append(d); return { x, d }; });
+  const mkLab = (text, small) => { const d = document.createElement('div'); d.className = 'lab' + (small ? ' small' : ''); d.textContent = text; labelsEl.append(d); return d; };
+  const labs = [byKey.sun, ...bodies].map(x => ({ x, d: mkLab(x.b.name, x.b.kind !== 'planet' && x.b.kind !== 'sun') }));
+  for (const x of bodies) for (const pin of x.pins) labs.push({ x, pin, d: mkLab(pin.name, true) });
   function placeLabels() {
-    for (const { x, d } of labs) {
+    for (const { x, pin, d } of labs) {
       if (!LO.labels) { d.classList.remove('on'); continue; }
-      x.mesh.getWorldPosition(tmp); tmp.y += x.b.r * 1.25 + .3;
-      tmp.project(cam);
-      const on = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05;
+      let on;
+      if (pin) { pin.p.getWorldPosition(tmp); on = LO.follow === x.b && tmp.distanceTo(cam.position) < x.b.r * 2.6 + .5; if (on) { tmp.project(cam); on = tmp.z < 1; } }
+      else {
+        x.mesh.getWorldPosition(tmp); const camD = tmp.distanceTo(cam.position), rpx = pxOf(x.b.r, camD);
+        on = (x.b.kind === 'planet' || x.b.kind === 'sun' || x.b.kind === 'dwarf' || x.b.kind === 'craft' || rpx > 2.5 || LO.follow === x.b || (x.host && LO.follow === x.host.b));
+        if (on && (x.b.kind === 'moon' || x.b.kind === 'sat') && rpx < 7 && LO.follow !== x.b && LO.follow !== x.host.b) on = false;
+        if (on && x.b.kind !== 'planet' && x.b.kind !== 'sun' && rpx < .4 && LO.follow !== x.b) on = false;
+        tmp.y += x.b.r * 1.25 + (x.b.kind === 'planet' || x.b.kind === 'sun' ? .3 : .02); tmp.project(cam);
+        on = on && tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05;
+      }
       d.classList.toggle('on', on);
       if (on) d.style.transform = 'translate(' + ((tmp.x + 1) / 2 * vw).toFixed(1) + 'px,' + ((1 - tmp.y) / 2 * vh).toFixed(1) + 'px) translate(-50%,-100%)';
     }
@@ -561,34 +631,47 @@ try {
   /* ---------- frame loop, with a step down in quality if the device struggles ---------- */
   let first = true, lastT = performance.now(), fc = 0, fAcc = 0, fN = 0, tier = 0, clockAcc = 0;
   const fpsEl = /[?&]fps\b/.test(location.search) ? document.getElementById('clock') : null;
-  const dOf = au => lerp(4.3 + 2.55 * Math.log(1 + 4 * au), au * 110 / 30.1, scaleE * scaleE * (3 - 2 * scaleE));
+  const hostPos = new THREE.Vector3(), away = new THREE.Vector3();
+  function placeBodies() {
+    const yrs = LO.years;
+    for (const x of bodies) {
+      const b = x.b;
+      if (b.kind === 'planet' || b.kind === 'dwarf') orbitPos(b, b.d, x.M0 + yrs * Math.PI * 2 / b.year, scaleK, x.node.position);
+      else if (b.kind === 'craft') {
+        const lon = b.lon * RAD, lat = b.lat * RAD, d = b.d + (b.vel * yrs * 2.2) * scaleK;
+        x.node.position.set(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon)).multiplyScalar(d);
+      } else if (b.kind === 'moon' || (b.kind === 'sat' && b.period)) {
+        x.host.mesh.getWorldPosition(hostPos);
+        const a = x.M0 + yrs * 365.25 / b.period * Math.PI * 2, inc = (b.key === 'moon' ? 5.1 : b.key === 'hubble' ? 28.5 : 1) * RAD;
+        x.node.position.set(hostPos.x + Math.cos(a) * b.d, hostPos.y + Math.sin(a) * Math.sin(inc) * b.d, hostPos.z - Math.sin(a) * Math.cos(inc) * b.d);
+      } else if (b.kind === 'sat') { // Webb sits beyond Earth, straight away from the Sun
+        x.host.mesh.getWorldPosition(hostPos); away.copy(hostPos).normalize();
+        x.node.position.copy(hostPos).addScaledVector(away, b.d);
+      }
+    }
+  }
   function frame(now) {
     const dt = Math.min(.1, Math.max(0, (now - lastT) / 1000)); lastT = now; fc++;
-    // morph between the two scales, and pull the camera out or in to match
     const want = LO.scale ? 1 : 0;
     if (scaleE !== want) {
-      const prev = scaleE; scaleE = reduce ? want : clamp(scaleE + (want - scaleE > 0 ? 1 : -1) * dt / 1.4, 0, 1);
+      scaleE = reduce ? want : clamp(scaleE + (want - scaleE > 0 ? 1 : -1) * dt / 1.4, 0, 1);
       layout(scaleE);
       if (!LO.follow) { view.tDist = homeDist(); view.auto = true; }
-      if ((prev < 1 && scaleE === 1) || (prev > 0 && scaleE === 0)) layout(scaleE);
     }
     if (!LO.paused) {
-      const dy = dt / LO.yearSec; // years that pass this frame
+      const dy = dt / LO.yearSec;
       LO.years += dy;
-      for (const x of bodies) {
-        x.pivot.rotation.y += dy * Math.PI * 2 / x.b.year;
-        x.mesh.rotation.y += dy * 365.25 / x.b.day * Math.PI * 2 * .02; // spin is slowed 50x so it stays readable
-        if (x.moonPivot) x.moonPivot.rotation.y += dy * 365.25 / 27.3 * Math.PI * 2;
-      }
+      for (const x of bodies) { if (x.b.day) x.mesh.rotation.y += dy * 365.25 / x.b.day * Math.PI * 2 * .02; if (x.b.kind === 'craft') x.mesh.rotation.y += dt * .2; }
       sun.rotation.y += dy * 365.25 / S.day * Math.PI * 2 * .02;
-      belt.update(LO.years, dOf(2.2), dOf(3.3));
+      belt.update(LO.years, dOf(2.2), dOf(3.3), lerp(1, .5, scaleK));
+      kuiper.update(LO.years, dOf(31), dOf(50), lerp(1, .9, scaleK));
       clockAcc += dt; if (clockAcc > .25) { clockAcc = 0; if (!fpsEl) LO.tickClock(); }
     }
-    for (const x of orbitRings) x.visible = LO.orbits;
+    placeBodies();
+    for (const x of bodies) if (x.hoop) x.hoop.visible = LO.orbits;
     placeCamera(now, dt);
     if (!reduce) {
       for (const m of starLayers) m.uniforms.uTime.value = now / 1000;
-      for (const sp of haze) { const b = sp.userData.base; sp.position.set(b.x + Math.sin(now / 9000 + sp.userData.ph) * 2.5, b.y + Math.sin(now / 7000 + sp.userData.ph * 2) * 1.2, b.z + Math.cos(now / 11000 + sp.userData.ph) * 2.5); }
       for (const mt of meteors) {
         if (!mt.m.visible) { mt.wait -= dt; if (mt.wait <= 0 && !LO.paused) spawnMeteor(mt, Math.max(40, outer * 1.6)); continue; }
         mt.t += dt; mt.m.position.addScaledVector(mt.vel, dt);
@@ -597,7 +680,6 @@ try {
       }
     }
     halo.material.opacity = .5 + .1 * Math.sin(now / 900);
-    // tilt shift focuses on the model's center; the band widens when following a planet so it stays sharp
     tmp.copy(target).project(cam);
     const fy = clamp((tmp.y + 1) / 2, .1, .9);
     for (const p of tsPasses) { p.uniforms.focus.value = fy; p.uniforms.band.value = .2 + .25 * followE; p.uniforms.amt.value = 2.2 * pr; }
