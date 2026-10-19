@@ -1,7 +1,8 @@
 // Spectrum Bench tracer for a TouchDesigner GLSL TOP (pixel shader).
 //
 // Input 0: surfaces from sb_scene.pack (5 pixels each). Input 1: emitted rays (2 pixels each).
-// Output: one column per traced ray, one row per piece of its path. Row k of column c is piece k of ray c.
+// Output: one column per traced ray, one row per piece of its path. Row k of column c is piece k of ray c; past the
+// output's width, columns carry on in the next band of ROWS rows.
 //   uMode 0: (mid x, mid y, angle in degrees, length), with y flipped up for TouchDesigner, for instancing
 //   uMode 1: (r, g, b, 1), the piece's light, already scaled for additive blending
 // A piece the ray never reaches comes out as zeros.
@@ -37,8 +38,13 @@ layout(location = 0) out vec4 fragColor;
 #define K_THIN 7
 #define K_GRAV 8
 
-vec4 P(int i, int j) { return texelFetch(sTD2DInputs[0], ivec2(i * 5 + j, 0), 0); }
-vec4 E(int i, int j) { return texelFetch(sTD2DInputs[1], ivec2(i * 2 + j, 0), 0); }
+// The inputs are pixel lists wrapped into rows of TEX_W, and the output's columns wrap into bands of ROWS rows,
+// because TouchDesigner's Non-Commercial key caps textures at 1280 pixels (TEX_W and ROWS as in sb_scene.py)
+#define TEX_W 1280
+#define ROWS 64
+vec4 texAt(int k, int i) { return texelFetch(sTD2DInputs[k], ivec2(i % TEX_W, i / TEX_W), 0); }
+vec4 P(int i, int j) { return texAt(0, i * 5 + j); }
+vec4 E(int i, int j) { return texAt(1, i * 2 + j); }
 
 uint rs;
 float rnd() { rs ^= rs << 13; rs ^= rs >> 17; rs ^= rs << 5; return float(rs) * (1.0 / 4294967296.0); }
@@ -173,10 +179,11 @@ int choose(float f[7], int n, float I, inout float G) {
 
 void main() {
   ivec2 px = ivec2(gl_FragCoord.xy);
-  int copies = int(uCopies + 0.5), ray = px.x / max(copies, 1), want = px.y;
+  int col = px.x + (px.y / ROWS) * int(uTDOutputInfo.res.z + 0.5);
+  int copies = int(uCopies + 0.5), ray = col / max(copies, 1), want = px.y % ROWS;
   vec4 outv = vec4(0.0);
   if (ray >= int(uNEmit + 0.5)) { fragColor = TDOutputSwizzle(outv); return; }
-  rs = hash(uint(px.x) * 9781u + hash(uint(uSeed * 1000.0) + 1u)) | 1u;
+  rs = hash(uint(col) * 9781u + hash(uint(uSeed * 1000.0) + 1u)) | 1u;
 
   vec4 e0 = E(ray, 0), e1 = E(ray, 1);
   vec2 p = e0.xy, d = normalize(e0.zw);

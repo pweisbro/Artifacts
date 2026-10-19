@@ -18,7 +18,7 @@ A TouchDesigner version of Spectrum Bench, built from setup codes made in the we
 3. Open `/project1/spectrum_bench/out`. The Prism fan starter is loaded.
 4. Paste any setup code into the **Setup code** parameter of `spectrum_bench`.
 
-The script prints a line for any parameter it couldn't set, since some names differ between TouchDesigner versions. Set those by hand. The instance color hookup on `rays` is the one most likely to need it: point the instance colors at `trace_col`, channels r, g and b.
+The script prints a line for any parameter it couldn't set, since some names differ between TouchDesigner versions. Set those by hand. If the rays come out white, the instance color hookup on `rays` is the one to check: point the instance colors at `trace_col`, channels r, g and b.
 
 ## Parameters on spectrum_bench
 
@@ -36,7 +36,9 @@ The web bench splits rays at every surface. A shader can't spawn rays, so each e
 
 ## Checked so far
 
-The shader was run in a browser (WebGL) against all 19 starter benches, and the ray paths match the web bench, including the liquid at the same moment in its flow. It has not been run inside TouchDesigner yet, so `build_td.py` may need small fixes there.
+The shader was run in a browser (WebGL) against all 19 starter benches, and the ray paths match the web bench, including the liquid at the same moment in its flow. In TouchDesigner 2023.11600 with a Non-Commercial key, the build script runs with nothing left to set by hand, both shaders compile, and Prism fan, Black hole, Grating orders, Lens colors, Dichroic split, Liquid lens and Parabolic dish render like the web bench.
+
+The Non-Commercial key caps every image at 1280 x 1280, so the tracer wraps its rays into bands of 64 rows instead of one long row, and the render is 1280 x 720. With a paid key you can raise the render's resolution.
 
 ## Not carried over
 
