@@ -136,7 +136,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
 
       <div class="section" id="pane-file" hidden>
         <h2>Play a stereo file</h2>
-        <input type="file" id="file" accept="audio/*">
+        <input type="file" id="file" accept="audio/*,.wav,.wave,.aif,.aiff,.mp3,.m4a,.aac,.flac,.ogg,.opus">
         <div class="mono" id="file-name">No file loaded. Try a normal song first, then an oscilloscope-music track.</div>
         <div class="ctl"><label for="song">Song level</label><input type="range" id="song" min="0" max="1" step="0.01" value="0.8"><output id="song-o"></output></div>
         <div class="ctl"><label for="overlay">Shape on top</label><input type="range" id="overlay" min="0" max="1" step="0.01" value="0"><output id="overlay-o"></output></div>
@@ -312,19 +312,67 @@ input[type="file"] { font: inherit; max-width: 100%; }
     $('power').classList.toggle('on', playing);
   });
 
+  // Reads a WAV file ourselves, for the kinds browsers often refuse (Safari and 24-bit, 32-bit float or
+  // WAVE_FORMAT_EXTENSIBLE files, which oscilloscope-music tracks often are). Returns null if it isn't a WAV.
+  function readWav(buf, ctx) {
+    const v = new DataView(buf), tag = o => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3));
+    if (buf.byteLength < 12 || !/^(RIFF|RF64)$/.test(tag(0)) || tag(8) !== 'WAVE') return null;
+    let fmt = null, dataOff = 0, dataLen = 0, ds64 = 0;
+    for (let o = 12; o + 8 <= buf.byteLength;) {
+      const id = tag(o); let len = v.getUint32(o + 4, true);
+      if (id === 'ds64') ds64 = v.getUint32(o + 16, true) + v.getUint32(o + 20, true) * 2 ** 32;
+      if (id === 'fmt ') {
+        fmt = { code: v.getUint16(o + 8, true), ch: v.getUint16(o + 10, true), sr: v.getUint32(o + 12, true), align: v.getUint16(o + 20, true), bits: v.getUint16(o + 22, true) };
+        if (fmt.code === 0xFFFE && len >= 40) fmt.code = v.getUint16(o + 32, true);
+      }
+      if (id === 'data') {
+        if (len === 0xFFFFFFFF && ds64) len = ds64;
+        dataOff = o + 8; dataLen = Math.min(len, buf.byteLength - dataOff); break;
+      }
+      o += 8 + len + (len & 1);
+    }
+    if (!fmt || !dataOff) throw new Error('No audio in this WAV');
+    const { code, ch, sr, bits } = fmt, bps = bits >> 3, align = fmt.align || ch * bps;
+    if (!(code === 1 && bps >= 1 && bps <= 4) && !(code === 3 && (bits === 32 || bits === 64))) throw new Error('Unsupported WAV encoding');
+    const n = Math.floor(dataLen / align);
+    if (!n) throw new Error('Empty WAV');
+    const out = ctx.createBuffer(Math.min(ch, 2) || 1, n, sr);
+    for (let c = 0; c < out.numberOfChannels; c++) {
+      const d = out.getChannelData(c);
+      for (let i = 0, o = dataOff + c * bps; i < n; i++, o += align) {
+        if (code === 3) d[i] = bits === 32 ? v.getFloat32(o, true) : v.getFloat64(o, true);
+        else if (bps === 1) d[i] = (v.getUint8(o) - 128) / 128;
+        else if (bps === 2) d[i] = v.getInt16(o, true) / 32768;
+        else if (bps === 3) d[i] = ((v.getUint8(o) | v.getUint8(o + 1) << 8 | v.getInt8(o + 2) << 16)) / 8388608;
+        else d[i] = v.getInt32(o, true) / 2147483648;
+      }
+    }
+    return out;
+  }
+
   $('file').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
+    e.target.value = '';  // so picking the same file again still loads it
     $('file-name').textContent = 'Decoding ' + f.name + '…';
     try {
       if (!A) setupAudio();
       const data = await f.arrayBuffer();
-      songBuf = await new Promise((res, rej) => A.ctx.decodeAudioData(data, res, rej));
-      $('file-name').textContent = f.name + ' · ' + songBuf.numberOfChannels + ' ch · ' + songBuf.duration.toFixed(1) + ' s · loops';
+      try {
+        songBuf = await new Promise((res, rej) => {
+          const pr = A.ctx.decodeAudioData(data.slice(0), res, rej);
+          if (pr && pr.catch) pr.catch(() => {});
+        });
+      } catch (err) {
+        songBuf = readWav(data, A.ctx);
+        if (!songBuf) throw err;
+      }
+      $('file-name').textContent = f.name + ' · ' + songBuf.numberOfChannels + ' ch · ' + Math.round(songBuf.sampleRate / 100) / 10 + ' kHz · ' + songBuf.duration.toFixed(1) + ' s · loops';
       if (playing) startSong();
     } catch (err) {
       songBuf = null;
       $('file-name').textContent = 'That file could not be decoded. Try a WAV, MP3, FLAC or M4A.';
     }
+    refresh();
   });
 
   // ---------- display ----------

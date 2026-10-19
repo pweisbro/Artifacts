@@ -70,6 +70,12 @@ Each track has its own instrument (piano, electric piano, bass, sub bass, synth 
 
 Sections (A, B, C…) each hold their own notes; tap the current one to rename, resize (1 to 16 bars), duplicate or delete it. **Play song** strings sections together in any order. Settings hold tempo, how finely hums snap (16ths, 8ths or beats), the key and scale, the click and count-in, and a timing nudge if notes land early or late. **Export MIDI** shares a .mid file with one track per part for GarageBand, Logic or any DAW. The sketch is saved in the browser, hums included, and there's undo for every change.
 
+### X-Y Scope
+
+`xy-scope.html` is a browser oscilloscope in X-Y mode, for oscilloscope music: the left channel moves the beam sideways and the right channel moves it up and down. **Lissajous** is a two-channel generator (frequency, wave shape, phase and a small detune that makes the figure rotate, with ratio presets from 1:1 to 1:3). **Shapes** traces a spinning wireframe cube, a square, star, heart or mushroom; the pitch slider sets how many times a second the shape is drawn, which is the note you hear. **Song** loads any audio file to see what it draws, and **Shape on top** mixes the current shape over it. Any WAV opens, including the 24-bit, 32-bit float and high-sample-rate ones oscilloscope-music tracks often come as, even where the browser can't read them itself. Gain, afterglow and intensity set the look of the phosphor.
+
+**Start sound** plays exactly what's on screen out of the headphone jack, so it can drive a real scope: left into CH1, right into CH2, X-Y mode, volume low, and sound enhancements off. Keep a real CRT's brightness low and turn it down before stopping the sound, since a still dot burns the phosphor. Everything is generated in the browser, so it works offline; songs play locally and are never uploaded.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.
