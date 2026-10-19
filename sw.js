@@ -1,7 +1,7 @@
 // Stim Lab offline support, shared by the homepage and every app page.
 // Pages are fetched fresh when you're online (so updates show up) and served from the cache when you're not.
 // When you add an app page, list it in CORE and bump the CACHE number.
-const CACHE = 'artifacts-v27';
+const CACHE = 'artifacts-v28';
 const CORE = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const CORE = [
   './grainfall.html',
   './little-orrery.html',
   './xy-scope.html',
+  './earworm.html',
   './resonant-ink.webmanifest',
   './resonant-ink-apple-touch-icon.png',
   './resonant-ink-icon-192.png',
