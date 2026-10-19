@@ -62,6 +62,14 @@ Besides the eight planets there are the dwarf planets Ceres, Pluto, Haumea, Make
 
 **To scale** switches between the cute squeeze (sizes by square root, distances by a log, tidy round orbits) and real proportions: Jupiter is 11 Earths wide, Neptune sits 77 times farther out than Mercury, and every orbit takes its real elliptical shape, tilt and direction, so Pluto's stretched loop dips inside Neptune's and Eris swings far out at 44 degrees. Only the Sun stays shrunk, since at true proportion it would swallow Mercury's orbit on any screen. Drag to spin the model, pinch or scroll to zoom. The **Speed** slider sets how long an Earth year takes (2 seconds to 2 minutes), **Names** and **Orbits** toggle the labels and the hoops, and **Reset view** goes back to the overview. The 3D model uses three.js from jsDelivr, cached after the first visit; add `?fps` to the address to see the frame rate.
 
+### Earworm
+
+`earworm.html` is for getting a song that's stuck in your head down before it's gone. Pick a track and tap **Hum**: after a one-bar count-in, hum the part along to the click, and when the section ends your hum is turned into notes on a grid (pitch detection on the microphone, snapped to the beat and to the key it guesses from your humming). Hum each part on its own track, a melody, a bass line, a harmony, while the others play back. A **Beat** track listens for beatboxing instead: *boom* is a kick, *kah* a snare, *tss* a hat.
+
+Each track has its own instrument (piano, electric piano, bass, sub bass, synth lead, flute, brass, strings, pads, choir, harp, marimba, kalimba and more, or three drum kits), an octave shift, volume, mute and solo, and can play its notes, your original hum, or both. Tap the grid to add a note, tap a note to remove it, drag it to move it, drag its right end to stretch it. Your hum stays on the grid as a faint pencil line to check against.
+
+Sections (A, B, C…) each hold their own notes; tap the current one to rename, resize (1 to 16 bars), duplicate or delete it. **Play song** strings sections together in any order. Settings hold tempo, how finely hums snap (16ths, 8ths or beats), the key and scale, the click and count-in, and a timing nudge if notes land early or late. **Export MIDI** shares a .mid file with one track per part for GarageBand, Logic or any DAW. The sketch is saved in the browser, hums included, and there's undo for every change.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.
