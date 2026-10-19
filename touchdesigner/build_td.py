@@ -12,7 +12,6 @@ import os
 
 SB_DIR = globals().get('SB_DIR') or os.path.join(project.folder, 'touchdesigner')
 PARENT = op('/project1')
-ROWS = 64  # pieces of path per ray; the black hole needs the most
 
 # The Prism fan starter, so there's something on screen straight away
 DEFAULT_CODE = ('SB1:eyJ2IjoyLCJuYW1lIjoiUHJpc20gZmFuIiwic2NlbmUiOlt7InR5cGUiOiJsaWdodCIsIngiOi0yNDQsInkiOjc5LCJhbmdsZSI6'
@@ -43,7 +42,8 @@ def onCook(scriptOp):
     scriptOp.clear()
     for row in (('name', d['name']), ('error', st['err']), ('items', len(d['scene'])), ('nprims', pk['nprims']),
                 ('nemit', pk['nemit']), ('copies', pk['copies']), ('columns', max(pk['columns'], 1)),
-                ('bright', pk['bright']), ('cx', cx), ('cy', cy), ('width', w), ('linew', w / 1920 * 1.6),
+                ('tracew', pk['tracew']), ('traceh', pk['bands'] * sb.ROWS),
+                ('bright', pk['bright']), ('cx', cx), ('cy', cy), ('width', w), ('linew', w / 1280 * 1.2),
                 ('animated', int(animated)), ('frame', absTime.frame if animated else 0)):
         scriptOp.appendRow(list(row))
 '''
@@ -94,7 +94,7 @@ def setp(o, name, value=None, expr=None):
 def setp_label(o, page, label, value):
     """Sets a parameter found by its page and label, for ones whose internal names vary between versions."""
     for p in o.pars():
-        if p.page.name == page and p.label == label:
+        if p.page is not None and p.page.name == page and p.label == label:
             p.val = value
             return
     problems.append('%s: set "%s" on its %s page to %s by hand' % (o.path, label, page, value))
@@ -187,8 +187,8 @@ for i, (name, mode) in enumerate((('trace_geo', 0), ('trace_col', 1))):
     g.inputConnectors[1].connect(tops['emit'])
     setp(g, 'pixeldat', 'sb_trace')
     setp(g, 'outputresolution', 'custom')
-    setp(g, 'resolutionw', expr="int(%s)" % info('columns'))
-    setp(g, 'resolutionh', ROWS)
+    setp(g, 'resolutionw', expr="int(%s)" % info('tracew'))
+    setp(g, 'resolutionh', expr="int(%s)" % info('traceh'))
     setp(g, 'format', 'rgba32float')
     for k, (u, e) in enumerate(UNIFORMS + [('uMode', str(mode))]):
         setp(g, 'vec%dname' % k, u)
@@ -222,7 +222,11 @@ col_op = [p for p in rays.pars('instance*op') if 'col' in (p.name + p.label).low
 if col_op:
     col_op[0].val = glsl['trace_col']
     for ch, lab in (('r', 'Color R'), ('g', 'Color G'), ('b', 'Color B')):
-        setp_label(rays, col_op[0].page.name, lab, ch)
+        p = getattr(rays.par, 'instance' + ch, None)  # 2023: instancer, instanceg, instanceb, labelled R, G, B
+        if p is not None:
+            p.val = ch
+        else:
+            setp_label(rays, col_op[0].page.name, lab, ch)
 else:
     problems.append('rays: point instance colors at trace_col (r, g, b) on the Instance pages by hand')
 
@@ -246,15 +250,17 @@ setp(cam, 'orthowidth', expr=info('width'))
 setp(cam, 'tx', expr=info('cx'))
 setp(cam, 'ty', expr='-' + info('cy'))
 setp(cam, 'tz', 100)
+setp(cam, 'bgcolora', 1)  # an opaque black background (the camera holds it, not the Render TOP)
 
 render = node(renderTOP, 'render', 550, 100)
 render.par.camera = cam
 render.par.geometry = 'rays pieces'
 setp(render, 'outputresolution', 'custom')
-setp(render, 'resolutionw', 1920)
-setp(render, 'resolutionh', 1080)
-setp(render, 'format', 'rgba16float')
-setp(render, 'bgcolora', 1)
+setp(render, 'resolutionw', 1280)  # the Non-Commercial maximum; raise it with a paid key
+setp(render, 'resolutionh', 720)
+# 8-bit, so overlapping rays saturate at white the way the web bench's canvas does, instead of piling up past 1 and
+# bleeding through the glow into a solid sheet
+setp(render, 'format', 'rgba8fixed')
 
 glow = node(blurTOP, 'glow', 750, 0)
 glow.inputConnectors[0].connect(render)

@@ -386,12 +386,29 @@ def emit(el):
     return rays
 
 
+# TouchDesigner's Non-Commercial key caps every texture at 1280 x 1280, so long rows wrap: the input textures are
+# TEX_W pixels wide, and the tracer's columns wrap into bands of ROWS rows each, at most MAX_BANDS of them.
+TEX_W = 1280
+ROWS = 64
+MAX_BANDS = TEX_W // ROWS
+
+
+def _rows(a):
+    """A list of RGBA pixels wrapped into rows of TEX_W, as the tracer reads them (pixel i at i % TEX_W, i // TEX_W)."""
+    n = len(a)
+    h = -(-n // TEX_W)
+    out = np.zeros((h * TEX_W, 4), np.float32)
+    out[:n] = a
+    return out.reshape(h, TEX_W, 4)
+
+
 def pack(data, t=0.0, max_columns=8192, max_copies=16):
     """Everything the tracer needs, from load_code's result.
 
-    Returns a dict: prims (1 x 5N x 4 float32), emit (1 x 2M x 4), copies (rays traced per emitted ray, so
-    reflections and grating orders share out fairly), columns (= M x copies, the tracer's width), outlines (a
-    list of polylines for drawing the pieces), view (cx, cy, w, h of a box around everything), bright, skipped.
+    Returns a dict: prims (5N pixels) and emit (2M pixels), wrapped into rows of TEX_W, copies (rays traced per
+    emitted ray, so reflections and grating orders share out fairly), columns (= M x copies, the rays traced),
+    tracew and bands (the tracer is tracew wide and ROWS x bands high: columns wrap into bands), outlines (a list of
+    polylines for drawing the pieces), view (cx, cy, w, h of a box around everything), bright.
     """
     scene = data['scene']
     prims, outlines, rays = [], [], []
@@ -406,20 +423,23 @@ def pack(data, t=0.0, max_columns=8192, max_copies=16):
             rays += emit(el)
     M = max(len(rays), 1)
     copies = max(1, min(max_copies, max_columns // M))
-    P = np.zeros((1, max(len(prims), 1) * 5, 4), np.float32)
+    P = np.zeros((max(len(prims), 1) * 5, 4), np.float32)
     for i, pr in enumerate(prims):
-        P[0, i * 5:i * 5 + 5] = pr
-    E = np.zeros((1, M * 2, 4), np.float32)
+        P[i * 5:i * 5 + 5] = pr
+    E = np.zeros((M * 2, 4), np.float32)
     for i, r in enumerate(rays):
-        E[0, i * 2] = r[:4]
-        E[0, i * 2 + 1] = r[4:]
+        E[i * 2] = r[:4]
+        E[i * 2 + 1] = r[4:]
+    columns = len(rays) * copies
+    tw = max(1, min(columns, TEX_W))
     if xs:
         x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
         view = ((x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 1.25 + 80, (y1 - y0) * 1.25 + 80)
     else:
         view = (0, 0, 800, 600)
-    return {'prims': P, 'nprims': len(prims), 'emit': E, 'nemit': len(rays), 'copies': copies,
-            'columns': len(rays) * copies, 'outlines': outlines, 'view': view, 'bright': data['bright'],
+    return {'prims': _rows(P), 'nprims': len(prims), 'emit': _rows(E), 'nemit': len(rays), 'copies': copies,
+            'columns': columns, 'tracew': tw, 'bands': min(-(-max(columns, 1) // tw), MAX_BANDS),
+            'outlines': outlines, 'view': view, 'bright': data['bright'],
             'animated': any(e['type'] == 'liquid' for e in scene)}
 
 
