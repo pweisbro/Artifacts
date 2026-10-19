@@ -206,6 +206,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
       <button type="button" data-add="splitter" aria-label="Add a beam splitter"><svg viewBox="0 0 24 24"><path d="M6 18L18 6"/><path d="M2 12h20" stroke-width="1"/><path d="M12 12v10" stroke-width="1"/></svg><span>Splitter</span></button>
       <button type="button" data-add="slit" aria-label="Add a slit or light block"><svg viewBox="0 0 24 24"><path d="M12 3v7.5M12 13.5V21" stroke-width="3"/></svg><span>Slit</span></button>
       <button type="button" data-add="screen" aria-label="Add a screen"><svg viewBox="0 0 24 24"><rect x="9.5" y="3" width="5" height="18" rx="1"/></svg><span>Screen</span></button>
+      <button type="button" data-add="hole" aria-label="Add a black hole"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.6" fill="currentColor"/><path d="M2.5 13.5c3-1.2 5.5-5.3 9.5-5.3s5.6 3.4 9.5 2.3" stroke-width="1.2"/><circle cx="12" cy="12" r="7.5" stroke-width="1" stroke-dasharray="1.5 2.5"/></svg><span>Hole</span></button>
     </div>
     <section class="insp" id="insp"></section>
   </aside>
@@ -279,6 +280,20 @@ const MATS={
 };
 // Cauchy fit n = A + B/λ². "Rainbow boost" scales B while keeping n fixed at the sodium D line.
 function nOf(el,l){const m=MATS[el.mat]||MATS.crown,k=el.boost||1,ld=.5893,lu=l/1000;return m.A+m.B/(ld*ld)*(1-k)+k*m.B/(lu*lu)+(el.dn||0);}
+// Gravity as a medium: around a mass, light follows the same paths it would through glass whose index climbs toward the center.
+// In isotropic coordinates that index is exact, n = (1+u)³/(1−u) with u = horizon/r. Rays inside the pull are traced in short
+// steps, each turned a little toward where the index climbs, so they curve smoothly. Its strength above 1 is scaled per wavelength by the chosen material's dispersion,
+// (n(λ)−1)/(n(589 nm)−1), so violet bends more than red exactly as it would in that glass. Real gravity bends every color alike.
+function gravD(el,l){if(el.mat==='none')return 1;const m={mat:el.mat,boost:el.boost};return (nOf(m,l)-1)/(nOf(m,589.3)-1);}
+function gravN(el,rho,D){if(!(rho<el.reach))return 1;const u=el.mass/rho;if(u>=1)return 1e6;const w=1-rho*rho/(el.reach*el.reach);return 1+((1+u)**3/(1-u)-1)*w*w*D;}
+const gravStep=(el,rho)=>clamp(.14*(rho-el.mass)+.6,.6,32); // finer steps where the pull changes fast
+// How far a ray passing b mm from the center turns, in degrees, traced through the same shells the bench uses (null if it falls in).
+function deflectOf(el,b,l){
+  const h=Object.assign({},el,{x:0,y:0}),S=buildS([geomOf(h)]),out=[];let r={x:-el.reach-5,y:-b,dx:1,dy:0,lam:l,I:1,base:1,W:null,depth:0,med:null,sk:-1,col:null,ck:0,gi:0,d:0,key:0,b:0,hs:null,hu:0,nx:0,ny:0,k:0};
+  for(let i=0;i<3000;i++){hitOf(r,S);if(!r.hs)return Math.atan2(r.dy,r.dx)*R2D;if(r.hs.kind!=='grav')return null;out.length=0;kids(r,out);if(!out.length)return null;r=out[0];}
+  return null;
+}
+const shadowOf=el=>{let b=Infinity;for(let r=el.mass*1.02;r<el.reach;r*=1.004)b=Math.min(b,gravN(el,r,1)*r);return b;}; // closest a ray can pass and still get away
 function transOf(el,l){
   if(el.pass==='long')return 1/(1+Math.exp(-(l-el.lam)/4));
   if(el.pass==='short')return 1/(1+Math.exp((l-el.lam)/4));
@@ -300,16 +315,17 @@ const DEF={
   filter:{type:'filter',x:0,y:0,angle:90,len:120,pass:'band',lam:530,bw:60,mode:'absorb'},
   splitter:{type:'splitter',x:0,y:0,angle:-45,len:120,refl:50},
   slit:{type:'slit',x:0,y:0,angle:90,len:200,gap:10},
-  screen:{type:'screen',x:0,y:0,angle:90,len:260}
+  screen:{type:'screen',x:0,y:0,angle:90,len:260},
+  hole:{type:'hole',x:0,y:0,angle:0,mass:8,reach:320,mat:'flint',boost:2}
 };
 const RANGES={c:[0,100000],res:[2,60],aSens:[.5,4],aLo:[20,20000],aHi:[20,20000],sndSens:[.5,4],aFloor:[-160,0],aPeak:[-160,0],sndFloor:[-160,0],sndPeak:[-160,0],aAmt:[4,40],aLen:[60,400],aSpd:[40,600],aSwayAmt:[5,60],sndLo:[20,20000],sndHi:[20,20000],sndN:[0,.6],sndBoost:[1,8],sndRefl:[0,.95],sndSpin:[0,90],sndRip:[0,2],wob:[0,1],flow:[0,3],x:[-3000,3000],y:[-3000,3000],angle:[-3600,3600],laser:[380,700],width:[0,240],spread:[0,90],size:[70,300],boost:[1,6],
-  f:[30,500],ap:[30,260],len:[20,640],lpmm:[100,1500],orders:[1,3],lam:[380,700],bw:[10,200],refl:[5,95],gap:[0,400]};
+  f:[30,500],ap:[30,260],len:[20,640],lpmm:[100,1500],orders:[1,3],lam:[380,700],bw:[10,200],refl:[5,95],gap:[0,400],mass:[3,30],reach:[120,640]};
 const PRISM_SHAPES=['eq','right','hex','block','drop','pipe'];
 function okEnum(t,k,v){
   switch(k){
     case 'spectrum':return has(SPECTRA,v);
     case 'shape':return t==='curved'?(v==='sphere'||v==='para'):PRISM_SHAPES.includes(v);
-    case 'mat':return has(MATS,v)||(t==='lens'&&v==='ideal');
+    case 'mat':return has(MATS,v)||(t==='lens'&&v==='ideal')||(t==='hole'&&v==='none');
     case 'power':return v==='conv'||v==='div';
     case 'form':return v==='bi'||v==='plano';
     case 'pass':return v==='band'||v==='long'||v==='short';
@@ -336,7 +352,7 @@ function sanitize(o){
 }
 function serialScene(sc){return sc.map(o=>{const c={};for(const k in DEF[o.type]){const v=o[k];c[k]=typeof v==='number'?Math.round(v*10)/10:v;}return c;});}
 
-const NAMES={light:'Light source',mirror:'Mirror',grating:'Grating',splitter:'Beam splitter',screen:'Screen'};
+const NAMES={light:'Light source',mirror:'Mirror',grating:'Grating',splitter:'Beam splitter',screen:'Screen',hole:'Black hole'};
 function nameOf(el){
   switch(el.type){
     case 'liquid':return 'Liquid';
@@ -427,6 +443,9 @@ function geomOf(el){
       return{F,C,curve:pts,r:C.h,prims:[mkArc(F,0,C.R,C.R,-HP-C.hs,-HP+C.hs,'mirror',el)]};}
     case 'slit':{const h=el.len/2,g=Math.min(el.gap,el.len-10)/2,A=F.L(-h,0),B=F.L(h,0);
       return{F,ends:[A,B],r:h,gapH:g,prims:g>0?[mkSeg(A,F.L(-g,0),'block',el),mkSeg(F.L(g,0),B,'block',el)]:[mkSeg(A,B,'block',el)]};}
+    case 'hole':{
+      // The horizon absorbs; the field (t 3) ends each ray inside the pull after one short step.
+      return{F,hole:true,prims:[mkArc(F,0,0,el.mass,-Math.PI,Math.PI,'block',el),{t:3,cx:el.x,cy:el.y,R:el.reach,kind:'grav',el}],r:Math.max(el.mass,10)};}
     default:{const h=el.len/2,A=F.L(-h,0),B=F.L(h,0);return{F,ends:[A,B],r:h,prims:[mkSeg(A,B,KIND[el.type],el)]};}
   }
 }
@@ -514,6 +533,12 @@ function hitOf(r,S,tmin,lim){
         const qx=px+r.dx*t,qy=py+r.dy*t;
         if((qx*s.cam+qy*s.sam)/s.R>=s.chs){best=t;hs=s;hnx=qx/s.R;hny=qy/s.R;break;}
       }
+    }else if(s.t===3){ // a black hole's pull: inside it, a short step; outside, where the ray enters it
+      const px=r.x-s.cx,py=r.y-s.cy,o2=px*px+py*py,R2=s.R*s.R,b=r.dx*px+r.dy*py;let t;
+      if(o2<R2-1e-6||(o2<R2+1&&b<0))t=Math.max(gravStep(s.el,Math.sqrt(o2)),tm+1e-3);
+      else{const disc=b*b-o2+R2;if(disc<0||b>=0)continue;t=-b-Math.sqrt(disc);if(t<=tm)continue;}
+      if(t>=best)continue;
+      best=t;hs=s;hnx=0;hny=0;
     }else{
       const px=r.x-s.ox,py=r.y-s.oy;
       const lx=px*s.ux+py*s.uy,ly=px*s.vx+py*s.vy,ldx=r.dx*s.ux+r.dy*s.uy,ldy=r.dx*s.vx+r.dy*s.vy;
@@ -539,7 +564,7 @@ function hitOf(r,S,tmin,lim){
 // What a ray turns into where it ends (reflected, refracted, diffracted or filtered rays), pushed onto out.
 function kids(r,out){
   const hs=r.hs,best=r.b,hnx=r.nx,hny=r.ny,ex=r.x+r.dx*best,ey=r.y+r.dy*best;
-  const go=(dx,dy,I,med,tg)=>{if(I>=IMIN)out.push({x:ex,y:ey,dx,dy,lam:r.lam,I,base:r.base,W:r.W,depth:r.depth+1,med,sk:hs.pid,col:r.col,ck:r.ck,gi:r.gi,d:r.d+best,key:r.key?((Math.imul(r.key,16777619)^(hs.el.id*16+tg))&0x3fffffff)||1:0,b:0,hs:null,hu:0,nx:0,ny:0,k:0});};
+  const go=(dx,dy,I,med,tg,dd)=>{if(I>=IMIN)out.push({x:ex,y:ey,dx,dy,lam:r.lam,I,base:r.base,W:r.W,depth:r.depth+(dd||1),med,sk:hs.pid,col:r.col,ck:r.ck,gi:r.gi,d:r.d+best,key:r.key?((Math.imul(r.key,16777619)^(hs.el.id*16+tg))&0x3fffffff)||1:0,b:0,hs:null,hu:0,nx:0,ny:0,k:0});};
   const refl=I=>{const d=r.dx*hnx+r.dy*hny;go(r.dx-2*d*hnx,r.dy-2*d*hny,I,r.med,2);};
   switch(hs.kind){
     case 'mirror':refl(r.I*.95);break;
@@ -564,6 +589,13 @@ function kids(r,out){
         if(r.I*R>REFL_MIN)go(rx,ry,r.I*R,r.med,2); // partial Fresnel reflection
       }
       break;}
+    case 'grav':{ // a step through a black hole's pull: the ray turns toward rising index by (∇n/n across the ray) × step length
+      const el=hs.el,qx=ex-hs.cx,qy=ey-hs.cy,rho=Math.hypot(qx,qy);let dx=r.dx,dy=r.dy;
+      if(rho<el.reach&&rho>el.mass){
+        const D=gravD(el,r.lam),e=Math.min(.5,(rho-el.mass)/2),g=(gravN(el,rho+e,D)-gravN(el,rho-e,D))/(2*e)/gravN(el,rho,D)*Math.min(best,gravStep(el,rho)*1.5);
+        const ux=qx/rho,uy=qy/rho,c=ux*dx+uy*dy;dx+=g*(ux-c*dx);dy+=g*(uy-c*dy);const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;
+      }
+      go(dx,dy,r.I,r.med,1,1/32);break;} // each step costs a sliver of depth, so light can take many but an orbit still ends
     case 'grating':{
       const el=hs.el;let nx=hs.nx,ny=hs.ny;if(r.dx*nx+r.dy*ny<0){nx=-nx;ny=-ny;}
       const si=r.dx*hs.tx+r.dy*hs.ty,d=1000/el.lpmm,lam=r.lam/1000,sg=el.mode==='refl'?-1:1;
@@ -575,7 +607,8 @@ function kids(r,out){
     default:break; // screens record the hit; blocks and light housings absorb
   }
 }
-function bucketOf(map,r,a){const q=Math.max(1,Math.min(24,Math.round(a*24)));const key=(r.ck*32+q)*8+r.gi;let b=map.get(key);if(!b){b={p:new Path2D(),c:r.col,a:q/24,gm:Math.pow(2,-r.gi)};map.set(key,b);}return b.p;}
+let LB=null; // the bucket bucketOf last returned, with where its path last ended (lx, ly)
+function bucketOf(map,r,a){const q=Math.max(1,Math.min(24,Math.round(a*24)));const key=(r.ck*32+q)*8+r.gi;let b=map.get(key);if(!b){b={p:new Path2D(),c:r.col,a:q/24,gm:Math.pow(2,-r.gi),lx:NaN,ly:NaN};map.set(key,b);}LB=b;return b.p;}
 function screenHit(out,r,a){
   const hs=r.hs,ex=r.x+r.dx*r.b,ey=r.y+r.dy*r.b;let arr=out.hits.get(hs.el.id);if(!arr){arr=[];out.hits.set(hs.el.id,arr);}arr.push([r.hu,r.lam,r.I,r.base]);
   const sa=clamp(a*.8,0,1);if(sa>=.02){const p=bucketOf(out.splats,r,sa);p.moveTo(ex-hs.tx*2.5,ey-hs.ty*2.5);p.lineTo(ex+hs.tx*2.5,ey+hs.ty*2.5);}
@@ -586,19 +619,21 @@ function screenHit(out,r,a){
 function drawPart(beams,r,a,s0,s1,sh,RW){
   const p=bucketOf(beams,r,a),deco=RW&&RW.ctr.n<RW.ctr.max,Xx=r.x+r.dx*s1,Xy=r.y+r.dy*s1,cont=s1<r.b,keyed=!!sh&&r.key>0;
   const pv0=keyed&&s0>0?sh.prev.get(r.key):null,pv=pv0&&Math.hypot(pv0.px-Xx,pv0.py-Xy)<sh.jump?pv0:null; // a sudden jump (the beam swept across an edge) starts a fresh curve
-  if(keyed&&!deco){
+  if(keyed&&!deco){LB.lx=NaN;
     const Px=pv?pv.px:r.x+r.dx*s0,Py=pv?pv.py:r.y+r.dy*s0,Ex=cont?(Px+Xx)/2:Xx,Ey=cont?(Py+Xy)/2:Xy;
     if(pv)p.moveTo(pv.mx,pv.my);else p.moveTo(Px,Py);p.quadraticCurveTo(Px,Py,Ex,Ey);
     if(cont)sh.next.set(r.key,{px:Xx,py:Xy,mx:Ex,my:Ey});
   }else{
     if(deco&&!RW.bars){ // a waveform joins on from the previous pulse's last wave point, so it stays one wavy line
-      const go=!!pv&&pv.wx!==undefined;if(go)p.moveTo(pv.wx,pv.wy);
+      LB.lx=NaN;const go=!!pv&&pv.wx!==undefined;if(go)p.moveTo(pv.wx,pv.wy);
       const drew=waveSeg(p,r,s0,s1,RW,go);
       if(keyed&&cont)sh.next.set(r.key,drew?{px:Xx,py:Xy,mx:Xx,my:Xy,wx:WX,wy:WY}:{px:Xx,py:Xy,mx:Xx,my:Xy});
     }else{
       if(pv){p.moveTo(pv.mx,pv.my);p.lineTo(pv.px,pv.py);p.lineTo(r.x+r.dx*s0,r.y+r.dy*s0);}
       if(keyed&&cont)sh.next.set(r.key,{px:Xx,py:Xy,mx:Xx,my:Xy});
-      if(deco)barSeg(p,r,s0,s1,RW);else{p.moveTo(r.x+r.dx*s0,r.y+r.dy*s0);p.lineTo(Xx,Xy);}
+      // a piece that starts where this color's path left off (a ray stepping through a black hole's pull) carries the line on
+      if(deco||pv){LB.lx=NaN;if(deco)barSeg(p,r,s0,s1,RW);}
+      if(!deco){const Sx=r.x+r.dx*s0,Sy=r.y+r.dy*s0;if(Sx!==LB.lx||Sy!==LB.ly)p.moveTo(Sx,Sy);p.lineTo(Xx,Xy);LB.lx=Xx;LB.ly=Xy;}
     }
   }
 }
@@ -614,7 +649,7 @@ function trace(sc,bright,geos,W,sh){
     const a=clamp(bright*r.base*Math.pow(r.I,.6),0,1);
     maxD=Math.max(maxD,r.d+Math.min(r.b,VIEWR));
     if(a>=.02)drawPart(out.beams,r,a,0,r.b,null,r.W);
-    segs++;
+    segs+=r.hs&&r.hs.kind==='grav'?.25:1; // steps through a black hole's pull are short and many, so they count for less
     if(!r.hs)continue;
     if(r.hs.kind==='screen')screenHit(out,r,a);else kids(r,stack);
   }
@@ -842,6 +877,15 @@ function drawEl(g,el,geo,px){
     case 'slit':
       for(const s of geo.prims){const A=[s.ax,s.ay],B=[s.ax+s.ex,s.ay+s.ey];g.strokeStyle='#2b3038';g.lineWidth=9*px;pathLine(g,A,B);g.strokeStyle='#59606b';g.lineWidth=4*px;pathLine(g,A,B);}
       break;
+    case 'hole':{
+      const h=el.mass,ph=(2+Math.sqrt(3))*h; // photon sphere: light here can circle the hole
+      g.setLineDash([2*px,6*px]);g.strokeStyle='rgba(255,255,255,.07)';g.lineWidth=1*px;g.beginPath();g.arc(el.x,el.y,el.reach,0,TAU);g.stroke();g.setLineDash([]);
+      g.strokeStyle='rgba(255,196,120,.16)';g.lineWidth=1*px;g.beginPath();g.arc(el.x,el.y,ph,0,TAU);g.stroke();
+      const gr=g.createRadialGradient(el.x,el.y,h*.9,el.x,el.y,h*2.2);gr.addColorStop(0,'rgba(0,0,0,.9)');gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=gr;g.beginPath();g.arc(el.x,el.y,h*2.2,0,TAU);g.fill();
+      g.fillStyle='#000';g.beginPath();g.arc(el.x,el.y,h,0,TAU);g.fill();
+      g.strokeStyle='rgba(255,210,150,.55)';g.lineWidth=1.2*px;g.stroke();
+      break;}
     case 'light':{
       const hh=geo.hh,hw=Math.max(5,el.width/2+1);
       g.save();g.translate(el.x,el.y);g.rotate(el.angle*D2R);
@@ -880,7 +924,7 @@ function drawSelection(el,geo){
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.lineCap='round';ctx.lineJoin='round';
   const S=p=>toScreen(p[0],p[1]),[kx,ky]=knobPos(el,geo),F=geo.F;
   let tail=null;
-  if(el.type==='prism'||el.type==='liquid'){
+  if(el.type==='prism'||el.type==='liquid'||el.type==='hole'){
     const [sx,sy]=toScreen(el.x,el.y);ctx.strokeStyle='rgba(255,179,64,.6)';ctx.lineWidth=1.2;ctx.setLineDash([3,5]);
     ctx.beginPath();ctx.arc(sx,sy,geo.r*scale+14,0,TAU);ctx.stroke();ctx.setLineDash([]);
   }else if(el.type==='light'){
@@ -895,6 +939,7 @@ function drawSelection(el,geo){
   if(tail){ctx.strokeStyle='rgba(255,179,64,.6)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(tail[0],tail[1]);ctx.lineTo(kx,ky);ctx.stroke();}
   if(el.type==='lens'){const hollow=el.power==='div';focusMark(F.L(0,el.f),hollow);focusMark(F.L(0,-el.f),hollow);}
   if(el.type==='curved')focusMark(F.L(0,el.f),false);
+  if(el.type==='hole')return; // a black hole looks the same from every angle, so it has no turning knob
   ctx.fillStyle='#ffb340';ctx.beginPath();ctx.arc(kx,ky,9,0,TAU);ctx.fill();
   ctx.strokeStyle='#0a0c10';ctx.lineWidth=2;ctx.beginPath();ctx.arc(kx,ky,3.5,0,TAU);ctx.stroke();
   if(drag&&drag.mode==='rot'){ctx.font='500 12px "IBM Plex Mono",ui-monospace,monospace';ctx.fillStyle='#ffb340';ctx.textAlign='left';ctx.fillText(fmtA(el.angle),kx+14,ky-12);}
@@ -1072,6 +1117,12 @@ function renderInspector(){
     case 'slit':
       h+=rangeField('f-gap','gap','Opening',0,200,1,el.gap,v=>v>0?v+' mm':'Closed');
       h+=rangeField('f-len','len','Length',40,420,1,el.len,mmF)+angle+'</div><div class="readout" id="readout"></div>';break;
+    case 'hole':
+      h+=rangeField('f-mass','mass','Horizon',3,30,.5,el.mass,v=>(+v).toFixed(1)+' mm');
+      h+=rangeField('f-reach','reach','Pull reaches',120,640,10,el.reach,mmF);
+      h+=selectField('f-hmat','mat','Colors bend like',[['none','Real gravity (all alike)']].concat(MAT_OPTS),el.mat);
+      h+=`<div id="wrap-boost">${rangeField('f-boost','boost','Rainbow boost',1,6,.5,el.boost,boostF)}</div>`;
+      h+='</div><div class="readout" id="readout"></div>';break;
     case 'screen':
       h+=`</div><div class="readout top" id="readout"></div><div class="fields">`;
       h+=rangeField('f-len','len','Length',60,620,1,el.len,mmF)+angle+'</div>';break;
@@ -1122,6 +1173,7 @@ function applyVis(){
   if($('f-snd-note')){sndNote(true);drawBandMeter();}
   const t=$('insp-title');if(t)t.textContent=nameOf(el);
   if(el.type==='light'){resNote(true);const wl=$('wrap-laser');if(wl)wl.hidden=el.spectrum!=='laser';const aw=$('wrap-aw');if(aw)aw.hidden=!el.aWave;const as=$('wrap-asw');if(as)as.hidden=!el.aSway;const an=$('f-ac-note');if(an)an.hidden=el.spectrum==='laser';}
+  if(el.type==='hole')$('wrap-boost').hidden=el.mat==='none';
   if(el.type==='lens'){const ideal=el.mat==='ideal';$('wrap-form').hidden=ideal;$('wrap-boost').hidden=ideal;}
   if(el.type==='filter'){$('wrap-bw').hidden=el.pass!=='band';$('f-lam-l').textContent=el.pass==='band'?'Center':'Cutoff';}
 }
@@ -1207,6 +1259,13 @@ function updateReadout(){
       box.innerHTML=el.gap>0
         ?`<div>Opening <b>${Math.round(Math.min(el.gap,el.len-10))} mm</b>. A narrow slit keeps a spectrum’s colors from overlapping, which is why spectroscopes start with one.</div>`
         :'<div>Absorbs any light that hits it. Handy for stopping stray beams.</div>';break;
+    case 'hole':{
+      const b=shadowOf(el),dv=l=>{const d=deflectOf(el,150,l);return d==null?'—':Math.abs(d).toFixed(1);};
+      let t=`<div>Gravity bends passing light toward the hole, more the closer it passes. A ray aimed within about <b>${Math.round(b)} mm</b> of the center falls in, so the hole casts a dark shadow far wider than its <b>${(+el.mass).toFixed(1)} mm</b> horizon. Light skimming the faint ring can loop around before escaping.</div>`;
+      if(el.mat==='none')t+=`<div>Real gravity bends every color by the same angle, about <b>${dv(550)}°</b> for light passing 150 mm out. Pick a material to give it that material’s rainbow.</div>`;
+      else t+=`<div>Here gravity borrows the color spread of ${MATS[el.mat].name.toLowerCase()}${el.boost>1?`, exaggerated ${el.boost}×`:''}. Light passing 150 mm out bends about <b>${dv(400)}°</b> at 400 nm, <b>${dv(550)}°</b> at 550 and <b>${dv(700)}°</b> at 700, so violet swings in tighter than red. Real gravity bends every color alike.</div>`;
+      t+='<div>Light only feels the pull inside the dashed circle, and it fades out toward the edge.</div>';
+      box.innerHTML=t;break;}
     case 'screen':
       box.innerHTML='<canvas class="strip" id="strip" aria-label="Light landing on this screen"></canvas><div>The screen unrolled: what lands on it, end to end. The right edge is the knob end.</div>';
       drawStrip();break;
@@ -1240,6 +1299,7 @@ function pick(x,y){
   for(let i=scene.length-1;i>=0;i--){
     const el=scene[i],g=geomOf(el);
     if(el.type==='light'){const F=g.F,lx=(x-el.x)*F.ux+(y-el.y)*F.uy,ly=(x-el.x)*F.vx+(y-el.y)*F.vy;if(Math.abs(lx)<22+tol*.5&&Math.abs(ly)<g.hh/2+tol*.5)return el;}
+    else if(g.hole){if(Math.hypot(x-el.x,y-el.y)<g.r+tol)return el;}
     else if(g.outline){if(inPoly(x,y,g.outline)||polyDist(x,y,g.outline,true)<tol*.6)return el;if(g.ends&&segDist(x,y,g.ends[0][0],g.ends[0][1],g.ends[1][0],g.ends[1][1])<tol)return el;}
     else if(g.curve){if(polyDist(x,y,g.curve,false)<tol)return el;}
     else if(g.ends){if(segDist(x,y,g.ends[0][0],g.ends[0][1],g.ends[1][0],g.ends[1][1])<tol)return el;}
@@ -1247,7 +1307,7 @@ function pick(x,y){
   return null;
 }
 function evPt(e){const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
-function onKnob(sx,sy){if(!sel)return false;const k=knobPos(sel,geomOf(sel));return Math.hypot(sx-k[0],sy-k[1])<24;}
+function onKnob(sx,sy){if(!sel||sel.type==='hole')return false;const k=knobPos(sel,geomOf(sel));return Math.hypot(sx-k[0],sy-k[1])<24;}
 canvas.addEventListener('pointerdown',e=>{
   const [sx,sy]=evPt(e);
   if(onKnob(sx,sy)){drag={mode:'rot',el:sel};canvas.setPointerCapture(e.pointerId);e.preventDefault();request();return;}
@@ -1314,6 +1374,7 @@ const PRESETS=[
     return [mk('light',{x:-270,y:Math.round(ent[1]*10)/10,width:12}),p,mk('screen',{x:ex[0]+Math.cos(exA*D2R)*190,y:ex[1]+Math.sin(exA*D2R)*190,angle:exA+90,len:140})];}},
   {name:'Newton’s recombination',blurb:'A second prism turns the rainbow back into white.',build:()=>[mk('light',{x:-281,y:66,angle:-33.2}),mk('prism',{x:-110,y:0}),mk('prism',{x:30,y:0,angle:180}),mk('screen',{x:235,y:-88,angle:56.8,len:160})]},
   {name:'Periscope to prism',blurb:'Two mirrors steer the beam into a prism.',build:()=>[mk('light',{x:-260,y:200}),mk('mirror',{x:220,y:200,angle:-45,len:110}),mk('mirror',{x:220,y:-200,angle:45,len:110}),mk('prism',{x:-80,y:-161.4,angle:-33.2}),mk('screen',{x:-211,y:42.5,angle:23.6,len:220})]},
+  {name:'Black hole',blurb:'Gravity bends white light around a hole, violet tighter than red.',bright:1.4,build:()=>[mk('light',{x:-300,y:-95,width:130}),mk('hole',{x:0,y:0,mass:8,boost:3}),mk('screen',{x:270,y:0,angle:90,len:520})]},
   {name:'Diamond fire',blurb:'High index and strong dispersion make the sparkle.',build:()=>[mk('light',{x:-240,y:0,width:24}),mk('prism',{x:20,y:0,angle:12,size:180,mat:'diamond'})]},
   {name:'Liquid lens',blurb:'A flowing blob of water throws moving caustics.',build:()=>[mk('light',{x:-282,y:0,width:150}),mk('liquid',{x:-30,y:0,size:230,mat:'water',wob:.6,flow:.6}),mk('screen',{x:250,y:0,len:340})]},
   {name:'Bass-tuned prism',blurb:'Start Sound and play music: bass bends and spreads the rainbow.',build:()=>[mk('light',{x:-244,y:79,angle:-33.2}),mk('prism',{x:-22,y:-20,snd:true,sndLo:40,sndHi:160,sndN:.18,sndBoost:4,sndSpin:6}),mk('screen',{x:220,y:95,angle:123.2,len:230})]}
