@@ -92,6 +92,7 @@ body{margin:0;background:radial-gradient(ellipse 90% 70% at 50% 40%, #4a4a86, #2
     <button id="pause" class="btn" type="button" aria-pressed="false">Pause</button>
     <button id="labelsBtn" class="btn" type="button" aria-pressed="true">Names</button>
     <button id="orbitsBtn" class="btn" type="button" aria-pressed="true">Orbits</button>
+    <button id="scaleBtn" class="btn" type="button" aria-pressed="false">To scale</button>
     <button id="reset" class="btn" type="button">Reset view</button>
   </div>
 </section>
@@ -112,21 +113,26 @@ window.LO = (() => {
     { key: 'uranus',  name: 'Uranus',  color: '#bdf0e4', glow: '#a6e3cc', radius: 4,   au: 19.2,  year: 84,    day: -.72,  tilt: 98,   fact: 'Tipped on its side, so it rolls around the Sun.' },
     { key: 'neptune', name: 'Neptune', color: '#b3bcff', glow: '#a9b4ff', radius: 3.9, au: 30.1,  year: 164.8, day: .67,   tilt: 28,   fact: 'The far edge. One trip round the Sun takes 165 years.' },
   ];
-  // model scale: planets shrink by square root and distances by a log, so the small ones stay visible and the big ones still look big
+  // two scales. Cute: planets shrink by square root and distances by a log, so the small ones stay visible and the big ones still look big.
+  // True: planet sizes and orbit distances are in real proportion to each other (Neptune at 110 units); only the Sun is shrunk, since at
+  // true size (109 Earths wide) it would swallow Mercury's orbit on any screen.
   for (const b of BODIES) {
-    b.r = b.key === 'sun' ? 2.3 : .17 + .3 * Math.sqrt(b.radius);
-    b.d = b.au ? 4.3 + 2.55 * Math.log(1 + 4 * b.au) : 0;
+    b.r0 = b.key === 'sun' ? 2.3 : .17 + .3 * Math.sqrt(b.radius);
+    b.d0 = b.au ? 4.3 + 2.55 * Math.log(1 + 4 * b.au) : 0;
+    b.r1 = b.key === 'sun' ? .8 : .085 * b.radius;
+    b.d1 = b.au * 110 / 30.1;
+    b.r = b.r0; b.d = b.d0;
   }
-  const speedIn = $('speed'), speedVal = $('speedVal'), pauseBtn = $('pause'), labelsBtn = $('labelsBtn'), orbitsBtn = $('orbitsBtn'), resetBtn = $('reset');
+  const speedIn = $('speed'), speedVal = $('speedVal'), pauseBtn = $('pause'), labelsBtn = $('labelsBtn'), orbitsBtn = $('orbitsBtn'), scaleBtn = $('scaleBtn'), resetBtn = $('reset');
   const cardDot = $('cardDot'), cardName = $('cardName'), cardText = $('cardText'), clockEl = $('clock');
   const LO = {
-    BODIES, paused: false, labels: true, orbits: true, yearSec: 12, follow: null, reset: 0,
+    BODIES, paused: false, labels: true, orbits: true, scale: false, yearSec: 12, follow: null, reset: 0,
     years: 0,
     showCard(b) {
       if (!b) { cardDot.style.setProperty('--c', '#ffd3b0'); cardDot.style.background = '#ffe7c4'; cardName.textContent = 'The Sun'; cardText.innerHTML = 'Drag to spin the model, pinch to zoom, and tap a planet to follow it.'; return; }
       cardDot.style.setProperty('--c', b.glow); cardDot.style.background = b.color; cardName.textContent = b.name;
       const yr = b.year < 1 ? Math.round(b.year * 365) + ' days' : (b.year % 1 ? b.year.toFixed(1) : b.year) + ' years';
-      cardText.innerHTML = b.key === 'sun' ? b.fact : b.key === 'earth' ? b.fact + ' The yardstick: <b>1 AU</b> from the Sun, <b>1 year</b> to go round.' : b.fact + ' <b>' + (b.radius >= 1 ? b.radius + '× Earth\'s width' : Math.round(b.radius * 100) + '% of Earth\'s width') + '</b>, <b>' + b.au + ' AU</b> out, a year of <b>' + yr + '</b>.';
+      cardText.innerHTML = b.key === 'sun' ? (LO.scale ? b.fact + ' <b>Shown 9× too small</b> here: at true size it would reach past Mercury on this screen.' : b.fact) : b.key === 'earth' ? b.fact + ' The yardstick: <b>1 AU</b> from the Sun, <b>1 year</b> to go round.' : b.fact + ' <b>' + (b.radius >= 1 ? b.radius + '× Earth\'s width' : Math.round(b.radius * 100) + '% of Earth\'s width') + '</b>, <b>' + b.au + ' AU</b> out, a year of <b>' + yr + '</b>.';
     },
     tickClock() { const y = Math.floor(LO.years); clockEl.textContent = y === 1 ? 'Year 1' : 'Year ' + y; },
   };
@@ -137,22 +143,28 @@ window.LO = (() => {
     if (!quiet) save();
   }
   const KEY = 'little-orrery:prefs';
-  function save() { try { localStorage.setItem(KEY, JSON.stringify({ speed: +speedIn.value, labels: LO.labels, orbits: LO.orbits })); } catch (_) {} }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ speed: +speedIn.value, labels: LO.labels, orbits: LO.orbits, scale: LO.scale })); } catch (_) {} }
   function load() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (!s) return;
       if (typeof s.speed === 'number') speedIn.value = s.speed;
       if (typeof s.labels === 'boolean') LO.labels = s.labels;
       if (typeof s.orbits === 'boolean') LO.orbits = s.orbits;
+      if (typeof s.scale === 'boolean') LO.scale = s.scale;
     } catch (_) {}
   }
   load();
   setSpeed(+speedIn.value, true);
-  labelsBtn.setAttribute('aria-pressed', String(LO.labels)); orbitsBtn.setAttribute('aria-pressed', String(LO.orbits));
+  labelsBtn.setAttribute('aria-pressed', String(LO.labels)); orbitsBtn.setAttribute('aria-pressed', String(LO.orbits)); scaleBtn.setAttribute('aria-pressed', String(LO.scale));
   speedIn.addEventListener('input', () => setSpeed(+speedIn.value));
   pauseBtn.addEventListener('click', () => { LO.paused = !LO.paused; pauseBtn.textContent = LO.paused ? 'Play' : 'Pause'; pauseBtn.setAttribute('aria-pressed', String(LO.paused)); });
   labelsBtn.addEventListener('click', () => { LO.labels = !LO.labels; labelsBtn.setAttribute('aria-pressed', String(LO.labels)); save(); });
   orbitsBtn.addEventListener('click', () => { LO.orbits = !LO.orbits; orbitsBtn.setAttribute('aria-pressed', String(LO.orbits)); save(); });
+  scaleBtn.addEventListener('click', () => {
+    LO.scale = !LO.scale; scaleBtn.setAttribute('aria-pressed', String(LO.scale)); save();
+    if (!LO.follow) { cardName.textContent = LO.scale ? 'To scale' : 'Cute scale'; cardText.innerHTML = LO.scale ? 'Real proportions: Jupiter is 11 Earths wide and Neptune is 77 times farther out than Mercury. Zoom in to find the small ones. Only the Sun is shrunk.' : 'Sizes and distances squeezed so every planet stays in view.'; }
+    else LO.showCard(LO.follow);
+  });
   resetBtn.addEventListener('click', () => { LO.follow = null; LO.reset++; LO.showCard(null); });
   document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); pauseBtn.click(); } });
   const dock = $('dock');
@@ -190,10 +202,10 @@ try {
   const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gl'), antialias: false, powerPreference: 'high-performance' });
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#262649');
-  scene.fog = new THREE.FogExp2('#3a3a6e', .0022);
+  scene.background = new THREE.Color('#1b1a3c');
   let seed = 11;
   const rand = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 
   /* ---------- clay surface: soft lumps and thumbprints, turned into a tiling normal map (as in Grainfall) ---------- */
   function clayNormalTex() {
@@ -224,12 +236,12 @@ try {
   const NT = clayNormalTex();
   function clay(color, o = {}) {
     const n = NT.clone(); n.repeat.set(o.rep || 1, o.rep || 1); n.needsUpdate = true;
-    return new THREE.MeshStandardMaterial({ color, map: o.map || null, roughness: o.rough ?? .72, metalness: 0, normalMap: n, normalScale: new THREE.Vector2(o.bump ?? .5, o.bump ?? .5), emissive: o.emissive || '#000000', emissiveIntensity: o.ei ?? 1 });
+    return new THREE.MeshStandardMaterial({ color, map: o.map || null, roughness: o.rough ?? .72, metalness: 0, normalMap: n, normalScale: new THREE.Vector2(o.bump ?? .5, o.bump ?? .5), emissive: o.emissive || '#000000', emissiveIntensity: o.ei ?? 1, transparent: !!o.alpha, alphaMap: o.alpha || null, side: o.side || THREE.FrontSide, depthWrite: !o.alpha });
   }
   /* painted clay: a canvas texture of soft blotches in a second color, for continents, bands and polar caps */
-  function paintTex(base, fn) {
-    const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d');
-    g.fillStyle = base; g.fillRect(0, 0, 512, 256); fn(g);
+  function paintTex(base, fn, w = 512, h = 256) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+    g.fillStyle = base; g.fillRect(0, 0, w, h); fn(g, w, h);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
   }
   const blotches = (g, col, n, rmin, rmax, yMin = 0, yMax = 256) => {
@@ -252,112 +264,225 @@ try {
     mercury: paintTex('#cfc6d8', g => blotches(g, '#bfb4cc', 24, 6, 18)),
     sun: paintTex('#ffe7c4', g => blotches(g, '#fff1d8', 20, 20, 50)),
   };
+  // Saturn's rings as a flat disc: the real bands (C, B, the Cassini gap, A) from 1.24 to 2.27 planet radii, painted and cut out with an alpha map
+  const ringTex = (bandsDef) => {
+    const w = 256;
+    const col = paintTex('#000000', (g) => { for (const [a, b, c] of bandsDef) { g.fillStyle = c; g.fillRect(a * w, 0, (b - a) * w, 8); } }, w, 8);
+    const alpha = paintTex('#000000', (g) => { for (const [a, b, c, al] of bandsDef) { g.fillStyle = `rgba(255,255,255,${al})`; g.fillRect(a * w, 0, (b - a) * w, 8); } }, w, 8);
+    alpha.colorSpace = THREE.NoColorSpace;
+    return { col, alpha };
+  };
+  // flat ring geometry whose u runs from the inner edge (0) to the outer edge (1), so a 1-D texture paints the bands
+  function ringGeo(inner, outer, seg = 96) {
+    const g = new THREE.RingGeometry(inner, outer, seg, 1);
+    const uv = g.attributes.uv, pos = g.attributes.position;
+    for (let i = 0; i < uv.count; i++) { const r = Math.hypot(pos.getX(i), pos.getY(i)); uv.setXY(i, (r - inner) / (outer - inner), .5); }
+    return g;
+  }
 
-  /* ---------- lights: a soft pastel fill from above, and the Sun as a warm point light ---------- */
-  scene.add(new THREE.HemisphereLight('#e8e4ff', '#5a5490', 1.4));
-  const fill = new THREE.DirectionalLight('#ffffff', .55); fill.position.set(-10, 20, 14); scene.add(fill);
+  /* ---------- lights: a cool fill from the sky, and the Sun as a warm point light ---------- */
+  scene.add(new THREE.HemisphereLight('#dcd8ff', '#3b3670', 1.1));
+  const fill = new THREE.DirectionalLight('#ffffff', .4); fill.position.set(-10, 20, 14); scene.add(fill);
   const sunLight = new THREE.PointLight('#ffd9b0', 60, 0, 1.6); scene.add(sunLight);
 
-  /* ---------- the model: a rounded clay plinth with grooved orbit rings, planets on arms of nothing ---------- */
-  const S = LO.BODIES.find(b => b.key === 'sun'), PLANETS = LO.BODIES.filter(b => b.key !== 'sun');
-  const outer = PLANETS[PLANETS.length - 1].d + 2.2;
-  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(outer, outer + .6, 1.2, 96, 1), clay('#8f88d4', { rep: 3, bump: .12 }));
-  plinth.position.y = -.6; scene.add(plinth);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(outer + .05, .42, 20, 120), clay('#a8a1e8', { rep: 8, bump: .15 }));
-  rim.rotation.x = Math.PI / 2; rim.position.y = .0; scene.add(rim);
-  const orbitMat = clay('#c9c0ff', { rep: 10, bump: .25 });
-  const orbitRings = PLANETS.map(b => { const m = new THREE.Mesh(new THREE.TorusGeometry(b.d, .09, 8, 160), orbitMat); m.rotation.x = Math.PI / 2; m.position.y = .02; scene.add(m); return m; });
+  /* ---------- the sky: a big dome painted with pastel nebula clouds, stars at three depths, and a few haze clouds near the model ---------- */
+  const DOME = 700;
+  {
+    const sky = paintTex('#1b1a3c', (g, w, h) => {
+      const cols = ['rgba(120,96,210,.16)', 'rgba(255,170,190,.11)', 'rgba(120,200,220,.11)', 'rgba(200,150,255,.12)', 'rgba(255,210,170,.08)'];
+      for (let i = 0; i < 70; i++) {
+        const x = rand() * w, y = h * (.15 + rand() * .7), r = 80 + rand() * 260;
+        const gr = g.createRadialGradient(x, y, 0, x, y, r); const c = cols[(rand() * cols.length) | 0];
+        gr.addColorStop(0, c); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+      // a soft band across the middle, like a far-off milky way
+      const band = g.createLinearGradient(0, h * .35, 0, h * .65); band.addColorStop(0, 'rgba(230,220,255,0)'); band.addColorStop(.5, 'rgba(230,220,255,.09)'); band.addColorStop(1, 'rgba(230,220,255,0)');
+      g.fillStyle = band; g.fillRect(0, 0, w, h);
+      g.fillStyle = 'rgba(255,255,255,.5)'; for (let i = 0; i < 900; i++) { const r = rand() < .1 ? 1.6 : .9; g.beginPath(); g.arc(rand() * w, rand() * h, r, 0, 6.3); g.fill(); }
+    }, 2048, 1024);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(DOME, 48, 32), new THREE.MeshBasicMaterial({ map: sky, side: THREE.BackSide, fog: false }));
+    dome.rotation.y = 1.2; scene.add(dome);
+  }
+  const starMat = (size) => new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uScale: { value: 300 }, uSize: { value: size } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: 'attribute vec3 col; attribute float sz; uniform float uTime, uScale, uSize; varying vec3 vC; varying float vA; void main(){ vC=col; vec4 mv=modelViewMatrix*vec4(position,1.0); vA=0.55+0.45*sin(uTime*(0.6+sz)+position.x*3.0); gl_PointSize=min(64.0, sz*uSize*uScale/-mv.z); gl_Position=projectionMatrix*mv; }',
+    fragmentShader: 'varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5)*2.0; float a=smoothstep(1.0,0.15,d); gl_FragColor=vec4(vC*a*vA,1.0); }',
+  });
+  const starLayers = [];
+  function stars(n, rMin, rMax, size, bright) {
+    const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), sz = new Float32Array(n);
+    const pal = [[1, .93, .85], [.78, .9, 1], [.9, .82, 1], [.8, 1, .92], [1, .85, .9]];
+    for (let i = 0; i < n; i++) {
+      const th = rand() * 6.283, ph = Math.acos(rand() * 2 - 1), r = rMin + rand() * (rMax - rMin);
+      pos[i * 3] = r * Math.sin(ph) * Math.cos(th); pos[i * 3 + 1] = r * Math.cos(ph); pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+      const c = pal[(rand() * pal.length) | 0]; col[i * 3] = c[0] * bright; col[i * 3 + 1] = c[1] * bright; col[i * 3 + 2] = c[2] * bright; sz[i] = .6 + rand() * 1.8;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('col', new THREE.BufferAttribute(col, 3)); g.setAttribute('sz', new THREE.BufferAttribute(sz, 1));
+    const m = starMat(size), p = new THREE.Points(g, m); p.frustumCulled = false; scene.add(p); starLayers.push(m); return p;
+  }
+  stars(1400, 380, 640, 1.0, .9);   // far
+  stars(500, 140, 320, .5, .75);    // middle
+  stars(260, 30, 120, .22, .6);     // near, drifting past as you orbit
+  const softTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const r = g.createRadialGradient(64, 64, 0, 64, 64, 64); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.5, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  // haze: big, faint, additive puffs scattered through the model's space, so the view has depth
+  const haze = [];
+  {
+    const cols = ['#9c8ce0', '#e9a8c6', '#9fd6e6', '#c9a8ff', '#ffd3b0'];
+    for (let i = 0; i < 34; i++) {
+      const m = new THREE.SpriteMaterial({ map: softTex, color: cols[(rand() * cols.length) | 0], transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .035 + rand() * .035 });
+      const sp = new THREE.Sprite(m); const r = 8 + rand() * 40, th = rand() * 6.283;
+      sp.position.set(Math.cos(th) * r, (rand() - .4) * 14, Math.sin(th) * r); sp.scale.setScalar(16 + rand() * 30); sp.userData.base = sp.position.clone(); sp.userData.ph = rand() * 6.3;
+      scene.add(sp); haze.push(sp);
+    }
+  }
 
+  /* ---------- the Sun, a warm clay lamp with a halo ---------- */
+  const S = LO.BODIES.find(b => b.key === 'sun'), PLANETS = LO.BODIES.filter(b => b.key !== 'sun');
   const sphere = new THREE.SphereGeometry(1, 48, 32);
   const sun = new THREE.Mesh(sphere, clay('#ffe7c4', { map: TEX.sun, rough: .6, bump: .35, emissive: '#ffb57a', ei: .55 }));
-  sun.scale.setScalar(S.r); sun.position.y = S.r * .6; scene.add(sun);
-  sunLight.position.copy(sun.position);
-  // a soft halo sprite behind the sun so the glow reads even where bloom is turned off
-  const haloTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const r = g.createRadialGradient(64, 64, 10, 64, 64, 64); r.addColorStop(0, 'rgba(255,225,190,.9)'); r.addColorStop(.4, 'rgba(255,205,160,.35)'); r.addColorStop(1, 'rgba(255,200,160,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .9 }));
-  halo.scale.setScalar(S.r * 3.4); halo.position.copy(sun.position); scene.add(halo);
+  scene.add(sun);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: '#ffd9b8', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .5 }));
+  scene.add(halo);
 
+  /* ---------- orbit rings: thin glowing clay hoops floating in space, rebuilt when the scale changes ---------- */
+  const orbitMat = new THREE.MeshStandardMaterial({ color: '#b9b0ff', roughness: .8, emissive: '#7a6fd0', emissiveIntensity: .55 });
+  const orbitRings = PLANETS.map(() => { const m = new THREE.Mesh(new THREE.TorusGeometry(1, .05, 6, 200), orbitMat); m.rotation.x = Math.PI / 2; scene.add(m); return m; });
+  let ringsBuiltAt = -1;
+  function buildRings() {
+    orbitRings.forEach((m, i) => { m.geometry.dispose(); m.geometry = new THREE.TorusGeometry(PLANETS[i].d, Math.max(.035, PLANETS[i].d * .003), 6, 240); });
+  }
+
+  /* ---------- the planets: each one shaped like itself (flattened giants, real ring proportions, the Moon at its real size) ---------- */
+  const SAT = ringTex([[0, .22, '#f3dfb0', .35], [.22, .62, '#fff0c8', .9], [.62, .67, '#000000', 0], [.67, 1, '#ffe9b6', .7]]);
+  const URA = ringTex([[0, .55, '#000000', 0], [.55, .62, '#d8f7ef', .5], [.75, .8, '#d8f7ef', .35], [.9, 1, '#e8fbf5', .55]]);
   const bodies = [];
   for (const b of PLANETS) {
     const pivot = new THREE.Group(); scene.add(pivot);
     const tiltG = new THREE.Group(); tiltG.rotation.z = b.tilt * Math.PI / 180; pivot.add(tiltG);
     const mesh = new THREE.Mesh(sphere, clay(b.color, { map: TEX[b.key], bump: .45, rep: 1 }));
-    mesh.scale.setScalar(b.r); tiltG.add(mesh);
-    tiltG.position.set(b.d, b.r + .55, 0);
+    const flat = { jupiter: .935, saturn: .9, uranus: .977, neptune: .983 }[b.key] || 1; // real oblateness, so the gas giants are a little squashed
+    mesh.userData.flat = flat; tiltG.add(mesh);
     const extra = {};
     if (b.key === 'saturn') {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(b.r * 1.75, b.r * .28, 10, 72), clay('#ffe3a8', { rep: 4, bump: .4 }));
-      ring.scale.y = .3; ring.rotation.x = Math.PI / 2; tiltG.add(ring);
-      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(b.r * 2.25, b.r * .14, 10, 80), clay('#fff0cc', { rep: 4, bump: .4 }));
-      ring2.scale.y = .3; ring2.rotation.x = Math.PI / 2; tiltG.add(ring2);
+      const ring = new THREE.Mesh(ringGeo(1.24, 2.27), clay('#ffffff', { map: SAT.col, alpha: SAT.alpha, rough: .85, bump: .2, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; tiltG.add(ring); extra.ring = ring;
     }
     if (b.key === 'uranus') {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(b.r * 1.9, b.r * .07, 8, 72), clay('#d8f7ef', { rep: 4, bump: .4 }));
-      ring.rotation.x = Math.PI / 2; tiltG.add(ring);
+      const ring = new THREE.Mesh(ringGeo(1.6, 2.05), clay('#ffffff', { map: URA.col, alpha: URA.alpha, rough: .85, bump: .2, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; tiltG.add(ring); extra.ring = ring;
     }
     if (b.key === 'earth') {
-      const mp = new THREE.Group(); tiltG.add(mp);
-      const moon = new THREE.Mesh(sphere, clay('#e6e2f2', { map: TEX.mercury, bump: .5 })); moon.scale.setScalar(b.r * .27); moon.position.x = b.r * 2.1; mp.add(moon);
-      extra.moonPivot = mp;
+      const mp = new THREE.Group(); mp.rotation.x = 5.1 * Math.PI / 180; tiltG.add(mp);
+      const moon = new THREE.Mesh(sphere, clay('#e6e2f2', { map: TEX.mercury, bump: .5 })); mp.add(moon);
+      extra.moonPivot = mp; extra.moon = moon;
     }
     pivot.rotation.y = rand() * Math.PI * 2;
     bodies.push({ b, pivot, tiltG, mesh, ...extra });
   }
-
-  /* ---------- stars: tiny pastel points far out, and a few bigger blurry ones near the camera ---------- */
-  {
-    const n = 900, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), sz = new Float32Array(n);
-    const pal = [[1, .93, .85], [.78, .9, 1], [.9, .82, 1], [.8, 1, .92]];
-    for (let i = 0; i < n; i++) {
-      const th = rand() * 6.283, ph = Math.acos(rand() * 1.6 - .6), r = 90 + rand() * 60;
-      pos[i * 3] = r * Math.sin(ph) * Math.cos(th); pos[i * 3 + 1] = r * Math.cos(ph); pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
-      const c = pal[(rand() * pal.length) | 0]; col.set(c, i * 3); sz[i] = .6 + rand() * 1.8;
+  // lay the model out for the current scale: 0 is the cute squeeze, 1 is true proportion, in between while it morphs
+  let scaleE = LO.scale ? 1 : 0, outer = 1;
+  function layout(e) {
+    const k = e * e * (3 - 2 * e);
+    for (const b of LO.BODIES) { b.r = lerp(b.r0, b.r1, k); b.d = lerp(b.d0, b.d1, k); }
+    sun.scale.setScalar(S.r); sun.position.y = 0; sunLight.position.copy(sun.position);
+    halo.position.copy(sun.position); halo.scale.setScalar(S.r * 4.2);
+    for (const x of bodies) {
+      const r = x.b.r; x.mesh.scale.set(r, r * x.mesh.userData.flat, r);
+      x.tiltG.position.set(x.b.d, 0, 0);
+      if (x.ring) x.ring.scale.setScalar(r);
+      if (x.moon) { x.moon.scale.setScalar(r * .27); x.moon.position.x = lerp(r * 2.3, r * 60 * .35, k); } // the Moon is 60 Earth radii out; true scale shows a third of that so it stays in the same shot
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('col', new THREE.BufferAttribute(col, 3)); g.setAttribute('sz', new THREE.BufferAttribute(sz, 1));
-    const m = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uScale: { value: 300 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      vertexShader: 'attribute vec3 col; attribute float sz; uniform float uTime, uScale; varying vec3 vC; varying float vA; void main(){ vC=col; vec4 mv=modelViewMatrix*vec4(position,1.0); vA=0.55+0.45*sin(uTime*(0.6+sz)+position.x*3.0); gl_PointSize=sz*uScale/-mv.z*0.9; gl_Position=projectionMatrix*mv; }',
-      fragmentShader: 'varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5)*2.0; float a=smoothstep(1.0,0.2,d); gl_FragColor=vec4(vC*a*vA*0.9,1.0); }',
-    });
-    var stars = new THREE.Points(g, m); stars.frustumCulled = false; scene.add(stars);
-    var starU = m.uniforms;
+    outer = PLANETS[PLANETS.length - 1].d + 2;
+    buildRings();
   }
+  layout(scaleE);
+
+  /* ---------- meteors: little streaks that cross the sky now and then, and a belt of tumbling clay pebbles between Mars and Jupiter ---------- */
+  const meteors = [];
+  {
+    const geo = new THREE.CylinderGeometry(.06, .012, 1, 6, 1, true); geo.translate(0, -.5, 0); geo.rotateX(Math.PI / 2); // tip at the origin, tail along -z
+    const cnt = geo.attributes.position.count, alpha = new Float32Array(cnt);
+    for (let i = 0; i < cnt; i++) alpha[i] = 1 - clamp(-geo.attributes.position.getZ(i), 0, 1);
+    geo.setAttribute('al', new THREE.BufferAttribute(alpha, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { color: { value: new THREE.Color('#fff2dc') } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      vertexShader: 'attribute float al; varying float vA; void main(){ vA=al; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: 'uniform vec3 color; varying float vA; void main(){ gl_FragColor=vec4(color*vA*vA*1.6,1.0); }',
+    });
+    const head = new THREE.SpriteMaterial({ map: softTex, color: '#fff6e8', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    for (let i = 0; i < 7; i++) {
+      const m = new THREE.Mesh(geo, mat), h = new THREE.Sprite(head); h.scale.setScalar(1.2); m.add(h);
+      m.visible = false; scene.add(m); meteors.push({ m, t: 0, life: 0, wait: 1 + rand() * 6, vel: new THREE.Vector3(), len: 1 });
+    }
+  }
+  function spawnMeteor(mt, dist) {
+    const r = dist * (.9 + rand() * .9), th = rand() * 6.283, ph = Math.acos(rand() * 1.4 - .4);
+    mt.m.position.set(r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th));
+    mt.vel.set(rand() - .5, -(.2 + rand() * .6), rand() - .5).normalize().multiplyScalar(dist * (.25 + rand() * .35));
+    mt.len = dist * (.08 + rand() * .1); mt.life = 1.2 + rand() * 1.4; mt.t = 0; mt.m.visible = true;
+    mt.m.lookAt(mt.m.position.clone().add(mt.vel)); mt.m.scale.set(1, 1, mt.len);
+  }
+  const belt = (() => {
+    const n = 140, g = new THREE.DodecahedronGeometry(1, 0), m = new THREE.InstancedMesh(g, clay('#a79dc4', { rough: .95, bump: .6 }), n);
+    const M = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), s = new THREE.Vector3();
+    const rocks = []; for (let i = 0; i < n; i++) rocks.push({ a: rand() * 6.283, f: rand(), y: (rand() - .5) * .12, sz: .03 + rand() * .05, spin: rand() * 6.3, sp: (rand() - .5) * 2, e });
+    // the real belt sits between 2.2 and 3.3 AU; in the cute squeeze that lands between Mars and Jupiter
+    m.update = (yrs, dIn, dOut) => {
+      for (let i = 0; i < n; i++) {
+        const k = rocks[i], d = lerp(dIn, dOut, k.f), ang = k.a + yrs * 6.283 / 4.6;
+        v.set(Math.cos(ang) * d, k.y * d, Math.sin(ang) * d); e.set(k.spin + yrs * k.sp, k.spin * 2, 0); q.setFromEuler(e);
+        const sz = k.sz * lerp(1, .5, scaleE); s.set(sz, sz * .8, sz * 1.2);
+        M.compose(v, q, s); m.setMatrixAt(i, M);
+      }
+      m.instanceMatrix.needsUpdate = true;
+    };
+    scene.add(m); return m;
+  })();
 
   /* ---------- camera: orbit with one finger, zoom with two, follow a planet when tapped ---------- */
-  const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
-  const cam = new THREE.PerspectiveCamera(36, 1, .1, 400);
-  const view = { yaw: .7, pitch: .62, dist: 80, tYaw: .7, tPitch: .62, tDist: 80, auto: true };
-  const HOME = { yaw: .7, pitch: .62, dist: 80 };
+  const cam = new THREE.PerspectiveCamera(36, 1, .1, 2000);
+  const view = { yaw: .7, pitch: .5, dist: 80, tYaw: .7, tPitch: .5, tDist: 80, auto: true };
+  const HOME = { yaw: .7, pitch: .5, dist: 80 };
   let vw = 1, vh = 1, avail = 1;
   const target = new THREE.Vector3(), tgtGoal = new THREE.Vector3(), tmp = new THREE.Vector3();
   let lastReset = LO.reset, followE = 0;
+  function homeDist() { return .98 * outer / (Math.tan(18 * Math.PI / 180) * Math.min(avail, vw) / vh); }
   function placeCamera(now, dtc) {
-    if (LO.reset !== lastReset) { lastReset = LO.reset; view.tYaw = HOME.yaw; view.tPitch = HOME.pitch; view.tDist = HOME.dist; view.auto = true; }
+    if (LO.reset !== lastReset) { lastReset = LO.reset; view.tYaw = HOME.yaw; view.tPitch = HOME.pitch; view.tDist = homeDist(); view.auto = true; }
     const k = reduce ? 1 : 1 - Math.exp(-dtc / .28);
     if (view.auto && !reduce) view.tYaw += dtc * .05;
     view.yaw += (view.tYaw - view.yaw) * k; view.pitch += (view.tPitch - view.pitch) * k; view.dist += (view.tDist - view.dist) * k;
     const f = LO.follow ? bodies.find(x => x.b === LO.follow) : null;
     followE += ((f ? 1 : 0) - followE) * k;
-    if (f) { f.tiltG.getWorldPosition(tgtGoal); } else tgtGoal.set(0, 1.2, 0);
+    if (f) { f.tiltG.getWorldPosition(tgtGoal); } else tgtGoal.set(0, 0, 0);
     target.lerp(tgtGoal, f ? Math.min(1, k * 1.5) : k);
-    const d = f ? lerp(view.dist, f.b.r * 7 + 2.5, followE) : view.dist;
+    const d = f ? lerp(view.dist, f.b.r * 7 + 1.2, followE) : view.dist;
     cam.position.set(target.x + d * Math.cos(view.pitch) * Math.sin(view.yaw), target.y + d * Math.sin(view.pitch), target.z + d * Math.cos(view.pitch) * Math.cos(view.yaw));
     cam.lookAt(target); cam.updateMatrixWorld();
   }
 
-  /* ---------- post: a gentle bloom and a vignette ---------- */
+  /* ---------- post: a gentle bloom, a tilt-shift blur focused on the model, and a vignette ---------- */
   let pr = Math.min(window.devicePixelRatio || 1, 1.5);
   const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 }));
   composer.addPass(new RenderPass(scene, cam));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .5, .7, .78);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .45, .7, .8);
   composer.addPass(bloom);
-  const vig = new ShaderPass({
-    uniforms: { tDiffuse: { value: null } },
+  const TS = {
+    uniforms: { tDiffuse: { value: null }, dir: { value: new THREE.Vector2(1, 0) }, res: { value: new THREE.Vector2(1, 1) }, focus: { value: .5 }, band: { value: .22 }, fade: { value: .3 }, amt: { value: 2 }, vig: { value: 0 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-    fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c=texture2D(tDiffuse,vUv); c.rgb*=mix(1.0,0.72,smoothstep(0.45,1.0,length((vUv-0.5)*vec2(1.1,1.0)))); gl_FragColor=c; }',
-  });
-  composer.addPass(vig);
+    fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 dir, res; uniform float focus, band, fade, amt, vig; varying vec2 vUv;
+    void main(){
+      float a = smoothstep(band, band + fade, abs(vUv.y - focus)) * amt;
+      vec2 st = dir / res * a;
+      vec4 c = texture2D(tDiffuse, vUv) * 0.2270270270;
+      c += texture2D(tDiffuse, vUv + st * 1.3846153846) * 0.3162162162; c += texture2D(tDiffuse, vUv - st * 1.3846153846) * 0.3162162162;
+      c += texture2D(tDiffuse, vUv + st * 3.2307692308) * 0.0702702703; c += texture2D(tDiffuse, vUv - st * 3.2307692308) * 0.0702702703;
+      if (vig > 0.5) c.rgb *= mix(1.0, 0.7, smoothstep(0.45, 1.0, length((vUv - 0.5) * vec2(1.1, 1.0))));
+      gl_FragColor = c;
+    }`,
+  };
+  const tsPasses = [[1, 0, 0], [0, 1, 0], [1, 0, 0], [0, 1, 1]].map(([dx, dy, vg]) => { const p = new ShaderPass(TS); p.uniforms.dir.value.set(dx, dy); p.uniforms.vig.value = vg; composer.addPass(p); return p; });
   composer.addPass(new OutputPass());
 
   function resize() {
@@ -366,12 +491,11 @@ try {
     const fullH = 2 * vh - avail, oy = vh - avail;
     cam.aspect = vw / fullH; cam.fov = 2 * Math.atan(Math.tan(18 * Math.PI / 180) * fullH / vh) * 180 / Math.PI;
     cam.setViewOffset(vw, fullH, 0, oy, vw, vh); cam.updateProjectionMatrix();
-    // far enough that the whole plinth fits in the space above the dock, whichever way is narrower
-    HOME.dist = 1.1 * outer / (Math.tan(18 * Math.PI / 180) * Math.min(avail, vw) / vh);
-    if (view.auto && !LO.follow) view.tDist = HOME.dist;
+    if (view.auto && !LO.follow) view.tDist = homeDist();
     renderer.setPixelRatio(pr); renderer.setSize(vw, vh, false);
     composer.setPixelRatio(pr); composer.setSize(vw, vh);
-    starU.uScale.value = vh * pr / 2;
+    for (const p of tsPasses) p.uniforms.res.value.set(vw * pr, vh * pr);
+    for (const m of starLayers) m.uniforms.uScale.value = vh * pr / 2;
   }
   resize();
   addEventListener('resize', resize);
@@ -402,8 +526,8 @@ try {
     if (!p) { if (e.pointerType === 'mouse') canvas.style.cursor = pick(e) ? 'pointer' : 'grab'; return; }
     const dx = e.clientX - p.x, dy = e.clientY - p.y; moved += Math.abs(dx) + Math.abs(dy);
     p.x = e.clientX; p.y = e.clientY;
-    if (ptrs.size === 1) { view.tYaw -= dx * .006; view.tPitch = clamp(view.tPitch + dy * .005, .08, 1.45); view.auto = false; }
-    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0 > 0) view.tDist = clamp(dist0 * pinch0 / d, 6, 180); }
+    if (ptrs.size === 1) { view.tYaw -= dx * .006; view.tPitch = clamp(view.tPitch + dy * .005, -.3, 1.45); view.auto = false; }
+    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0 > 0) view.tDist = clamp(dist0 * pinch0 / d, 1.5, 500); }
   });
   const endPtr = e => {
     if (!ptrs.has(e.pointerId)) return;
@@ -417,7 +541,7 @@ try {
     if (ptrs.size === 1) pinch0 = 0;
   };
   canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr); canvas.addEventListener('lostpointercapture', endPtr);
-  canvas.addEventListener('wheel', e => { e.preventDefault(); view.tDist = clamp(view.tDist * (1 + e.deltaY * .0015), 6, 180); }, { passive: false });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); view.tDist = clamp(view.tDist * (1 + e.deltaY * .0015), 1.5, 500); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
   /* ---------- labels: planet names projected to the screen ---------- */
@@ -427,7 +551,7 @@ try {
     for (const { x, d } of labs) {
       if (!LO.labels) { d.classList.remove('on'); continue; }
       x.mesh.getWorldPosition(tmp); tmp.y += x.b.r * 1.25 + .3;
-      const camD = tmp.distanceTo(cam.position); tmp.project(cam);
+      tmp.project(cam);
       const on = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05;
       d.classList.toggle('on', on);
       if (on) d.style.transform = 'translate(' + ((tmp.x + 1) / 2 * vw).toFixed(1) + 'px,' + ((1 - tmp.y) / 2 * vh).toFixed(1) + 'px) translate(-50%,-100%)';
@@ -435,10 +559,19 @@ try {
   }
 
   /* ---------- frame loop, with a step down in quality if the device struggles ---------- */
-  let first = true, lastT = performance.now(), fc = 0, fAcc = 0, fN = 0, tier = 0, simT = 0, clockAcc = 0;
+  let first = true, lastT = performance.now(), fc = 0, fAcc = 0, fN = 0, tier = 0, clockAcc = 0;
   const fpsEl = /[?&]fps\b/.test(location.search) ? document.getElementById('clock') : null;
+  const dOf = au => lerp(4.3 + 2.55 * Math.log(1 + 4 * au), au * 110 / 30.1, scaleE * scaleE * (3 - 2 * scaleE));
   function frame(now) {
     const dt = Math.min(.1, Math.max(0, (now - lastT) / 1000)); lastT = now; fc++;
+    // morph between the two scales, and pull the camera out or in to match
+    const want = LO.scale ? 1 : 0;
+    if (scaleE !== want) {
+      const prev = scaleE; scaleE = reduce ? want : clamp(scaleE + (want - scaleE > 0 ? 1 : -1) * dt / 1.4, 0, 1);
+      layout(scaleE);
+      if (!LO.follow) { view.tDist = homeDist(); view.auto = true; }
+      if ((prev < 1 && scaleE === 1) || (prev > 0 && scaleE === 0)) layout(scaleE);
+    }
     if (!LO.paused) {
       const dy = dt / LO.yearSec; // years that pass this frame
       LO.years += dy;
@@ -448,12 +581,26 @@ try {
         if (x.moonPivot) x.moonPivot.rotation.y += dy * 365.25 / 27.3 * Math.PI * 2;
       }
       sun.rotation.y += dy * 365.25 / S.day * Math.PI * 2 * .02;
+      belt.update(LO.years, dOf(2.2), dOf(3.3));
       clockAcc += dt; if (clockAcc > .25) { clockAcc = 0; if (!fpsEl) LO.tickClock(); }
     }
     for (const x of orbitRings) x.visible = LO.orbits;
     placeCamera(now, dt);
-    if (!reduce) starU.uTime.value = now / 1000;
+    if (!reduce) {
+      for (const m of starLayers) m.uniforms.uTime.value = now / 1000;
+      for (const sp of haze) { const b = sp.userData.base; sp.position.set(b.x + Math.sin(now / 9000 + sp.userData.ph) * 2.5, b.y + Math.sin(now / 7000 + sp.userData.ph * 2) * 1.2, b.z + Math.cos(now / 11000 + sp.userData.ph) * 2.5); }
+      for (const mt of meteors) {
+        if (!mt.m.visible) { mt.wait -= dt; if (mt.wait <= 0 && !LO.paused) spawnMeteor(mt, Math.max(40, outer * 1.6)); continue; }
+        mt.t += dt; mt.m.position.addScaledVector(mt.vel, dt);
+        const f = Math.sin(Math.PI * clamp(mt.t / mt.life, 0, 1)); mt.m.scale.set(f, f, mt.len * f + .01);
+        if (mt.t >= mt.life) { mt.m.visible = false; mt.wait = 2 + rand() * 9; }
+      }
+    }
     halo.material.opacity = .5 + .1 * Math.sin(now / 900);
+    // tilt shift focuses on the model's center; the band widens when following a planet so it stays sharp
+    tmp.copy(target).project(cam);
+    const fy = clamp((tmp.y + 1) / 2, .1, .9);
+    for (const p of tsPasses) { p.uniforms.focus.value = fy; p.uniforms.band.value = .2 + .25 * followE; p.uniforms.amt.value = 2.2 * pr; }
     composer.render();
     placeLabels();
     if (first) { first = false; LO.ready = true; document.getElementById('loading').classList.add('done'); }
@@ -465,7 +612,7 @@ try {
         if (ms > 24 && tier < 3) {
           tier++;
           if (tier === 1 && pr > 1) { pr = 1; resize(); }
-          else if (tier <= 2) { tier = 2; bloom.enabled = false; }
+          else if (tier <= 2) { tier = 2; bloom.enabled = false; tsPasses[2].enabled = tsPasses[3].enabled = false; tsPasses[1].uniforms.vig.value = 1; }
           else { pr = Math.min(pr, .75); resize(); }
         }
         fAcc = 0; fN = 0;
