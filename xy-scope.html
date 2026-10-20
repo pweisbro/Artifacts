@@ -45,6 +45,12 @@ header p { flex-basis: 100%; margin: 0; color: var(--ink-soft); max-width: 62ch;
 .bezel { background: var(--bezel); border-radius: 14px; padding: 18px; display: grid; gap: 12px; box-shadow: inset 0 0 0 2px #39424b, 0 2px 0 #8d979f; }
 .screen { position: relative; aspect-ratio: 1 / 1; width: 100%; max-width: 100%; background: var(--screen); border-radius: 10px; overflow: hidden; box-shadow: inset 0 0 40px #000; }
 .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.screen.drawing { cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
+.tool-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.tool-row .btn { font-size: 14px; padding: 7px 14px; }
+.btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.btn:disabled { opacity: .4; cursor: default; }
+@media (max-width: 430px) { .tab { font-size: 14px; letter-spacing: .05em; padding: 8px 2px; } }
 .readout { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; font-family: var(--mono); font-size: 12px; color: #9fb0a3; font-variant-numeric: tabular-nums; }
 .readout b { color: var(--trace); font-weight: 500; }
 .beam-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -111,6 +117,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tab-gen" aria-selected="true" data-mode="gen" type="button">Lissajous</button>
         <button class="tab" role="tab" id="tab-shape" aria-selected="false" data-mode="shape" type="button">Shapes</button>
+        <button class="tab" role="tab" id="tab-draw" aria-selected="false" data-mode="draw" type="button">Draw</button>
         <button class="tab" role="tab" id="tab-file" aria-selected="false" data-mode="file" type="button">Song</button>
       </div>
 
@@ -132,6 +139,16 @@ input[type="file"] { font: inherit; max-width: 100%; }
         <div class="ctl"><label for="sf">Pitch</label><input type="range" id="sf" min="30" max="660" step="1" value="110"><output id="sf-o"></output></div>
         <div class="ctl"><label for="spin">Spin</label><input type="range" id="spin" min="-2" max="2" step="0.05" value="0.2"><output id="spin-o"></output></div>
         <p class="hint">The beam traces the whole outline once per cycle, so the trace rate is the note you hear. At 110 Hz the shape is drawn 110 times a second and plays an A2. Raise the pitch and the same picture sounds higher.</p>
+      </div>
+
+      <div class="section" id="pane-draw" hidden>
+        <h2>Draw your own shape</h2>
+        <div class="tool-row">
+          <button class="btn ghost" id="undo" type="button">Undo</button>
+          <button class="btn ghost" id="clear" type="button">Clear</button>
+        </div>
+        <div class="ctl"><label for="df">Pitch</label><input type="range" id="df" min="30" max="660" step="1" value="110"><output id="df-o"></output></div>
+        <p class="hint">Draw on the screen with your finger or the mouse, in as many strokes as you like. The beam traces every line once per cycle and darts between separate strokes, so the trace rate is still the note you hear, and you can draw while the sound plays. Simple drawings stay sharp; busy ones get grainier at high pitch. Your drawing is kept on this device and also appears under Shapes, where it can spin or sit on top of a song.</p>
       </div>
 
       <div class="section" id="pane-file" hidden>
@@ -219,6 +236,29 @@ input[type="file"] { font: inherit; max-width: 100%; }
     sh.cum = cum; sh.len = cum[cum.length - 1];
   }
 
+  // ---------- drawing ----------
+  // Strokes in screen units (-1..1). The beam runs along each stroke, then darts to the next one and finally
+  // back to the start; those jumps count for a fraction of their length so they take little time and look faint.
+  const JUMP = 0.08, DRAW_KEY = 'xy-scope-drawing';
+  let strokes = [], penDown = false;
+  try { const v = JSON.parse(localStorage.getItem(DRAW_KEY)); if (Array.isArray(v)) strokes = v.filter(st => Array.isArray(st) && st.length > 1); } catch (e) {}
+  function buildDrawing() {
+    const pts = [], cum = [];
+    for (const st of strokes) {
+      for (let i = 0; i < st.length; i++) {
+        const p = st[i];
+        if (!pts.length) cum.push(0);
+        else { const a = pts[pts.length - 1], d = Math.hypot(p[0] - a[0], p[1] - a[1]); cum.push(cum[cum.length - 1] + (i ? d : d * JUMP)); }
+        pts.push(p);
+      }
+    }
+    if (pts.length) { const a = pts[pts.length - 1], p = pts[0]; cum.push(cum[cum.length - 1] + Math.hypot(p[0] - a[0], p[1] - a[1]) * JUMP); pts.push(p); }
+    const len = cum.length ? cum[cum.length - 1] : 0;
+    SHAPES.drawing = { label: 'My drawing', pts: len ? pts : [[0, 0], [0, 0]], cum: len ? cum : [0, 0], len, empty: !len };
+  }
+  function saveDrawing() { try { localStorage.setItem(DRAW_KEY, JSON.stringify(strokes.map(st => st.map(p => [+p[0].toFixed(3), +p[1].toFixed(3)])))); } catch (e) {} }
+  buildDrawing();
+
   function shapePoint(sh, u, rot, out) {
     const target = u * sh.len, cum = sh.cum;
     let lo = 0, hi = cum.length - 1;
@@ -252,7 +292,10 @@ input[type="file"] { font: inherit; max-width: 100%; }
         if (P.y > 1e6) P.y -= Math.floor(P.y);
       }
     } else {
-      const sh = SHAPES[S.shape], ds = S.sf / sr, dr = S.spin * 2 * Math.PI / sr;
+      // On the Draw tab the drawing stays upright so it sits under your finger.
+      const draw = which === 'draw', sh = draw ? SHAPES.drawing : SHAPES[S.shape], ds = S.sf / sr, dr = draw ? 0 : S.spin * 2 * Math.PI / sr;
+      if (draw) P.rot = 0;
+      if (sh.empty) { L.fill(0, 0, n); R.fill(0, 0, n); return; }
       for (let i = 0; i < n; i++) {
         shapePoint(sh, P.s, P.rot, tmp);
         L[i] = 0.8 * tmp[0]; R[i] = 0.8 * tmp[1];
@@ -273,7 +316,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
     anX.fftSize = anY.fftSize = 2048;
     proc.onaudioprocess = e => {
       const L = e.outputBuffer.getChannelData(0), R = e.outputBuffer.getChannelData(1);
-      generate(L, R, L.length, ctx.sampleRate, S.mode === 'gen' ? 'gen' : 'shape');
+      generate(L, R, L.length, ctx.sampleRate, S.mode === 'gen' || S.mode === 'draw' ? S.mode : 'shape');
     };
     // Streamed WAVs play through their own processor; other files through the <audio> element.
     const songProc = ctx.createScriptProcessor(2048, 1, 2);
@@ -530,7 +573,9 @@ input[type="file"] { font: inherit; max-width: 100%; }
   const pxs = new Float32Array(prevN), pys = new Float32Array(prevN);
   function frame() {
     if (W > 1) {
-      if (playing && A) {
+      if (S.mode === 'draw' && SHAPES.drawing.empty) {
+        draw(null, null, 0, 'Draw here');
+      } else if (playing && A) {
         A.anX.getFloatTimeDomainData(A.bx); A.anY.getFloatTimeDomainData(A.by);
         draw(A.bx, A.by, 2048);
       } else if (S.mode === 'file') {
@@ -565,16 +610,55 @@ input[type="file"] { font: inherit; max-width: 100%; }
     $('shapes').appendChild(c);
   }
 
+  // Drawing on the screen
+  const screenEl = beam.parentElement;
+  function toUnit(e) {
+    const rc = beam.getBoundingClientRect(), k = rc.width / 2 * S.zoom * 0.95;
+    const c = v => Math.max(-1, Math.min(1, v));
+    return [c((e.clientX - rc.left - rc.width / 2) / k), c(-(e.clientY - rc.top - rc.height / 2) / k)];
+  }
+  beam.addEventListener('pointerdown', e => {
+    if (S.mode !== 'draw') return;
+    e.preventDefault(); beam.setPointerCapture(e.pointerId);
+    penDown = true; strokes.push([toUnit(e)]);
+  });
+  beam.addEventListener('pointermove', e => {
+    if (!penDown) return;
+    const st = strokes[strokes.length - 1], evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of evs.length ? evs : [e]) {
+      const p = toUnit(ev), a = st[st.length - 1];
+      if (Math.hypot(p[0] - a[0], p[1] - a[1]) > 0.012) st.push(p);
+    }
+    if (st.length > 1) { buildDrawing(); refresh(); }
+  });
+  function penUp() {
+    if (!penDown) return;
+    penDown = false;
+    const st = strokes[strokes.length - 1];
+    if (st.length < 2) {
+      // a tap leaves a small dot
+      const [x, y] = st[0], r = 0.015;
+      for (let i = 1; i <= 8; i++) st.push([x + r * Math.sin(i / 8 * 2 * Math.PI), y + r * (Math.cos(i / 8 * 2 * Math.PI) - 1)]);
+    }
+    buildDrawing(); saveDrawing(); refresh();
+  }
+  beam.addEventListener('pointerup', penUp);
+  beam.addEventListener('pointercancel', penUp);
+  $('undo').addEventListener('click', () => { strokes.pop(); buildDrawing(); saveDrawing(); refresh(); });
+  $('clear').addEventListener('click', () => { strokes = []; buildDrawing(); saveDrawing(); refresh(); });
+
   const FMT = {
     xf: v => v + ' Hz', yf: v => v + ' Hz', phase: v => v + '°',
     detune: v => (v > 0 ? '+' : '') + Number(v).toFixed(2) + ' Hz',
-    sf: v => v + ' Hz ' + note(v), spin: v => Number(v).toFixed(2) + ' rev/s',
+    sf: v => v + ' Hz ' + note(v), df: v => v + ' Hz ' + note(v), spin: v => Number(v).toFixed(2) + ' rev/s',
     song: v => Math.round(v * 100) + '%', overlay: v => Math.round(v * 100) + '%',
     zoom: v => '×' + Number(v).toFixed(2), persist: v => Math.round(v * 100) + '%', glow: v => '×' + Number(v).toFixed(2)
   };
   function setVal(id, v) { $(id).value = v; S[id] = Number(v); refresh(); }
 
-  ['xf','yf','phase','detune','sf','spin','song','overlay','zoom','persist','glow','vol'].forEach(id => {
+  // One pitch for shapes and drawings, with a slider on each tab.
+  ['sf', 'df'].forEach(id => $(id).addEventListener('input', e => { S.sf = Number(e.target.value); $('sf').value = $('df').value = S.sf; refresh(); }));
+  ['xf','yf','phase','detune','spin','song','overlay','zoom','persist','glow','vol'].forEach(id => {
     $(id).addEventListener('input', e => { S[id] = Number(e.target.value); refresh(); });
   });
   ['wx','wy'].forEach(id => $(id).addEventListener('change', e => { S[id] = e.target.value; refresh(); }));
@@ -591,6 +675,9 @@ input[type="file"] { font: inherit; max-width: 100%; }
     $('pane-gen').hidden = S.mode !== 'gen';
     $('pane-shape').hidden = S.mode !== 'shape';
     $('pane-file').hidden = S.mode !== 'file';
+    $('pane-draw').hidden = S.mode !== 'draw';
+    screenEl.classList.toggle('drawing', S.mode === 'draw');
+    $('undo').disabled = $('clear').disabled = !strokes.length;
     document.querySelectorAll('#shapes .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.shape === S.shape)));
     const g0 = gcd(Math.round(S.xf), Math.round(S.yf));
     document.querySelectorAll('#ratios .chip').forEach((c, i) => {
@@ -604,6 +691,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
       : 'A ' + d.toFixed(2) + ' Hz detune makes the figure cycle through its phases about once every ' + (1 / d).toFixed(1) + ' s, which reads as a slow rotation.');
     const ro = $('readout');
     if (S.mode === 'gen') ro.innerHTML = `<span>CH1 X <b>${S.xf} Hz ${S.wx}</b></span><span>CH2 Y <b>${(S.yf + S.detune).toFixed(2)} Hz ${S.wy}</b></span><span>Ratio <b>${ratio}</b></span>`;
+    else if (S.mode === 'draw') ro.innerHTML = `<span>Strokes <b>${strokes.length}</b></span><span>Trace rate <b>${S.sf} Hz</b></span><span>Note <b>${note(S.sf)}</b></span>`;
     else if (S.mode === 'shape') ro.innerHTML = `<span>Shape <b>${SHAPES[S.shape].label}</b></span><span>Trace rate <b>${S.sf} Hz</b></span><span>Note <b>${note(S.sf)}</b></span>`;
     else ro.innerHTML = `<span>Source <b>${song ? 'file' : 'none'}</b></span><span>Song <b>${Math.round(S.song * 100)}%</b></span><span>Shape overlay <b>${Math.round(S.overlay * 100)}%</b> ${SHAPES[S.shape].label}</span>`;
     applyLevels();
