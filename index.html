@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&family=IBM+Plex+Mono:wght@500&family=Caveat:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&family=IBM+Plex+Mono:wght@500&family=Caveat:wght@700&family=Chakra+Petch:wght@700&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -88,6 +88,8 @@ body{
 /* X-Y Scope's own wordmark */
 .label h2.t-scope{font:500 20px/1.1 "IBM Plex Mono",ui-monospace,Menlo,monospace;letter-spacing:.04em;color:#8dff72}
 .label h2.t-worm{font:700 29px/1 "Caveat","Bradley Hand",cursive;letter-spacing:.01em;color:#ffe3d3}
+.label h2.t-beam{font:700 21px/1.1 "Chakra Petch","Avenir Next Condensed",system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase}
+.label h2.t-beam span{color:#39ff7a;text-shadow:0 0 10px rgba(57,255,122,.5)}
 .label h2.t-orrery{font:600 23px/1.1 "Fredoka","Avenir Next",system-ui,sans-serif;letter-spacing:.01em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
@@ -117,6 +119,7 @@ body{
         <li><a class="tile" href="little-orrery.html"><div class="label"><h2>Little Orrery</h2></div></a></li>
         <li><a class="tile" href="xy-scope.html"><div class="label"><h2>X-Y Scope</h2></div></a></li>
         <li><a class="tile" href="earworm.html"><div class="label"><h2>Earworm</h2></div></a></li>
+        <li><a class="tile" href="beamline.html"><div class="label"><h2>Beamline</h2></div></a></li>
       </ul>
     </noscript>
   </main>
@@ -202,6 +205,15 @@ const APPS = [
     accent: '#ff7a59',
     titleClass: 't-worm',
     art: 'worm'
+  },
+  {
+    name: 'Beamline',
+    href: 'beamline.html',
+    blurb: 'Plan a laser show to music. Sketch shapes, words and beam fans, line them up on the beat, and export ILDA files for a real laser.',
+    ground: '#05050a',
+    accent: '#39ff7a',
+    titleClass: 't-beam',
+    art: 'beam'
   }
 ];
 
@@ -635,6 +647,34 @@ ARTS.scope = {
   }
 };
 
+// A laser projector on a hazy stage, fanning beams that sweep and change color on the beat.
+ARTS.beam = {
+  init(){},
+  frame(ctx, s, w, h, t){
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#05050a'; ctx.fillRect(0, 0, w, h);
+    const px = w / 2, py = h * .92, beat = t * 2, ph = beat % 1, cols = ['#39ff7a', '#00e5ff', '#ff3fb4', '#ffe600'];
+    const col = cols[Math.floor(beat / 8) % cols.length], n = 9, fl = .35 + .65 * Math.exp(-ph * 3);
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++){
+      const a = -Math.PI / 2 + (i / (n - 1) - .5) * (1.5 + .5 * Math.sin(t * .9)) + .25 * Math.sin(t * 1.3 + i * .4);
+      const ex = px + Math.cos(a) * h * 1.4, ey = py + Math.sin(a) * h * 1.4;
+      for (const [lw, al] of [[6, .05], [1.4, .55]]){
+        ctx.strokeStyle = rgba(col, al * fl); ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.stroke();
+      }
+    }
+    // a ring drawn on the back wall
+    const R = h * .2, cy = h * .3;
+    ctx.beginPath();
+    for (let i = 0; i <= 80; i++){ const u = i / 80 * Math.PI * 2, r = R * (1 + .08 * Math.sin(6 * u + t * 4)); ctx.lineTo(px + Math.cos(u + t) * r * 1.4, cy + Math.sin(u + t) * r * .45); }
+    ctx.strokeStyle = rgba('#ff3fb4', .2); ctx.lineWidth = 5; ctx.stroke();
+    ctx.strokeStyle = rgba('#ff3fb4', .8); ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#1b1d2b'; ctx.fillRect(px - 16, py, 32, h);
+  }
+};
+
 // A wobbly hummed line being drawn across a note grid, with notes snapping into place behind the pen.
 ARTS.worm = {
   tune: [0, 2, 4, 5, 7, 7, 9, 7, 4, 5, 4, 2, 0, 2, -1, 0],
@@ -720,6 +760,7 @@ for (const app of APPS){
   label.className = 'label';
   const h2 = document.createElement('h2');
   h2.textContent = app.name;
+  if (app.titleClass === 't-beam') h2.innerHTML = 'Beam<span>line</span>';
   if (app.titleClass) h2.className = app.titleClass;
   const p = document.createElement('p');
   p.textContent = app.blurb;
