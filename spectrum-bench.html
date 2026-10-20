@@ -1532,6 +1532,8 @@ function renderLib(){
   <div class="group"><div class="lab"><span>Setup codes</span></div>
     <p class="note">A code holds a whole bench as one line of text. Send it to a friend, or paste it into another copy of this page.</p>
     <button type="button" class="ghost wide" id="lib-copy">Copy code for this bench</button>
+    <button type="button" class="ghost wide" id="lib-send">Send to TouchDesigner</button>
+    <p class="note">Saves the code as a file. Choose Save to Files, then the <b>inbox</b> folder of your TouchDesigner project in OneDrive. It loads there once OneDrive syncs.</p>
     <label class="lab" for="lib-code"><span>Paste a code</span></label>
     <textarea id="lib-code" rows="3" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="SB1:…"></textarea>
     <button type="button" class="ghost wide" id="lib-load-code">Load code</button>
@@ -1557,6 +1559,18 @@ function renderLib(){
     if(!scene.length){show('The bench is empty, so there’s nothing to copy yet.');return;}
     const code=encodeCode(),fallback=()=>{ta.value=code;ta.focus();ta.select();show('Copying was blocked here. The code is selected in the box below, ready to copy.');};
     try{navigator.clipboard.writeText(code).then(()=>show('Copied. Paste it anywhere to share this bench.'),fallback);}catch(err){fallback();}
+  });
+  // The TouchDesigner version watches an inbox folder; the share sheet's Save to Files puts the code there via OneDrive
+  $('lib-send').addEventListener('click',async()=>{
+    if(!scene.length){show('The bench is empty, so there’s nothing to send yet.');return;}
+    const name=(benchName||'Shared setup').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'').trim().slice(0,60)||'Setup';
+    const file=new File([encodeCode()+'\n'],name+'.txt',{type:'text/plain'});
+    const download=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.append(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),4000);show('Downloaded “'+file.name+'”. Move it into the inbox folder of your TouchDesigner project.');};
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file]});show('Sent “'+name+'”. It loads in TouchDesigner once OneDrive syncs the inbox folder.');}
+      catch(e){if(e.name!=='AbortError')download();}
+    }else download();
   });
   $('lib-load-code').addEventListener('click',()=>{
     try{const d=decodeCode(ta.value);msg.hidden=true;loadData(d,d.name);}

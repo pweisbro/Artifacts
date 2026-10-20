@@ -24,6 +24,7 @@ A TouchDesigner version of Spectrum Bench, built from setup codes made in the we
 Two plain-text files sit next to your `.toe`, and the build makes them the first time it runs:
 
 - `setup_code.txt` is the inbox. Open it in Notepad, paste a code (anything else in the file is ignored, and a code wrapped over several lines is fine) and save. TouchDesigner loads it within half a second and adds it to your saved setups, without touching TouchDesigner at all.
+- `inbox/` takes code files: drop any `.txt` holding a code in here and it loads, joins your saved setups, and leaves the inbox. This is how the web bench sends a setup over. Keep the project in OneDrive, and on the iPad tap **Send to TouchDesigner** in the web bench's Setups panel, choose Save to Files, and pick this `inbox` folder in OneDrive. It loads once OneDrive syncs it to the PC. A code cut off partway (chat apps cut long messages) is left in the inbox with a note in the Textport.
 - `setups/` holds the saved setups, one `.txt` per bench, named after the bench and holding its code. You can copy files in and out of it too.
 
 On `spectrum_bench`, **Setup** is a menu of the saved setups, **Previous** and **Next** step through them, **Save** adds the code that's showing now (a code with the same bench name replaces the old one), and **Delete** moves the selected setup to `setups/deleted`.
