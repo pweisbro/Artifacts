@@ -66,10 +66,20 @@ def onCook(scriptOp):
 '''
 
 TICK_CB = r'''
-# Liquids flow: repack every frame while there is one
+# Liquids flow: repack every frame while there is one. Twice a second, look for a new code in setup_code.txt.
 def onFrameStart(frame):
     if op('info')['animated', 1].val == '1':
         op('info').cook(force=True)
+    op('sb_library').module.poll()
+'''
+
+LIBRARY_CB = r'''
+# The Setup menu and the Previous, Next, Save and Delete buttons
+def onValueChange(par, prev):
+    op('sb_library').module.on_par(par)
+
+def onPulse(par):
+    op('sb_library').module.on_par(par)
 '''
 
 problems = []
@@ -111,6 +121,11 @@ B = PARENT.create(baseCOMP, 'spectrum_bench')
 B.nodeX, B.nodeY = 0, 0
 
 pg = B.appendCustomPage('Bench')
+pg.appendStrMenu('Setup', label='Setup')
+pg.appendPulse('Prevsetup', label='Previous')
+pg.appendPulse('Nextsetup', label='Next')
+pg.appendPulse('Savesetup', label='Save')
+pg.appendPulse('Deletesetup', label='Delete')
 pg.appendStr('Setupcode', label='Setup code')
 B.par.Setupcode = DEFAULT_CODE
 pg.appendFloat('Brightness', label='Brightness')
@@ -146,6 +161,13 @@ def text(name, x, y, content=None, path=None):
 text('sb_scene', -600, 300, path=os.path.join(SB_DIR, 'sb_scene.py'))
 text('sb_trace', -600, 150, path=os.path.join(SB_DIR, 'sb_trace.frag'))
 text('sb_state', -600, 0, STATE)
+text('sb_library', -600, 450, path=os.path.join(SB_DIR, 'sb_library.py'))
+lib_cb = node(parameterexecuteDAT, 'library_pars', -400, 600)
+lib_cb.text = LIBRARY_CB
+setp(lib_cb, 'op', B)
+setp(lib_cb, 'pars', 'Setup Prevsetup Nextsetup Savesetup Deletesetup')
+setp(lib_cb, 'valuechange', True)
+setp(lib_cb, 'onpulse', True)
 
 info_cb = text('info_callbacks', -400, 300, INFO_CB)
 info_op = node(scriptDAT, 'info', -200, 300)
@@ -274,7 +296,13 @@ out.inputConnectors[0].connect(final)
 out.viewer = True
 
 info_op.cook(force=True)
+try:
+    B.op('sb_library').module.start()
+except Exception as e:
+    problems.append('saved setups could not start (%s)' % e)
 print('Spectrum Bench built at', B.path, '| bench:', info_op['name', 1].val, '|', info_op['items', 1].val, 'items')
+print('Saved setups are in', os.path.join(project.folder, 'setups'), '| save a code to',
+      os.path.join(project.folder, 'setup_code.txt'), 'to load it')
 if info_op['error', 1].val:
     print('Setup code problem:', info_op['error', 1].val)
 for p in problems:
