@@ -1,8 +1,10 @@
 """Saved setups for Spectrum Bench in TouchDesigner.
 
-Two files next to your .toe, both plain text you can open in Notepad:
+Next to your .toe, all plain text you can open in Notepad:
 
-    setup_code.txt   the inbox. Save a setup code here and it loads straight away, and is added to the library.
+    setup_code.txt   save a setup code here and it loads straight away, and is added to the library.
+    inbox/           drop .txt files holding codes here (the web bench's Send to TouchDesigner saves them, through
+                     OneDrive); each loads, joins the library and is removed from the inbox.
     setups/          the library: one .txt per saved setup, named after the bench, each holding its code.
 
 On spectrum_bench, the Setup menu switches between saved setups, Previous and Next step through them, Save adds
@@ -14,6 +16,7 @@ import shutil
 import time
 
 INBOX = 'setup_code.txt'
+DROP = 'inbox'
 FOLDER = 'setups'
 _seen = {}  # inbox path -> modified time last read
 
@@ -30,6 +33,12 @@ def folder():
 
 def inbox():
     return os.path.join(project.folder, INBOX)
+
+
+def drop():
+    f = os.path.join(project.folder, DROP)
+    os.makedirs(f, exist_ok=True)
+    return f
 
 
 def _code_in(text):
@@ -137,12 +146,40 @@ def on_par(par):
         delete()
 
 
+def poll_drop():
+    """Loads any code files waiting in inbox/: each joins the library, the newest is shown, and the files go."""
+    shown = None
+    try:
+        files = [os.path.join(drop(), f) for f in os.listdir(drop()) if f.lower().endswith('.txt')]
+    except OSError:
+        return
+    for p in sorted(files, key=os.path.getmtime):
+        try:
+            if time.time() - os.path.getmtime(p) < 1:
+                continue  # still arriving; OneDrive may be writing it
+            with open(p, encoding='utf-8', errors='replace') as f:
+                code = _code_in(f.read())
+        except OSError:
+            continue
+        if code and save(code, select=False):
+            shown = code
+            os.remove(p)
+        elif p not in _seen:
+            _seen[p] = True
+            print('Spectrum Bench: no setup code in %s' % p)
+    if shown:
+        save(shown)  # selects it in the menu
+        _bench().par.Setupcode = shown
+        print('Spectrum Bench: loaded "%s" from %s' % (_name_of(shown), DROP))
+
+
 def poll():
-    """Called every frame; twice a second, loads setup_code.txt if it has changed."""
+    """Called every frame; twice a second, loads setup_code.txt if it has changed, and anything in inbox/."""
     now = time.monotonic()
     if now - _seen.get('at', 0) < 0.5:
         return
     _seen['at'] = now
+    poll_drop()
     p = inbox()
     try:
         t = os.path.getmtime(p)
@@ -169,6 +206,7 @@ def start():
         with open(inbox(), 'w', encoding='utf-8') as f:
             f.write('Paste a Spectrum Bench setup code here and save. It loads straight away.\n')
     _seen[inbox()] = os.path.getmtime(inbox())
+    drop()
     if not names():
         save(_bench().par.Setupcode.eval())
     refresh(_name_of(_bench().par.Setupcode.eval()))
