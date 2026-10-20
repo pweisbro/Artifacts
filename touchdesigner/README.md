@@ -6,6 +6,7 @@ A TouchDesigner version of Spectrum Bench, built from setup codes made in the we
 
 - `sb_scene.py` decodes a setup code (`SB1:` + base64 JSON) and packs the pieces and light rays into float textures. It's plain Python with numpy, so it also runs outside TouchDesigner (`python3 sb_scene.py < code.txt` prints a summary).
 - `sb_trace.frag` is the tracer, a GLSL TOP pixel shader. Each column is one ray and each row is one piece of its path. It uses the same physics as the web bench: Cauchy dispersion, Fresnel reflection, total internal reflection, gratings, filters, beam splitters, lenses, curved mirrors, liquids and the black hole.
+- `sb_library.py` keeps your saved setups and watches `setup_code.txt` (see below).
 - `build_td.py` builds the network.
 
 ## Set up
@@ -16,12 +17,22 @@ A TouchDesigner version of Spectrum Bench, built from setup codes made in the we
    exec(open(project.folder + '/touchdesigner/build_td.py').read())
    ```
 3. Open `/project1/spectrum_bench/out`. The Prism fan starter is loaded.
-4. Paste any setup code into the **Setup code** parameter of `spectrum_bench`.
+4. Paste any setup code into the **Setup code** parameter of `spectrum_bench`, or into `setup_code.txt` (below).
+
+## Saving and switching setups
+
+Two plain-text files sit next to your `.toe`, and the build makes them the first time it runs:
+
+- `setup_code.txt` is the inbox. Open it in Notepad, paste a code (anything else in the file is ignored, and a code wrapped over several lines is fine) and save. TouchDesigner loads it within half a second and adds it to your saved setups, without touching TouchDesigner at all.
+- `setups/` holds the saved setups, one `.txt` per bench, named after the bench and holding its code. You can copy files in and out of it too.
+
+On `spectrum_bench`, **Setup** is a menu of the saved setups, **Previous** and **Next** step through them, **Save** adds the code that's showing now (a code with the same bench name replaces the old one), and **Delete** moves the selected setup to `setups/deleted`.
 
 The script prints a line for any parameter it couldn't set, since some names differ between TouchDesigner versions. Set those by hand. If the rays come out white, the instance color hookup on `rays` is the one to check: point the instance colors at `trace_col`, channels r, g and b.
 
 ## Parameters on spectrum_bench
 
+- **Setup**, **Previous**, **Next**, **Save**, **Delete**: your saved setups (above).
 - **Setup code**: the bench to show.
 - **Brightness**: multiplies the setup's own brightness.
 - **Audio rainbow spread**: above 0, the microphone level widens every rainbow (glass, liquids and the black hole's color split).
