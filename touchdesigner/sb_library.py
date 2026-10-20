@@ -17,6 +17,8 @@ import time
 
 INBOX = 'setup_code.txt'
 DROP = 'inbox'
+SETTINGS = 'settings.txt'
+SETTINGS_STATUS = 'settings_status.txt'
 FOLDER = 'setups'
 _seen = {}  # inbox path -> modified time last read
 
@@ -173,13 +175,51 @@ def poll_drop():
         print('Spectrum Bench: loaded "%s" from %s' % (_name_of(shown), DROP))
 
 
+def apply_settings():
+    """settings.txt next to the .toe: 'microphone = <part of its name>' picks the audio input. The outcome is written
+    to settings_status.txt beside it, since this runs without anyone watching the Textport."""
+    p = os.path.join(project.folder, SETTINGS)
+    try:
+        t = os.path.getmtime(p)
+    except OSError:
+        return
+    if _seen.get(p) == t:
+        return
+    _seen[p] = t
+    out = []
+    with open(p, encoding='utf-8', errors='replace') as f:
+        for line in f:
+            key, _, val = line.partition('=')
+            key, val = key.strip().lower(), val.strip()
+            if key != 'microphone' or not val:
+                continue
+            mic = _bench().op('mic')
+            par = mic.par.device
+            names, labels = list(par.menuNames), list(par.menuLabels)
+            hit = next((i for i, l in enumerate(labels) if val.lower() in l.lower()), None)
+            if hit is None:
+                hit = next((i for i, n in enumerate(names) if val.lower() in n.lower()), None)
+            if hit is None:
+                out.append('No input device matches "%s". Devices: %s' % (val, ', '.join(labels)))
+            else:
+                par.val = names[hit]
+                out.append('Microphone set to "%s"' % labels[hit])
+    if out:
+        with open(os.path.join(project.folder, SETTINGS_STATUS), 'w', encoding='utf-8') as f:
+            f.write('\n'.join(out) + '\n')
+        for o in out:
+            print('Spectrum Bench:', o)
+
+
 def poll():
-    """Called every frame; twice a second, loads setup_code.txt if it has changed, and anything in inbox/."""
+    """Called every frame; twice a second, loads setup_code.txt if it has changed, anything in inbox/, and
+    settings.txt."""
     now = time.monotonic()
     if now - _seen.get('at', 0) < 0.5:
         return
     _seen['at'] = now
     poll_drop()
+    apply_settings()
     p = inbox()
     try:
         t = os.path.getmtime(p)
