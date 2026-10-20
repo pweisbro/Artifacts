@@ -76,6 +76,12 @@ Sections (A, B, C…) each hold their own notes; tap the current one to rename, 
 
 **Start sound** plays exactly what's on screen out of the headphone jack, so it can drive a real scope: left into CH1, right into CH2, X-Y mode, volume low, and sound enhancements off. Keep a real CRT's brightness low and turn it down before stopping the sound, since a still dot burns the phosphor. Everything is generated in the browser, so it works offline; songs play locally and are never uploaded.
 
+### Beamline
+
+`beamline.html` plans a laser show to music, made for a Pangolin FB4 laser (such as the RAW FB4 projectors). **Looks** are shapes the laser draws: circles, polygons, stars, hearts, lines, waves, spirals, knots, beam fans, words in a single-line laser font, or a drawing made with a finger on the stage. Each look has a color (solid, rainbow, color cycle or flash on the beat) and motion (spin, 3D flip, beat pulse, wobble, drift, and drawing itself on over a few beats). Looks sit on a three-layer **timeline** in beats, under the song's waveform; **Tap along** sets the tempo and first beat from tapping, and looks stay on their beats when the tempo changes. The preview shows the pattern on a wall or as beams through haze, and how many laser points the current frame needs.
+
+**Export** writes standard ILDA files (format 5, true color) with blanking and corner dwell points fitted to the chosen scan speed and frame rate: each look as its own loop in a .zip with a cue sheet, or the whole show as one .ild. Pangolin BEYOND loads ILDA files; the FB4 itself plays shows that BEYOND or QuickShow copy to its SD card with FB4 Export, so the files go through that software rather than straight onto the FB4. The show saves itself in the browser and can be saved to a show file; the song stays on the device.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.

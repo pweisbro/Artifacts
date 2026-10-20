@@ -1,0 +1,1362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07070d">
+<meta name="description" content="Plan a laser show to music: sketch looks, place them on a timeline, and export ILDA files for Pangolin BEYOND or QuickShow.">
+<title>Beamline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+</script>
+<style>
+/* Layout: a dark show-control desk. Stage preview and timeline on the left, a tabbed inspector on the right; stacks on phones.
+   Laser colors only ever appear as light (the preview, the cue blocks); the chrome stays in quiet blue-greys. */
+:root{
+  color-scheme: dark;
+  --bg:#07070d;
+  --panel:#10111a;
+  --panel-2:#171926;
+  --line:#272b3e;
+  --text:#eef0ff;
+  --muted:#9aa0bd;
+  --accent:#39ff7a;
+  --pink:#ff3fb4;
+  --warn:#ffb340;
+  --display:"Chakra Petch","Avenir Next Condensed","Arial Narrow",sans-serif;
+  --body:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{background:var(--bg);color:var(--text)}
+body{margin:0;font:400 14px/1.45 var(--body);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{
+  max-width:1360px;margin:0 auto;display:grid;gap:14px;
+  padding:max(14px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(28px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.home-btn{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:10px;background:var(--panel-2);color:var(--text);text-decoration:none;box-shadow:inset 0 0 0 1px var(--line)}
+.home-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round}
+h1{margin:0;font:700 26px/1 var(--display);letter-spacing:.16em;text-transform:uppercase}
+h1 span{color:var(--accent);text-shadow:0 0 12px rgba(57,255,122,.55)}
+header p{margin:0;color:var(--muted);flex:1 1 300px;max-width:70ch}
+
+.studio{display:grid;gap:14px;grid-template-columns:minmax(0,1fr) 380px;grid-template-areas:"stage side" "tl side";align-items:start}
+@media (max-width:900px){.studio{grid-template-columns:minmax(0,1fr);grid-template-areas:"stage" "tl" "side"}}
+.stage-col{grid-area:stage;display:grid;gap:10px}
+.tl-col{grid-area:tl;display:grid;gap:8px}
+.side{grid-area:side;background:var(--panel);border-radius:16px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+@media (min-width:901px){.side{position:sticky;top:12px;max-height:calc(100dvh - 24px);display:flex;flex-direction:column}.side .panes{overflow:auto;flex:1}}
+
+.stage{position:relative;aspect-ratio:4/3;width:100%;background:#000;border-radius:16px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
+@media (min-width:901px){.stage{max-height:62dvh;aspect-ratio:auto;height:min(62dvh,calc((100vw - 440px) * .75))}}
+/* tall screens (iPad upright): the projection area is square, so use the spare height */
+@media (min-width:901px) and (orientation:portrait){.stage{height:min(58dvh,calc(100vw - 440px))}}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.stage .tag{position:absolute;left:10px;top:10px;padding:4px 9px;border-radius:7px;background:rgba(10,11,20,.72);color:var(--muted);font-size:12px;pointer-events:none;max-width:calc(100% - 150px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage .tag b{color:var(--text);font-weight:600}
+.views{position:absolute;right:10px;top:10px;display:flex;border-radius:9px;overflow:hidden;background:rgba(10,11,20,.72);box-shadow:inset 0 0 0 1px var(--line)}
+.views button{border:0;background:transparent;padding:6px 11px;font:600 12px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.views button[aria-pressed="true"]{background:var(--text);color:#0a0b14}
+.stage .meter{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--muted);pointer-events:none;background:rgba(10,11,20,.6);padding:3px 8px;border-radius:7px;font-variant-numeric:tabular-nums}
+.stage .meter.busy{color:var(--warn)}
+.stage .drawing{position:absolute;right:10px;bottom:10px;font-size:12px;color:#0a0b14;background:var(--accent);padding:4px 9px;border-radius:7px;pointer-events:none;font-weight:600}
+
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.btn{border:0;border-radius:10px;padding:9px 14px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:7px;min-height:40px}
+.btn:hover{box-shadow:inset 0 0 0 1px #3c4260}
+.btn.primary{background:var(--accent);color:#04120a;box-shadow:none}
+.btn.danger{color:#ff8a9a}
+.btn svg{width:16px;height:16px;fill:currentColor}
+.btn:disabled{opacity:.45;cursor:default}
+.play{width:48px;justify-content:center;padding:0}
+.clock{font:600 18px/1 var(--display);letter-spacing:.06em;font-variant-numeric:tabular-nums;min-width:140px}
+.clock small{display:block;font:500 12px/1.3 var(--body);color:var(--muted);letter-spacing:0;margin-top:3px}
+.grow{flex:1}
+.zoom{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.zoom input{width:110px}
+
+.tl{position:relative;height:208px;border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)}
+.tl canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:default}
+.tl-hint{margin:0;color:var(--muted);font-size:12px}
+
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tab{flex:1;border:0;background:transparent;padding:13px 6px 11px;font:600 13px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.pane{padding:14px 16px 18px;display:grid;gap:14px}
+.pane h2{margin:0;font:600 13px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.group{display:grid;gap:9px}
+.empty{color:var(--muted);margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.field{display:grid;gap:5px}
+.field > span{font-size:12px;color:var(--muted);font-weight:600}
+input[type="text"],input[type="number"],select{width:100%;padding:9px 11px;border-radius:10px;border:0;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);min-height:40px}
+input[type="text"]:focus-visible,input[type="number"]:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:0;border-radius:9px;padding:7px 10px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+.chip[aria-pressed="true"]{color:var(--text);box-shadow:inset 0 0 0 1.5px var(--text);background:#20233a}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw{width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;box-shadow:0 0 0 2px var(--panel),0 0 10px var(--c);background:var(--c)}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--text),0 0 14px var(--c)}
+.slider{display:grid;grid-template-columns:96px minmax(0,1fr) 92px;gap:10px;align-items:center}
+.slider label{font-size:13px;font-weight:600}
+.slider output{font-size:12px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+input[type="range"]{width:100%;accent-color:var(--accent);min-height:28px}
+.btn:focus-visible,.chip:focus-visible,.sw:focus-visible,.tab:focus-visible,.home-btn:focus-visible,.views button:focus-visible,input[type="range"]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{margin:0;color:var(--muted);font-size:13px}
+.note b{color:var(--text)}
+.steps{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--muted);font-size:13px}
+.steps b{color:var(--text)}
+.safety{border-radius:12px;padding:10px 12px;background:rgba(255,179,64,.08);box-shadow:inset 0 0 0 1px rgba(255,179,64,.3);color:#ffd9a0;font-size:13px;margin:0}
+.progress{height:6px;border-radius:3px;background:var(--panel-2);overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent)}
+.toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#1f2236;color:var(--text);padding:10px 14px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.5),inset 0 0 0 1px #3a3f5c;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px);z-index:9;font-size:14px}
+.toast button{border:0;background:none;color:var(--accent);font-weight:700;cursor:pointer;padding:4px}
+.file-btn{position:relative;overflow:hidden}
+.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="home-btn" href="./" aria-label="Back to Stim Lab" title="Stim Lab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg></a>
+    <h1>Beam<span>line</span></h1>
+    <p>Plan a laser show to music. Make looks, line them up on the beat, then export ILDA files for the laser software.</p>
+  </header>
+
+  <div class="studio">
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <canvas id="stage-cv" aria-label="Laser preview"></canvas>
+        <div class="tag" id="stage-tag"></div>
+        <div class="views" role="group" aria-label="Preview">
+          <button id="v-screen" aria-pressed="true">Wall</button>
+          <button id="v-haze" aria-pressed="false">Haze</button>
+        </div>
+        <div class="meter" id="meter"></div>
+        <div class="drawing" id="draw-tag" hidden>Drawing: use your finger</div>
+      </div>
+      <div class="transport">
+        <button class="btn play primary" id="b-play" aria-label="Play"><svg viewBox="0 0 24 24" id="play-ico"><path d="M7 4.5v15l13-7.5z"/></svg></button>
+        <button class="btn play" id="b-rewind" aria-label="Back to start"><svg viewBox="0 0 24 24"><path d="M5 5h2.5v14H5zM20 5v14L8.5 12z"/></svg></button>
+        <div class="clock" id="clock">0:00.0<small>Bar 1 · beat 1</small></div>
+        <span class="grow"></span>
+        <button class="btn" id="b-add"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>Add look</button>
+      </div>
+    </div>
+
+    <div class="tl-col">
+      <div class="tl" id="tl"><canvas id="tl-cv" aria-label="Show timeline"></canvas></div>
+      <div class="row">
+        <p class="tl-hint grow">Drag a look to move it, drag its right edge to make it longer, drag empty space to scroll. Tap the ruler to jump there.</p>
+        <label class="zoom">Zoom <input type="range" id="zoom" min="0" max="1" step="0.01" value="0.4" aria-label="Timeline zoom"></label>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="t-look" aria-selected="true">Look</button>
+        <button class="tab" role="tab" id="t-music" aria-selected="false">Music</button>
+        <button class="tab" role="tab" id="t-export" aria-selected="false">Export</button>
+      </div>
+      <div class="panes">
+        <!-- LOOK -->
+        <div class="pane" id="p-look">
+          <p class="empty" id="look-empty">Tap a look on the timeline to edit it, or press <b>Add look</b>.</p>
+          <div id="look-ed" class="pane" style="padding:0">
+            <label class="field"><span>Name</span><input type="text" id="f-name" maxlength="40" placeholder="Name this look"></label>
+            <div class="group"><h2>Shape</h2><div class="chips" id="shapes"></div></div>
+            <label class="field" id="text-row"><span>Words (the laser draws them in single lines)</span><input type="text" id="f-text" maxlength="40" autocapitalize="characters"></label>
+            <div class="row" id="draw-row">
+              <button class="btn" id="b-draw">Draw on the stage</button>
+              <button class="btn" id="b-undo-stroke">Undo line</button>
+              <button class="btn danger" id="b-clear-draw">Clear</button>
+            </div>
+            <div class="group"><h2>Color</h2><div class="swatches" id="swatches"></div><div class="chips" id="cmodes"></div></div>
+            <div class="group"><h2>Motion</h2><div class="group" id="sliders"></div></div>
+            <p class="note">Drag on the stage to move the look around.</p>
+            <hr>
+            <div class="row">
+              <button class="btn" id="b-dup">Duplicate</button>
+              <button class="btn danger" id="b-del">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MUSIC -->
+        <div class="pane" id="p-music" hidden>
+          <div class="group">
+            <h2>Song</h2>
+            <p class="note" id="music-name">No song yet. The show runs to a plain beat until you add one.</p>
+            <div class="row">
+              <span class="btn file-btn">Choose a song<input type="file" id="f-music" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg"></span>
+              <button class="btn danger" id="b-music-off" hidden>Remove</button>
+            </div>
+            <p class="note">The song stays on this device. It isn't uploaded anywhere.</p>
+          </div>
+          <hr>
+          <div class="group">
+            <h2>Beat</h2>
+            <div class="row">
+              <label class="field" style="width:110px"><span>Tempo (BPM)</span><input type="number" id="f-bpm" min="40" max="240" step="0.1" inputmode="decimal"></label>
+              <button class="btn" id="b-tap" style="align-self:end;flex:1">Tap along</button>
+            </div>
+            <p class="note">Play the song and tap <b>Tap along</b> on every beat. After eight taps the tempo and the first beat lock to your tapping. Looks stay on their beats when the tempo changes.</p>
+            <div class="row">
+              <button class="btn" id="b-beat1">Beat 1 is here</button>
+              <span class="note grow">Moves the beat grid so a beat lands on the playhead.</span>
+            </div>
+            <label class="row note"><input type="checkbox" id="f-snap"> Snap looks to the beat</label>
+          </div>
+          <hr>
+          <div class="group">
+            <h2>Show</h2>
+            <label class="field"><span>Show name</span><input type="text" id="f-show" maxlength="40"></label>
+            <div class="row">
+              <button class="btn" id="b-save">Save show file</button>
+              <span class="btn file-btn">Open show file<input type="file" id="f-open" accept=".json,application/json"></span>
+            </div>
+            <div class="row">
+              <button class="btn" id="b-demo">Load the demo</button>
+              <button class="btn danger" id="b-new">Start over</button>
+            </div>
+            <p class="note">Your show saves itself in this browser as you work. A show file keeps a copy you can move to another device.</p>
+          </div>
+        </div>
+
+        <!-- EXPORT -->
+        <div class="pane" id="p-export" hidden>
+          <div class="group">
+            <h2>Laser files</h2>
+            <div class="row">
+              <label class="field grow"><span>Scan speed</span>
+                <select id="f-pps"><option value="20000">20K</option><option value="25000">25K</option><option value="30000" selected>30K</option><option value="40000">40K</option></select></label>
+              <label class="field grow"><span>Frames per second</span>
+                <select id="f-fps"><option value="25">25</option><option value="30" selected>30</option></select></label>
+            </div>
+            <p class="note" id="budget-note"></p>
+            <button class="btn primary" id="b-ex-looks">Each look as a loop (.zip)</button>
+            <p class="note">One ILDA file per look, plus a cue sheet of when each one plays. Best for building the show in the laser software.</p>
+            <button class="btn" id="b-ex-show">Whole show as one file (.ild)</button>
+            <p class="note">Every frame of the show from start to end, as a single ILDA animation.</p>
+            <button class="btn" id="b-ex-sheet">Cue sheet only (.txt)</button>
+            <div class="progress" id="ex-prog" hidden><i></i></div>
+          </div>
+          <hr>
+          <div class="group">
+            <h2>Getting it onto the FB4</h2>
+            <ol class="steps">
+              <li>Open the files in <b>BEYOND</b> or <b>QuickShow</b> on the computer connected to the FB4. BEYOND loads ILDA (.ild) files straight into its frame editor and cue grid.</li>
+              <li>Set the playback speed to the same frames per second as above, so the loops run at the right tempo.</li>
+              <li>Line the cues up with the song on the software's timeline, using the cue sheet.</li>
+              <li>To run without a computer, use the software's <b>FB4 Export</b> to copy the show onto the FB4's SD card.</li>
+            </ol>
+          </div>
+          <p class="safety">Laser light can hurt eyes. Keep beams well above people's heads unless the setup is made and approved for audience scanning, and test new looks at low power.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden><span id="toast-msg"></span><button id="toast-act" hidden>Undo</button></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+/* ================= Show data =================
+   Looks ("cues") are placed in beats from the beat grid's first beat, so changing the tempo keeps them on the beat. */
+const SHAPES = [
+  { id: 'circle', name: 'Circle', wobble: true },
+  { id: 'polygon', name: 'Polygon', count: [3, 10, 'Sides'] },
+  { id: 'star', name: 'Star', count: [4, 12, 'Points'] },
+  { id: 'heart', name: 'Heart' },
+  { id: 'line', name: 'Line', wobble: true },
+  { id: 'wave', name: 'Wave', count: [1, 8, 'Humps'], wobble: true },
+  { id: 'spiral', name: 'Spiral', count: [1, 8, 'Turns'], wobble: true },
+  { id: 'knot', name: 'Knot', count: [1, 5, 'Loops'], wobble: true },
+  { id: 'beams', name: 'Beam fan', count: [2, 24, 'Beams'], wobble: true },
+  { id: 'text', name: 'Text' },
+  { id: 'draw', name: 'Drawing' }
+];
+const SHAPE = Object.fromEntries(SHAPES.map((s) => [s.id, s]));
+const COLORS = [['#ff2a2a', 'Red'], ['#ff8a00', 'Orange'], ['#ffe600', 'Yellow'], ['#2aff4a', 'Green'], ['#00e5ff', 'Cyan'], ['#2a5bff', 'Blue'], ['#c42aff', 'Purple'], ['#ffffff', 'White']];
+const COLOR_MODES = [['solid', 'Solid'], ['rainbow', 'Rainbow'], ['cycle', 'Color cycle'], ['flash', 'Flash on beat']];
+const SLIDERS = [
+  ['size', 'Size', .05, 1, .01, (v) => Math.round(v * 100) + '%'],
+  ['spin', 'Spin', -2, 2, .25, (v) => turns(v)],
+  ['flip', '3D flip', -2, 2, .25, (v) => turns(v)],
+  ['pulse', 'Beat pulse', 0, 1, .05, pct],
+  ['wobble', 'Wobble', 0, 1, .05, pct],
+  ['drift', 'Drift', 0, 1, .05, pct],
+  ['drawOn', 'Draw on', 0, 16, 1, (v) => v ? v + (v === 1 ? ' beat' : ' beats') : 'Off'],
+  ['lenB', 'Length', 1, 64, 1, (v) => v + ' beats']
+];
+function pct(v){ return v ? Math.round(v * 100) + '%' : 'Off'; }
+function turns(v){
+  if (!v) return 'Still';
+  const a = Math.abs(v), w = Math.floor(a), f = ['', '¼', '½', '¾'][Math.round((a - w) * 4)];
+  return (w ? w : '') + f + ' turn' + (a > 1 ? 's' : '') + '/bar ' + (v < 0 ? '↺' : '↻');
+}
+
+let show = null;     // { v, name, bpm, beat0, snap, musicName, cues: [] }
+let selId = null;
+const cueById = (id) => show.cues.find((c) => c.id === id);
+const sel = () => selId ? cueById(selId) : null;
+const bl = () => 60 / show.bpm;                     // seconds per beat
+const tOf = (b) => show.beat0 + b * bl();
+const bOf = (t) => (t - show.beat0) / bl();
+
+function newCue(o){
+  return Object.assign({ id: uid(), lane: 0, startB: 0, lenB: 8, name: '', shape: 'circle', count: 5, text: 'HELLO', strokes: [],
+    color: '#2aff4a', mode: 'solid', size: .6, x: 0, y: 0, spin: 0, flip: 0, pulse: 0, wobble: 0, drift: 0, drawOn: 0 }, o);
+}
+function lookName(c){
+  if (c.name) return c.name;
+  const col = c.mode === 'rainbow' ? 'Rainbow' : c.mode === 'cycle' ? 'Color cycle' : (COLORS.find((x) => x[0] === c.color) || [0, ''])[1];
+  if (c.shape === 'text') return (col ? col + ' ' : '') + '“' + (c.text || '') + '”';
+  return (col ? col + ' ' : '') + SHAPE[c.shape].name.toLowerCase();
+}
+function describe(c){
+  const s = SHAPE[c.shape], bits = [s.name];
+  if (s.count) bits[0] += ' (' + Math.round(c.count) + ' ' + s.count[2].toLowerCase() + ')';
+  if (c.shape === 'text') bits[0] += ' “' + c.text + '”';
+  bits.push(c.mode === 'solid' ? (COLORS.find((x) => x[0] === c.color) || [0, c.color])[1].toLowerCase() : COLOR_MODES.find((m) => m[0] === c.mode)[1].toLowerCase());
+  if (c.spin) bits.push('spin ' + turns(c.spin));
+  if (c.flip) bits.push('flip ' + turns(c.flip));
+  if (c.pulse) bits.push('pulse ' + pct(c.pulse));
+  if (c.wobble && s.wobble) bits.push('wobble ' + pct(c.wobble));
+  if (c.drift) bits.push('drift ' + pct(c.drift));
+  if (c.drawOn) bits.push('draws on over ' + c.drawOn + ' beats');
+  return bits.join(', ');
+}
+
+function demoShow(){
+  const cues = [
+    newCue({ startB: 0, lenB: 8, shape: 'circle', color: '#2aff4a', size: .55, pulse: .6, drawOn: 4, wobble: .3 }),
+    newCue({ startB: 8, lenB: 8, shape: 'star', count: 5, mode: 'rainbow', size: .7, spin: .5 }),
+    newCue({ startB: 8, lenB: 8, lane: 1, shape: 'beams', count: 9, color: '#00e5ff', size: .9, y: .55, wobble: .6 }),
+    newCue({ startB: 16, lenB: 8, shape: 'text', text: 'LASER TIME', color: '#ff2a2a', size: .85, pulse: .3, drift: .25, drawOn: 4 }),
+    newCue({ startB: 24, lenB: 8, shape: 'spiral', count: 4, mode: 'rainbow', size: .75, spin: -1, wobble: .4 }),
+    newCue({ startB: 24, lenB: 8, lane: 1, shape: 'wave', count: 3, color: '#c42aff', size: .9, y: -.6, wobble: .5 }),
+    newCue({ startB: 32, lenB: 8, shape: 'knot', count: 2, mode: 'cycle', color: '#00e5ff', size: .7, flip: .25, wobble: .5 }),
+    newCue({ startB: 40, lenB: 8, shape: 'heart', mode: 'flash', color: '#ff2a2a', size: .6, pulse: .7 })
+  ];
+  return { v: 1, name: 'Demo show', bpm: 120, beat0: 0, snap: true, musicName: '', cues };
+}
+
+/* ================= Saving ================= */
+const KEY = 'beamline.show.v1';
+let saveTimer = 0;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveTimer = 0; try { localStorage.setItem(KEY, JSON.stringify(show)); } catch (e) {} }, 300);
+}
+function flushSave(){ if (saveTimer){ clearTimeout(saveTimer); saveTimer = 0; try { localStorage.setItem(KEY, JSON.stringify(show)); } catch (e) {} } }
+window.addEventListener('pagehide', flushSave);
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
+function sanitize(d){
+  if (!d || !Array.isArray(d.cues)) throw new Error('bad');
+  const s = { v: 1, name: String(d.name || 'My show').slice(0, 40), bpm: clamp(+d.bpm || 120, 40, 240), beat0: Math.max(0, +d.beat0 || 0),
+    snap: d.snap !== false, musicName: String(d.musicName || ''), cues: [] };
+  for (const c of d.cues){
+    const n = newCue();
+    for (const k of Object.keys(n)) if (c[k] !== undefined && typeof c[k] === typeof n[k]) n[k] = c[k];
+    if (!SHAPE[n.shape]) n.shape = 'circle';
+    n.lane = clamp(Math.round(n.lane), 0, LANES - 1);
+    n.lenB = Math.max(.25, n.lenB);
+    n.strokes = Array.isArray(c.strokes) ? c.strokes.filter(Array.isArray).map((st) => st.filter((p) => Array.isArray(p) && p.length === 2).map((p) => [clamp(+p[0] || 0, -1.5, 1.5), clamp(+p[1] || 0, -1.5, 1.5)])) : [];
+    if (!n.id || s.cues.some((x) => x.id === n.id)) n.id = uid();
+    s.cues.push(n);
+  }
+  return s;
+}
+function loadStored(){
+  try { const raw = localStorage.getItem(KEY); if (raw) return sanitize(JSON.parse(raw)); } catch (e) {}
+  return null;
+}
+
+// The song itself lives in IndexedDB, so it's still there next time without being uploaded anywhere.
+function idb(){
+  return new Promise((res, rej) => {
+    if (!('indexedDB' in window)) return rej(new Error('none'));
+    const r = indexedDB.open('beamline', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbPut(key, val){
+  try { const db = await idb(); await new Promise((res, rej) => { const tx = db.transaction('files', 'readwrite'); val === null ? tx.objectStore('files').delete(key) : tx.objectStore('files').put(val, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); } catch (e) {}
+}
+async function idbGet(key){
+  try { const db = await idb(); return await new Promise((res, rej) => { const r = db.transaction('files').objectStore('files').get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); } catch (e) { return null; }
+}
+
+/* ================= Shapes =================
+   Every shape is a list of paths in a -1..1 box (y up), drawn at the look's local time t (seconds). */
+// A single-stroke font on a 4 x 6 grid, so text draws cleanly with one beam.
+const GLYPHS = {
+  A: '0,0 0,4 2,6 4,4 4,0|0,3 4,3', B: '0,0 0,6 3,6 4,5 4,4 3,3 0,3|3,3 4,2 4,1 3,0 0,0', C: '4,5 3,6 1,6 0,5 0,1 1,0 3,0 4,1',
+  D: '0,0 0,6 2,6 4,4 4,2 2,0 0,0', E: '4,6 0,6 0,0 4,0|0,3 3,3', F: '4,6 0,6 0,0|0,3 3,3', G: '4,5 3,6 1,6 0,5 0,1 1,0 3,0 4,1 4,3 2,3',
+  H: '0,0 0,6|4,0 4,6|0,3 4,3', I: '1,6 3,6|2,6 2,0|1,0 3,0', J: '4,6 4,1 3,0 1,0 0,1', K: '0,0 0,6|4,6 0,2|1,3 4,0', L: '0,6 0,0 4,0',
+  M: '0,0 0,6 2,3 4,6 4,0', N: '0,0 0,6 4,0 4,6', O: '1,0 0,1 0,5 1,6 3,6 4,5 4,1 3,0 1,0', P: '0,0 0,6 3,6 4,5 4,4 3,3 0,3',
+  Q: '1,0 0,1 0,5 1,6 3,6 4,5 4,1 3,0 1,0|2,2 4,0', R: '0,0 0,6 3,6 4,5 4,4 3,3 0,3|2,3 4,0', S: '4,5 3,6 1,6 0,5 0,4 1,3 3,3 4,2 4,1 3,0 1,0 0,1',
+  T: '0,6 4,6|2,6 2,0', U: '0,6 0,1 1,0 3,0 4,1 4,6', V: '0,6 2,0 4,6', W: '0,6 1,0 2,3 3,0 4,6', X: '0,0 4,6|0,6 4,0', Y: '0,6 2,3 4,6|2,3 2,0', Z: '0,6 4,6 0,0 4,0',
+  0: '1,0 0,1 0,5 1,6 3,6 4,5 4,1 3,0 1,0|0.5,1 3.5,5', 1: '1,5 2,6 2,0|1,0 3,0', 2: '0,5 1,6 3,6 4,5 4,4 0,0 4,0', 3: '0,5 1,6 3,6 4,5 4,4 3,3 1,3|3,3 4,2 4,1 3,0 1,0 0,1',
+  4: '3,0 3,6 0,2 4,2', 5: '4,6 0,6 0,3 3,3 4,2 4,1 3,0 0,0', 6: '4,5 3,6 1,6 0,5 0,1 1,0 3,0 4,1 4,2 3,3 0,3', 7: '0,6 4,6 1,0',
+  8: '1,3 0,4 0,5 1,6 3,6 4,5 4,4 3,3 1,3 0,2 0,1 1,0 3,0 4,1 4,2 3,3', 9: '0,1 1,0 3,0 4,1 4,5 3,6 1,6 0,5 0,4 1,3 4,3',
+  '!': '2,6 2,2|2,.5 2,0', '?': '0,5 1,6 3,6 4,5 4,4 2,3 2,2|2,.5 2,0', '.': '2,.5 2,0', ',': '2,.6 1.4,-1', '-': '1,3 3,3', '+': '2,1 2,5|0,3 4,3',
+  "'": '2,6 2,4.4', '*': '2,0 0,3 0,5 1,6 2,5 3,6 4,5 4,3 2,0', '&': '4,0 1,4 1,5 2,6 3,5 3,4 0,2 0,1 1,0 2,0 4,2', '/': '0,0 4,6', ':': '2,4.5 2,4|2,1.5 2,1'
+};
+const GLYPH = {};
+for (const k in GLYPHS) GLYPH[k] = GLYPHS[k].split('|').map((s) => s.split(' ').map((p) => p.split(',').map(Number)));
+const textCache = new Map();
+function textPaths(str){
+  str = (str || '').toUpperCase().replace(/[‘’]/g, "'").replace(/♥|❤/g, '*');
+  if (textCache.has(str)) return textCache.get(str);
+  // wrap words into lines of up to 10 characters
+  const lines = [];
+  for (const word of str.split(/\s+/).filter(Boolean)){
+    const last = lines[lines.length - 1];
+    if (last !== undefined && (last + ' ' + word).length <= 10) lines[lines.length - 1] = last + ' ' + word; else lines.push(word);
+  }
+  const paths = [];
+  const maxLen = Math.max(1, ...lines.map((l) => l.length));
+  const W = maxLen * 6 - 2, H = lines.length * 9 - 3, sc = 2 / Math.max(W, H);
+  lines.forEach((line, li) => {
+    const x0 = -(line.length * 6 - 2) / 2, y0 = H / 2 - li * 9 - 6;
+    [...line].forEach((ch, ci) => {
+      const g = GLYPH[ch];
+      if (!g) return;
+      for (const st of g) paths.push({ pts: st.map(([gx, gy]) => [(x0 + ci * 6 + gx) * sc, (y0 + gy) * sc]) });
+    });
+  });
+  if (textCache.size > 50) textCache.clear();
+  textCache.set(str, paths);
+  return paths;
+}
+
+function genShape(c, t){
+  const k = Math.round(c.count), w = c.wobble;
+  const pts = [];
+  switch (c.shape){
+    case 'circle':
+      for (let i = 0; i <= 96; i++){ const a = i / 96 * TAU, r = 1 + w * .18 * Math.sin(6 * a + t * 5); pts.push([r * Math.cos(a), r * Math.sin(a)]); }
+      return [{ pts }];
+    case 'polygon': {
+      const n = clamp(k, 3, 10);
+      for (let i = 0; i <= n; i++){ const a = TAU * i / n + Math.PI / 2; pts.push([Math.cos(a), Math.sin(a)]); }
+      return [{ pts }];
+    }
+    case 'star': {
+      const n = clamp(k, 4, 12);
+      for (let i = 0; i <= n * 2; i++){ const a = Math.PI * i / n + Math.PI / 2, r = i % 2 ? .42 : 1; pts.push([r * Math.cos(a), r * Math.sin(a)]); }
+      return [{ pts }];
+    }
+    case 'heart':
+      for (let i = 0; i <= 90; i++){
+        const a = i / 90 * TAU, s = Math.sin(a);
+        pts.push([16 * s * s * s / 17, (13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a) + 2.5) / 16]);
+      }
+      return [{ pts }];
+    case 'line':
+      for (let i = 0; i <= 24; i++){ const x = -1 + i / 12; pts.push([x, w * .35 * Math.sin(x * 3 + t * 4)]); }
+      return [{ pts }];
+    case 'wave': {
+      const n = clamp(k, 1, 8);
+      for (let i = 0; i <= 120; i++){ const x = -1 + i / 60; pts.push([x, .5 * Math.sin(x * Math.PI * n + t * (1.5 + w * 8))]); }
+      return [{ pts }];
+    }
+    case 'spiral': {
+      const n = clamp(k, 1, 8), m = 40 * n;
+      for (let i = 0; i <= m; i++){ const u = i / m, r = u * (1 + w * .15 * Math.sin(t * 4 - u * 10)), a = n * TAU * u; pts.push([r * Math.cos(a), r * Math.sin(a)]); }
+      return [{ pts }];
+    }
+    case 'knot': {
+      const n = clamp(k, 1, 5), ph = t * (.3 + w * 2);
+      for (let i = 0; i <= 220; i++){ const u = i / 220 * TAU; pts.push([Math.sin(n * u + ph), Math.sin((n + 1) * u)]); }
+      return [{ pts }];
+    }
+    case 'beams': {
+      const n = clamp(k, 2, 24), out = [];
+      for (let i = 0; i < n; i++){ const x = -1 + 2 * i / (n - 1) + w * .35 * Math.sin(t * 3 + i * .7); out.push({ pts: [[clamp(x, -1.2, 1.2), 0]], dot: true }); }
+      return out;
+    }
+    case 'text': return textPaths(c.text);
+    case 'draw': return c.strokes.filter((s) => s.length).map((s) => ({ pts: s, dot: s.length === 1 }));
+  }
+  return [];
+}
+
+/* ================= Color ================= */
+function hexRgb(h){ const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function hsv(h, s, v){
+  h = ((h % 1) + 1) % 1 * 6;
+  const i = Math.floor(h), f = h - i, p = v * (1 - s), q = v * (1 - s * f), u = v * (1 - s * (1 - f));
+  const [r, g, b] = [[v, u, p], [q, v, p], [p, v, u], [p, q, v], [u, p, v], [v, p, q]][i % 6];
+  return [r * 255, g * 255, b * 255];
+}
+function hueOf([r, g, b]){
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (!d) return 0;
+  let h = mx === r ? (g - b) / d % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return h / 6;
+}
+
+/* ================= One look at one moment =================
+   Returns paths whose points are [x, y, r, g, b] in the -1..1 projection square. */
+function lenOf(paths){
+  let L = 0;
+  for (const p of paths){ if (p.dot){ L += .15; continue; } for (let i = 1; i < p.pts.length; i++) L += Math.hypot(p.pts[i][0] - p.pts[i - 1][0], p.pts[i][1] - p.pts[i - 1][1]); }
+  return L;
+}
+function truncate(paths, f){
+  let left = lenOf(paths) * f;
+  const out = [];
+  for (const p of paths){
+    if (left <= 0) break;
+    if (p.dot){ out.push(p); left -= .15; continue; }
+    const pts = [p.pts[0]];
+    for (let i = 1; i < p.pts.length; i++){
+      const a = p.pts[i - 1], b = p.pts[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (d <= left){ pts.push(b); left -= d; }
+      else { const u = left / d; pts.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]); left = 0; break; }
+    }
+    out.push({ pts });
+  }
+  return out;
+}
+function cuePaths(c, local, gT, still){
+  const beatLen = bl(), beat = (gT - show.beat0) / beatLen, ph = beat - Math.floor(beat), bars = local / (beatLen * 4);
+  let paths = genShape(c, still ? 0 : local);
+  if (!still && c.drawOn > 0){ const f = local / (c.drawOn * beatLen); if (f < 1) paths = truncate(paths, Math.max(0, f)); }
+  const s = c.size * (still ? 1 : 1 + c.pulse * .35 * Math.exp(-ph * 5));
+  const rot = still ? 0 : c.spin * bars * TAU, fl = still ? 0 : c.flip * bars * TAU;
+  const cr = Math.cos(rot), sr = Math.sin(rot), cf = Math.cos(fl), sf = Math.sin(fl);
+  const da = local / (beatLen * 8) * TAU, dx = c.x + (still ? 0 : c.drift * .5 * Math.cos(da)), dy = c.y + (still ? 0 : c.drift * .5 * Math.sin(da));
+  const base = hexRgb(c.color);
+  const bri = c.mode === 'flash' && !still ? .12 + .88 * Math.exp(-ph * 4) : 1;
+  let total = 0;
+  for (const p of paths) total += p.pts.length;
+  let idx = 0;
+  const hue0 = hueOf(base) + (c.mode === 'cycle' ? local * .15 : 0);
+  const cyc = c.mode === 'cycle' ? hsv(hue0, base[0] === base[1] && base[1] === base[2] ? 0 : 1, 1) : null;
+  return paths.map((p) => ({
+    dot: p.dot,
+    pts: p.pts.map(([x, y]) => {
+      const z = x * sf; x *= cf;
+      const kp = 1 / (1 + z * .3); x *= kp; y *= kp;
+      const X = clamp((x * cr - y * sr) * s + dx, -1, 1), Y = clamp((x * sr + y * cr) * s + dy, -1, 1);
+      let col = c.mode === 'rainbow' ? hsv(idx / Math.max(1, total) + local * .1, 1, 1) : cyc || base;
+      idx++;
+      return [X, Y, col[0] * bri, col[1] * bri, col[2] * bri];
+    })
+  }));
+}
+function cueAt(c, T){ const a = tOf(c.startB); return T >= a && T < a + c.lenB * bl(); }
+function framePaths(T){
+  const out = [];
+  for (const c of [...show.cues].sort((a, b) => a.lane - b.lane)) if (cueAt(c, T)) out.push(...cuePaths(c, T - tOf(c.startB), T));
+  return out;
+}
+
+/* ================= Turning paths into laser points =================
+   The scanners need blanked travel between shapes, a few extra points where the beam stops or turns sharply,
+   and evenly spaced lit points. Everything is fitted into the point budget (scan speed / frame rate). */
+const BLANK_STEP = .1, PRE = 4, POST = 3, CORNER = 2, DOT = 10;
+function toScan(paths, budget){
+  let overhead = 0, lit = 0, from = [0, 0];
+  for (const p of paths){
+    const a = p.pts[0];
+    overhead += Math.ceil(Math.hypot(a[0] - from[0], a[1] - from[1]) / BLANK_STEP) + PRE;
+    if (p.dot){ overhead += DOT; from = a; continue; }
+    overhead += POST;
+    for (let i = 1; i < p.pts.length; i++){
+      const b = p.pts[i - 1], c = p.pts[i];
+      lit += Math.hypot(c[0] - b[0], c[1] - b[1]);
+      if (i < p.pts.length - 1){
+        const d = p.pts[i + 1], u = [c[0] - b[0], c[1] - b[1]], v = [d[0] - c[0], d[1] - c[1]];
+        const cos = (u[0] * v[0] + u[1] * v[1]) / (Math.hypot(...u) * Math.hypot(...v) || 1);
+        if (cos < .7) overhead += CORNER;
+      }
+    }
+    from = p.pts[p.pts.length - 1];
+  }
+  const needed = overhead + Math.ceil(lit / .012);
+  const step = Math.max(.012, lit / Math.max(40, (budget - overhead) * .95));
+  const out = [];
+  const push = (x, y, c, blank) => out.push([x, y, blank ? 0 : c[2], blank ? 0 : c[3], blank ? 0 : c[4], blank ? 1 : 0]);
+  let cur = [0, 0];
+  for (const p of paths){
+    const a = p.pts[0];
+    const n = Math.ceil(Math.hypot(a[0] - cur[0], a[1] - cur[1]) / BLANK_STEP);
+    for (let i = 1; i <= n; i++) push(cur[0] + (a[0] - cur[0]) * i / n, cur[1] + (a[1] - cur[1]) * i / n, a, true);
+    for (let i = 0; i < PRE; i++) push(a[0], a[1], a, true);
+    if (p.dot){ for (let i = 0; i < DOT; i++) push(a[0], a[1], a, false); cur = a; continue; }
+    push(a[0], a[1], a, false);
+    for (let i = 1; i < p.pts.length; i++){
+      const b = p.pts[i - 1], c = p.pts[i], d = Math.hypot(c[0] - b[0], c[1] - b[1]), m = Math.max(1, Math.round(d / step));
+      for (let j = 1; j <= m; j++){
+        const u = j / m;
+        push(b[0] + (c[0] - b[0]) * u, b[1] + (c[1] - b[1]) * u, [0, 0, b[2] + (c[2] - b[2]) * u, b[3] + (c[3] - b[3]) * u, b[4] + (c[4] - b[4]) * u], false);
+      }
+      if (i < p.pts.length - 1){
+        const e = p.pts[i + 1], u = [c[0] - b[0], c[1] - b[1]], v = [e[0] - c[0], e[1] - c[1]];
+        if ((u[0] * v[0] + u[1] * v[1]) / (Math.hypot(...u) * Math.hypot(...v) || 1) < .7) for (let k = 0; k < CORNER; k++) push(c[0], c[1], c, false);
+      }
+    }
+    const z = p.pts[p.pts.length - 1];
+    for (let i = 0; i < POST; i++) push(z[0], z[1], z, false);
+    cur = z;
+  }
+  return { pts: out, needed };
+}
+
+/* ================= ILDA files =================
+   Format 5 (2D, true color) frames: a 32-byte header, then 8 bytes per point. Big-endian. */
+function ildaFrame(pts, name, num, total){
+  if (!pts.length) pts = [[0, 0, 0, 0, 0, 1]];
+  const n = pts.length, u8 = new Uint8Array(32 + n * 8), dv = new DataView(u8.buffer);
+  u8.set([73, 76, 68, 65], 0); u8[7] = 5;
+  for (let i = 0; i < 8; i++){ u8[8 + i] = name.charCodeAt(i) || 32; u8[16 + i] = 'BEAMLINE'.charCodeAt(i); }
+  dv.setUint16(24, n); dv.setUint16(26, num); dv.setUint16(28, total);
+  for (let i = 0; i < n; i++){
+    const p = pts[i], o = 32 + i * 8;
+    dv.setInt16(o, Math.round(clamp(p[0], -1, 1) * 32767));
+    dv.setInt16(o + 2, Math.round(clamp(p[1], -1, 1) * 32767));
+    u8[o + 4] = (p[5] ? 0x40 : 0) | (i === n - 1 ? 0x80 : 0);
+    u8[o + 5] = Math.round(clamp(p[4], 0, 255)); u8[o + 6] = Math.round(clamp(p[3], 0, 255)); u8[o + 7] = Math.round(clamp(p[2], 0, 255));
+  }
+  return u8;
+}
+function ildaEnd(){ const u8 = new Uint8Array(32); u8.set([73, 76, 68, 65], 0); u8[7] = 5; for (let i = 0; i < 8; i++) u8[16 + i] = 'BEAMLINE'.charCodeAt(i); return u8; }
+function concat(parts){
+  let n = 0; for (const p of parts) n += p.length;
+  const out = new Uint8Array(n); let o = 0;
+  for (const p of parts){ out.set(p, o); o += p.length; }
+  return out;
+}
+function exportCfg(){ const fps = +$('f-fps').value, pps = +$('f-pps').value; return { fps, pps, budget: Math.floor(pps / fps) }; }
+async function renderILD(nFrames, pathsAt, prog){
+  const { fps, budget } = exportCfg(), parts = [];
+  nFrames = Math.min(nFrames, 65535);
+  for (let i = 0; i < nFrames; i++){
+    const { pts } = toScan(pathsAt(i / fps), budget);
+    parts.push(ildaFrame(pts, 'F' + String(i + 1).padStart(5, '0'), i, nFrames));
+    if (i % 150 === 149){ prog(i / nFrames); await new Promise((r) => setTimeout(r, 0)); }
+  }
+  parts.push(ildaEnd());
+  return concat(parts);
+}
+
+// A plain (stored, uncompressed) zip, enough to hand over a folder of files in one download.
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files){
+  const enc = new TextEncoder(), parts = [], central = [];
+  const d = new Date(), time = d.getHours() << 11 | d.getMinutes() << 5 | d.getSeconds() >> 1, date = (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate();
+  let off = 0;
+  for (const f of files){
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+    h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true);
+    h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+    parts.push(new Uint8Array(h.buffer), name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+    c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+    c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+    central.push(new Uint8Array(c.buffer), name);
+    off += 30 + name.length + data.length;
+  }
+  const cd = concat(central), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cd.length, true); e.setUint32(16, off, true);
+  return new Blob([...parts, cd, new Uint8Array(e.buffer)], { type: 'application/zip' });
+}
+
+const slug = (s) => (s || 'look').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 28) || 'look';
+function fmtTime(t, tenths){
+  t = Math.max(0, t);
+  const m = Math.floor(t / 60), s = t - m * 60;
+  return m + ':' + (tenths === 2 ? s.toFixed(2).padStart(5, '0') : s.toFixed(1).padStart(4, '0'));
+}
+function barBeat(b){ if (b < 0) return 'pickup'; return (Math.floor(b / 4) + 1) + '.' + (Math.floor(b % 4) + 1); }
+const orderedCues = () => [...show.cues].sort((a, b) => a.startB - b.startB || a.lane - b.lane);
+const cueFile = (c, i) => String(i + 1).padStart(2, '0') + '-' + slug(lookName(c)) + '.ild';
+function cueSheet(){
+  const { fps, pps, budget } = exportCfg(), L = [];
+  L.push('BEAMLINE CUE SHEET: ' + show.name, '');
+  L.push('Song: ' + (show.musicName || '(none)'));
+  L.push('Tempo: ' + +show.bpm.toFixed(2) + ' BPM, beat 1 at ' + fmtTime(show.beat0, 2));
+  L.push('Laser files: ILDA format 5, ' + fps + ' frames per second, up to ' + budget + ' points per frame (' + pps / 1000 + 'K scan speed)');
+  L.push('Play the loops at ' + fps + ' fps so they keep time with the song.', '');
+  L.push(['#', 'Start', 'Bar.beat', 'Length', 'Layer', 'File', 'Look'].join('\t'));
+  orderedCues().forEach((c, i) => {
+    L.push([String(i + 1).padStart(2, '0'), fmtTime(tOf(c.startB), 2), barBeat(c.startB), c.lenB + ' beats (' + (c.lenB * bl()).toFixed(2) + 's)', c.lane + 1, cueFile(c, i), lookName(c) + ': ' + describe(c)].join('\t'));
+  });
+  L.push('', 'Looks on higher layers play at the same time as lower ones.');
+  L.push('To play on the FB4 without a computer: build the show in BEYOND or QuickShow, then use FB4 Export to copy it to the FB4 SD card.');
+  return L.join('\r\n') + '\r\n';
+}
+
+const isTouch = matchMedia('(pointer:coarse)').matches;
+async function saveFile(blob, name){
+  const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+  const download = () => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    toast('Saved “' + name + '”.');
+  };
+  if (isTouch && navigator.canShare && navigator.canShare({ files: [file] })){
+    try { await navigator.share({ files: [file] }); toast('Shared “' + name + '”.'); }
+    catch (e){ if (e.name !== 'AbortError') download(); }
+  } else download();
+}
+
+let exporting = false;
+async function runExport(kind){
+  if (exporting) return;
+  if (kind !== 'sheet' && !show.cues.length){ toast('Add a look first.'); return; }
+  exporting = true;
+  const bar = $('ex-prog'), fill = bar.firstElementChild;
+  bar.hidden = false; fill.style.width = '0';
+  ['b-ex-looks', 'b-ex-show', 'b-ex-sheet'].forEach((id) => $(id).disabled = true);
+  const prog = (f) => { fill.style.width = (f * 100).toFixed(1) + '%'; };
+  const { fps } = exportCfg(), base = slug(show.name);
+  try {
+    if (kind === 'sheet') await saveFile(new Blob([cueSheet()], { type: 'text/plain' }), base + '-cue-sheet.txt');
+    else if (kind === 'show'){
+      const end = Math.max(showEnd(), music.dur || 0);
+      const data = await renderILD(Math.ceil(end * fps), (T) => framePaths(T), prog);
+      prog(1);
+      await saveFile(new Blob([data], { type: 'application/octet-stream' }), base + '.ild');
+    } else {
+      const cues = orderedCues(), files = [];
+      for (let i = 0; i < cues.length; i++){
+        const c = cues[i], start = tOf(c.startB);
+        const data = await renderILD(Math.ceil(c.lenB * bl() * fps), (t) => cuePaths(c, t, start + t), (f) => prog((i + f) / cues.length));
+        files.push({ name: cueFile(c, i), data });
+        prog((i + 1) / cues.length);
+      }
+      files.push({ name: 'cue-sheet.txt', data: cueSheet() });
+      await saveFile(makeZip(files), base + '-looks.zip');
+    }
+  } finally {
+    exporting = false;
+    setTimeout(() => { bar.hidden = true; }, 600);
+    ['b-ex-looks', 'b-ex-show', 'b-ex-sheet'].forEach((id) => $(id).disabled = false);
+  }
+}
+
+/* ================= Music and the clock ================= */
+const audio = new Audio();
+audio.preload = 'auto';
+const music = { url: '', dur: 0, peaks: null, peakRate: 50 };
+let playing = false, playhead = 0, clock0 = 0, pos0 = 0;
+
+async function setMusic(blob, name, store){
+  if (music.url) URL.revokeObjectURL(music.url);
+  music.url = URL.createObjectURL(blob); music.dur = 0; music.peaks = null;
+  audio.src = music.url;
+  show.musicName = name; save();
+  if (store) idbPut('music', blob);
+  renderMusic();
+  audio.addEventListener('loadedmetadata', () => { music.dur = audio.duration || 0; drawTimeline(); }, { once: true });
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ac = new AC();
+    const buf = await new Promise((res, rej) => blob.arrayBuffer().then((ab) => ac.decodeAudioData(ab, res, rej)));
+    const ch = buf.getChannelData(0), per = Math.max(1, Math.floor(buf.sampleRate / music.peakRate)), n = Math.ceil(ch.length / per);
+    const peaks = new Float32Array(n);
+    for (let i = 0; i < n; i++){ let m = 0; const e = Math.min(ch.length, (i + 1) * per); for (let j = i * per; j < e; j += 4){ const v = Math.abs(ch[j]); if (v > m) m = v; } peaks[i] = m; }
+    music.peaks = peaks; music.dur = music.dur || buf.duration;
+    if (ac.close) ac.close();
+  } catch (e) {}
+  drawTimeline();
+}
+function clearMusic(){
+  if (playing) pause();
+  if (music.url) URL.revokeObjectURL(music.url);
+  audio.removeAttribute('src'); audio.load();
+  Object.assign(music, { url: '', dur: 0, peaks: null });
+  show.musicName = ''; save(); idbPut('music', null);
+  renderMusic(); drawTimeline();
+}
+const hasMusic = () => !!music.url;
+function now(){
+  if (!playing) return playhead;
+  return hasMusic() ? audio.currentTime : pos0 + (performance.now() - clock0) / 1000;
+}
+const showEnd = () => Math.max(0, ...show.cues.map((c) => tOf(c.startB + c.lenB)));
+const timelineEnd = () => Math.max(showEnd() + 8, music.dur || 0, 30);
+function play(){
+  if (playhead >= timelineEnd() - .05) playhead = 0;
+  playing = true;
+  if (hasMusic()){
+    audio.currentTime = playhead;
+    const p = audio.play();
+    if (p && p.catch) p.catch(() => { playing = false; renderTransport(); toast('The song couldn’t start. Try tapping play again.'); });
+  } else { clock0 = performance.now(); pos0 = playhead; }
+  renderTransport();
+}
+function pause(){ playhead = now(); playing = false; audio.pause(); renderTransport(); }
+function seek(t){
+  playhead = clamp(t, 0, timelineEnd());
+  if (hasMusic()) audio.currentTime = playhead;
+  if (playing && !hasMusic()){ clock0 = performance.now(); pos0 = playhead; }
+  drawTimeline();
+}
+audio.addEventListener('ended', () => { if (playing) pause(); });
+
+/* ================= Stage preview ================= */
+const stageCv = $('stage-cv'), sctx = stageCv.getContext('2d');
+let view = 'screen', SW = 0, SH = 0, DPR = 1;
+function sizeStage(){
+  const r = stageCv.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  SW = r.width; SH = r.height;
+  stageCv.width = Math.round(SW * DPR); stageCv.height = Math.round(SH * DPR);
+}
+function projBox(){ const S = Math.min(SW, SH) * .9; return { cx: SW / 2, cy: SH / 2, R: S / 2 }; }
+function rgbStr(p, a){ return 'rgba(' + (p[2] | 0) + ',' + (p[3] | 0) + ',' + (p[4] | 0) + ',' + a + ')'; }
+function strokePaths(ctx, paths, map, lw, alpha){
+  for (const p of paths){
+    if (p.dot){
+      const [x, y] = map(p.pts[0]);
+      ctx.fillStyle = rgbStr(p.pts[0], alpha); ctx.beginPath(); ctx.arc(x, y, lw * .9, 0, TAU); ctx.fill();
+      continue;
+    }
+    let i = 0;
+    const P = p.pts;
+    while (i < P.length - 1){
+      const key = (P[i][2] | 0) + ',' + (P[i][3] | 0) + ',' + (P[i][4] | 0);
+      ctx.beginPath();
+      let [x, y] = map(P[i]); ctx.moveTo(x, y);
+      let j = i + 1;
+      for (; j < P.length; j++){
+        [x, y] = map(P[j]); ctx.lineTo(x, y);
+        if (j < P.length - 1 && ((P[j][2] | 0) + ',' + (P[j][3] | 0) + ',' + (P[j][4] | 0)) !== key) break;
+      }
+      ctx.strokeStyle = rgbStr(P[i], alpha); ctx.lineWidth = lw; ctx.stroke();
+      i = j;
+    }
+    if (P.length === 1){ const [x, y] = map(P[0]); ctx.fillStyle = rgbStr(P[0], alpha); ctx.beginPath(); ctx.arc(x, y, lw / 2, 0, TAU); ctx.fill(); }
+  }
+}
+function drawStage(paths){
+  const ctx = sctx;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#010104'; ctx.fillRect(0, 0, SW, SH);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (view === 'screen'){
+    const { cx, cy, R } = projBox();
+    ctx.strokeStyle = 'rgba(140,150,200,.13)'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+    ctx.strokeRect(cx - R, cy - R, R * 2, R * 2);
+    ctx.beginPath(); ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8); ctx.stroke();
+    ctx.setLineDash([]);
+    const map = (p) => [cx + p[0] * R, cy - p[1] * R];
+    ctx.globalCompositeOperation = 'lighter';
+    const lw = Math.max(1.4, R * .006);
+    strokePaths(ctx, paths, map, lw * 7, .09);
+    strokePaths(ctx, paths, map, lw * 2.6, .28);
+    strokePaths(ctx, paths, map, lw, 1);
+  } else {
+    // Haze: the projector sits on the stage floor, and every point of the pattern becomes a beam through the smoke.
+    const px = SW / 2, py = SH * .9, cx = SW / 2, cy = SH * .36, R = Math.min(SH * .3, SW * .4);
+    const g = ctx.createRadialGradient(px, py, 0, px, py, SH * .9);
+    g.addColorStop(0, 'rgba(60,64,90,.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+    ctx.fillStyle = 'rgba(120,128,170,.12)'; ctx.fillRect(0, py + 10, SW, 1);
+    ctx.globalCompositeOperation = 'lighter';
+    const map = (p) => [cx + p[0] * R * 1.25, cy - p[1] * R];
+    for (const p of paths){
+      const stride = p.dot ? 1 : Math.max(1, Math.floor(p.pts.length / 40));
+      for (let i = 0; i < p.pts.length; i += stride){
+        const q = p.pts[i], [x, y] = map(q), ex = px + (x - px) * 3, ey = py + (y - py) * 3;
+        ctx.strokeStyle = rgbStr(q, p.dot ? .55 : .08); ctx.lineWidth = p.dot ? 2 : 1.5;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.stroke();
+      }
+    }
+    strokePaths(ctx, paths, map, 3, .25);
+    strokePaths(ctx, paths, map, 1.2, .9);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#1b1d2b'; ctx.fillRect(px - 22, py, 44, 18);
+    ctx.fillStyle = '#39ff7a'; ctx.fillRect(px - 2, py, 4, 2);
+  }
+}
+
+/* ================= Timeline ================= */
+const LANES = 3, RULER = 22, WAVE = 40, LANE_H = 48;
+const tlCv = $('tl-cv'), tctx = tlCv.getContext('2d');
+let TW = 0, TH = 0, pps = 40, scrollT = 0;
+function sizeTimeline(){
+  const r = tlCv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2);
+  TW = r.width; TH = r.height;
+  tlCv.width = Math.round(TW * d); tlCv.height = Math.round(TH * d);
+  tctx.setTransform(d, 0, 0, d, 0, 0);
+  drawTimeline();
+}
+const xOf = (t) => (t - scrollT) * pps;
+const tAt = (x) => x / pps + scrollT;
+const laneY = (l) => RULER + WAVE + l * LANE_H;
+function clampScroll(){ scrollT = clamp(scrollT, 0, Math.max(0, timelineEnd() - TW / pps + 1)); }
+function rr(ctx, x, y, w, h, r){ ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); }
+function drawTimeline(){
+  if (!TW) return;
+  const ctx = tctx, b = bl(), T = now();
+  clampScroll();
+  ctx.clearRect(0, 0, TW, TH);
+  ctx.fillStyle = '#0d0e16'; ctx.fillRect(0, 0, TW, TH);
+  for (let l = 0; l < LANES; l++){ ctx.fillStyle = l % 2 ? '#10111a' : '#121420'; ctx.fillRect(0, laneY(l), TW, LANE_H); }
+  // beat grid: bars always, beats when there's room
+  const b0 = Math.floor(bOf(tAt(0))), b1 = Math.ceil(bOf(tAt(TW)));
+  const beatPx = b * pps, every = beatPx < 6 ? (beatPx * 4 < 30 ? 16 : 4) : 1;
+  ctx.font = '600 11px Manrope, system-ui, sans-serif'; ctx.textBaseline = 'middle';
+  for (let k = Math.floor(b0 / every) * every; k <= b1; k += every){
+    const x = Math.round(xOf(tOf(k))) + .5, bar = ((k % 4) + 4) % 4 === 0;
+    if (x < -2 || x > TW + 2) continue;
+    ctx.fillStyle = bar ? 'rgba(160,170,220,.22)' : 'rgba(160,170,220,.08)';
+    ctx.fillRect(x, RULER, 1, TH - RULER);
+    if (bar && k >= 0 && (beatPx * 4 >= 26 || (k / 4) % 4 === 0)){ ctx.fillStyle = '#7d84a6'; ctx.fillText(String(k / 4 + 1), x + 4, RULER / 2 + 1); }
+  }
+  ctx.fillStyle = 'rgba(160,170,220,.12)'; ctx.fillRect(0, RULER - 1, TW, 1); ctx.fillRect(0, RULER + WAVE - 1, TW, 1);
+  // waveform
+  const wy = RULER + WAVE / 2;
+  if (music.peaks){
+    ctx.fillStyle = 'rgba(120,200,255,.45)';
+    for (let x = 0; x < TW; x += 2){
+      const i0 = Math.floor(tAt(x) * music.peakRate), i1 = Math.max(i0 + 1, Math.floor(tAt(x + 2) * music.peakRate));
+      if (i0 < 0 || i0 >= music.peaks.length) continue;
+      let m = 0; for (let i = i0; i < i1 && i < music.peaks.length; i++) if (music.peaks[i] > m) m = music.peaks[i];
+      const hh = Math.max(1, m * (WAVE / 2 - 4)); ctx.fillRect(x, wy - hh, 1.5, hh * 2);
+    }
+  } else {
+    ctx.fillStyle = '#5c6283'; ctx.fillText(hasMusic() ? 'Reading the song…' : 'No song. Add one in Music.', 8, wy);
+  }
+  if (music.dur){ const x = xOf(music.dur); if (x < TW){ ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(x, RULER, TW - x, WAVE); } }
+  // looks
+  for (const c of show.cues){
+    const x0 = xOf(tOf(c.startB)), x1 = xOf(tOf(c.startB + c.lenB)), y = laneY(c.lane) + 5, h = LANE_H - 10;
+    if (x1 < 0 || x0 > TW) continue;
+    const w = Math.max(6, x1 - x0), isSel = c.id === selId;
+    let fill;
+    if (c.mode === 'rainbow' || c.mode === 'cycle'){
+      fill = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+      for (let i = 0; i <= 6; i++){ const [r, g, bb] = hsv(i / 6, .75, .55); fill.addColorStop(i / 6, 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (bb | 0) + ')'); }
+    } else { const [r, g, bb] = hexRgb(c.color); fill = 'rgba(' + r + ',' + g + ',' + bb + ',.38)'; }
+    rr(ctx, x0 + 1, y, w - 2, h, 7); ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = isSel ? 2 : 1; ctx.strokeStyle = isSel ? '#ffffff' : 'rgba(255,255,255,.18)'; ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.rect(x0 + 4, y, Math.max(0, w - 16), h); ctx.clip();
+    ctx.fillStyle = '#f3f4ff'; ctx.font = '600 12px Manrope, system-ui, sans-serif'; ctx.fillText(lookName(c), x0 + 9, y + h / 2 - 7);
+    ctx.fillStyle = 'rgba(243,244,255,.65)'; ctx.font = '500 11px Manrope, system-ui, sans-serif'; ctx.fillText(c.lenB + ' beats', x0 + 9, y + h / 2 + 8);
+    ctx.restore();
+    if (isSel){ ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(x0 + w - 7, y + h / 2 - 8, 2, 16); }
+  }
+  // playhead
+  const px = Math.round(xOf(T)) + .5;
+  if (px >= 0 && px <= TW){
+    ctx.fillStyle = '#ff3fb4'; ctx.fillRect(px - 1, 0, 2, TH);
+    ctx.beginPath(); ctx.moveTo(px - 6, 0); ctx.lineTo(px + 6, 0); ctx.lineTo(px, 8); ctx.fill();
+  }
+}
+function hitCue(x, y){
+  if (y < laneY(0)) return null;
+  const lane = Math.floor((y - laneY(0)) / LANE_H), t = tAt(x);
+  for (const c of show.cues){
+    if (c.lane !== lane) continue;
+    const a = tOf(c.startB), e = tOf(c.startB + c.lenB), x1 = xOf(e);
+    if ((t >= a && t <= e) || (x >= x1 - 14 && x <= x1 + 6 && t >= a)) return { c, edge: x >= x1 - 14 };
+  }
+  return null;
+}
+const snapB = (b, fine) => show.snap ? Math.round(b) : Math.round(b * (fine ? 100 : 4)) / (fine ? 100 : 4);
+const pointers = new Map();
+let drag = null;
+tlCv.addEventListener('pointerdown', (e) => {
+  const r = tlCv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  pointers.set(e.pointerId, { x, y });
+  tlCv.setPointerCapture(e.pointerId);
+  if (pointers.size === 2){
+    const [a, b] = [...pointers.values()];
+    drag = { mode: 'pinch', d0: Math.abs(a.x - b.x) || 1, pps0: pps, tMid: tAt((a.x + b.x) / 2) };
+    return;
+  }
+  const hit = hitCue(x, y);
+  if (hit){
+    select(hit.c.id);
+    drag = { mode: hit.edge ? 'resize' : 'move', c: hit.c, x0: x, y0: y, b0: hit.c.startB, l0: hit.c.lenB, lane0: hit.c.lane, moved: false };
+  } else drag = { mode: y < RULER + WAVE ? 'seek' : 'pan', x0: x, s0: scrollT, moved: false };
+  if (drag.mode === 'seek') seek(tAt(x));
+});
+tlCv.addEventListener('pointermove', (e) => {
+  const r = tlCv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x, y });
+  if (!drag){ const h = hitCue(x, y); tlCv.style.cursor = h ? (h.edge ? 'ew-resize' : 'grab') : 'default'; return; }
+  if (drag.mode === 'pinch'){
+    if (pointers.size < 2) return;
+    const [a, b] = [...pointers.values()];
+    setZoom(drag.pps0 * (Math.abs(a.x - b.x) || 1) / drag.d0, (a.x + b.x) / 2, drag.tMid);
+    return;
+  }
+  if (Math.abs(x - drag.x0) > 5 || (drag.y0 !== undefined && Math.abs(y - drag.y0) > 8)) drag.moved = true;
+  if (!drag.moved) return;
+  const db = (x - drag.x0) / pps / bl();
+  if (drag.mode === 'move'){
+    drag.c.startB = Math.max(Math.ceil(bOf(0) * 100) / 100, snapB(drag.b0 + db, false));
+    drag.c.lane = clamp(Math.floor((y - laneY(0)) / LANE_H), 0, LANES - 1);
+    renderLength();
+  } else if (drag.mode === 'resize'){
+    drag.c.lenB = Math.max(show.snap ? 1 : .25, snapB(drag.l0 + db, false));
+    renderLength();
+  } else if (drag.mode === 'seek') seek(tAt(x));
+  else if (drag.mode === 'pan'){ scrollT = drag.s0 - (x - drag.x0) / pps; }
+  drawTimeline();
+});
+function endDrag(e){
+  pointers.delete(e.pointerId);
+  if (!drag) return;
+  if (drag.mode === 'pinch'){ if (!pointers.size) drag = null; return; }
+  if (drag.mode === 'pan' && !drag.moved) seek(tAt(drag.x0));
+  if ((drag.mode === 'move' || drag.mode === 'resize') && drag.moved){
+    // looks in one layer can't overlap: a dropped look slides to a free layer, or goes back where it was
+    const c = drag.c, hits = (l) => show.cues.some((o) => o !== c && o.lane === l && o.startB < c.startB + c.lenB && c.startB < o.startB + o.lenB);
+    if (hits(c.lane)){
+      if (drag.mode === 'resize'){
+        const next = Math.min(...show.cues.filter((o) => o !== c && o.lane === c.lane && o.startB > c.startB).map((o) => o.startB));
+        c.lenB = isFinite(next) && next > c.startB ? next - c.startB : drag.l0;
+      } else {
+        const free = [...Array(LANES).keys()].find((l) => !hits(l));
+        if (free !== undefined) c.lane = free; else { c.startB = drag.b0; c.lane = drag.lane0; toast('No free layer there, so the look went back.'); }
+      }
+      renderLength();
+    }
+    save();
+  }
+  drag = null; drawTimeline();
+}
+tlCv.addEventListener('pointerup', endDrag);
+tlCv.addEventListener('pointercancel', endDrag);
+tlCv.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey){ const r = tlCv.getBoundingClientRect(), x = e.clientX - r.left; setZoom(pps * Math.exp(-e.deltaY * .01), x, tAt(x)); }
+  else { scrollT += (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / pps; drawTimeline(); }
+}, { passive: false });
+const PPS_MIN = 6, PPS_MAX = 240;
+function setZoom(v, anchorX, anchorT){
+  pps = clamp(v, PPS_MIN, PPS_MAX);
+  if (anchorX !== undefined) scrollT = anchorT - anchorX / pps;
+  $('zoom').value = Math.log(pps / PPS_MIN) / Math.log(PPS_MAX / PPS_MIN);
+  drawTimeline();
+}
+$('zoom').addEventListener('input', (e) => { const mid = TW / 2, t = tAt(mid); pps = PPS_MIN * Math.pow(PPS_MAX / PPS_MIN, +e.target.value); scrollT = t - mid / pps; drawTimeline(); });
+
+/* ================= Stage: drag to move, or draw ================= */
+let drawMode = false, stageDrag = null;
+function stagePt(e){ const r = stageCv.getBoundingClientRect(), { cx, cy, R } = projBox(); return [(e.clientX - r.left - cx) / R, -(e.clientY - r.top - cy) / R]; }
+stageCv.addEventListener('pointerdown', (e) => {
+  const c = sel();
+  if (!c || view !== 'screen') return;
+  stageCv.setPointerCapture(e.pointerId);
+  const p = stagePt(e);
+  if (drawMode && c.shape === 'draw'){
+    const q = [clamp((p[0] - c.x) / c.size, -1.5, 1.5), clamp((p[1] - c.y) / c.size, -1.5, 1.5)];
+    c.strokes.push([q]);
+    stageDrag = { mode: 'draw', c };
+  } else stageDrag = { mode: 'move', c, dx: c.x - p[0], dy: c.y - p[1] };
+});
+stageCv.addEventListener('pointermove', (e) => {
+  if (!stageDrag) return;
+  const c = stageDrag.c, p = stagePt(e);
+  if (stageDrag.mode === 'draw'){
+    const st = c.strokes[c.strokes.length - 1], q = [clamp((p[0] - c.x) / c.size, -1.5, 1.5), clamp((p[1] - c.y) / c.size, -1.5, 1.5)], l = st[st.length - 1];
+    if (Math.hypot(q[0] - l[0], q[1] - l[1]) > .025) st.push(q);
+  } else { c.x = clamp(p[0] + stageDrag.dx, -1, 1); c.y = clamp(p[1] + stageDrag.dy, -1, 1); }
+});
+const endStage = () => {
+  if (!stageDrag) return;
+  if (stageDrag.mode === 'draw'){ const c = stageDrag.c, st = c.strokes[c.strokes.length - 1]; st.forEach((q) => { q[0] = Math.round(q[0] * 1000) / 1000; q[1] = Math.round(q[1] * 1000) / 1000; }); }
+  stageDrag = null; save(); drawTimeline();
+};
+stageCv.addEventListener('pointerup', endStage);
+stageCv.addEventListener('pointercancel', endStage);
+
+/* ================= Inspector ================= */
+function select(id){
+  selId = id;
+  if (drawMode && (!sel() || sel().shape !== 'draw')) setDrawMode(false);
+  renderInspector(); drawTimeline();
+}
+function changed(){ save(); drawTimeline(); }
+// shape chips, swatches, color modes and sliders are built once
+for (const s of SHAPES){
+  const b = document.createElement('button'); b.className = 'chip'; b.textContent = s.name; b.dataset.shape = s.id;
+  b.addEventListener('click', () => {
+    const c = sel(); if (!c) return;
+    c.shape = s.id;
+    if (s.count) c.count = clamp(c.count, s.count[0], s.count[1]);
+    if (s.id === 'draw' && !c.strokes.length) setDrawMode(true); else if (s.id !== 'draw') setDrawMode(false);
+    renderInspector(); changed();
+  });
+  $('shapes').append(b);
+}
+for (const [hex, name] of COLORS){
+  const b = document.createElement('button'); b.className = 'sw'; b.style.setProperty('--c', hex); b.setAttribute('aria-label', name); b.title = name; b.dataset.color = hex;
+  b.addEventListener('click', () => { const c = sel(); if (!c) return; c.color = hex; if (c.mode === 'rainbow') c.mode = 'solid'; renderInspector(); changed(); });
+  $('swatches').append(b);
+}
+for (const [id, name] of COLOR_MODES){
+  const b = document.createElement('button'); b.className = 'chip'; b.textContent = name; b.dataset.mode = id;
+  b.addEventListener('click', () => { const c = sel(); if (!c) return; c.mode = id; renderInspector(); changed(); });
+  $('cmodes').append(b);
+}
+const sliderEls = {};
+function addSlider(key, label, min, max, step, fmt){
+  const row = document.createElement('div'); row.className = 'slider';
+  const lab = document.createElement('label'), inp = document.createElement('input'), out = document.createElement('output');
+  inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.id = 's-' + key; lab.htmlFor = inp.id; lab.textContent = label;
+  inp.addEventListener('input', () => {
+    const c = sel(); if (!c) return;
+    c[key] = +inp.value; out.textContent = (sliderEls[key].fmt)(c[key]);
+    if (key === 'lenB') renderLength();
+    changed();
+  });
+  row.append(lab, inp, out);
+  sliderEls[key] = { row, inp, out, lab, fmt };
+  return row;
+}
+addSlider('count', 'Count', 1, 24, 1, (v) => String(Math.round(v)));
+$('sliders').append(sliderEls.count.row);
+for (const s of SLIDERS) $('sliders').append(addSlider(...s));
+$('f-name').addEventListener('input', (e) => { const c = sel(); if (!c) return; c.name = e.target.value; changed(); });
+$('f-text').addEventListener('input', (e) => { const c = sel(); if (!c) return; c.text = e.target.value.toUpperCase(); changed(); });
+function setDrawMode(on){
+  drawMode = on;
+  $('b-draw').textContent = on ? 'Done drawing' : 'Draw on the stage';
+  $('b-draw').classList.toggle('primary', on);
+  $('draw-tag').hidden = !on;
+  if (on){ if (playing) pause(); if (view !== 'screen') setView('screen'); }
+}
+$('b-draw').addEventListener('click', () => setDrawMode(!drawMode));
+$('b-undo-stroke').addEventListener('click', () => { const c = sel(); if (c && c.strokes.length){ c.strokes.pop(); changed(); } });
+$('b-clear-draw').addEventListener('click', () => { const c = sel(); if (c){ c.strokes = []; setDrawMode(true); changed(); } });
+
+function renderLength(){
+  const c = sel(); if (!c) return;
+  const s = sliderEls.lenB;
+  s.inp.value = c.lenB; s.out.textContent = s.fmt(c.lenB);
+}
+function renderInspector(){
+  const c = sel();
+  $('look-empty').hidden = !!c; $('look-ed').hidden = !c;
+  if (!c) return;
+  const shp = SHAPE[c.shape];
+  if (document.activeElement !== $('f-name')) $('f-name').value = c.name;
+  $('f-name').placeholder = lookName(Object.assign({}, c, { name: '' }));
+  document.querySelectorAll('#shapes .chip').forEach((b) => b.setAttribute('aria-pressed', b.dataset.shape === c.shape));
+  document.querySelectorAll('#swatches .sw').forEach((b) => b.setAttribute('aria-pressed', c.mode !== 'rainbow' && b.dataset.color === c.color));
+  document.querySelectorAll('#cmodes .chip').forEach((b) => b.setAttribute('aria-pressed', b.dataset.mode === c.mode));
+  $('text-row').hidden = c.shape !== 'text';
+  if (document.activeElement !== $('f-text')) $('f-text').value = c.text;
+  $('draw-row').hidden = c.shape !== 'draw';
+  const cs = sliderEls.count;
+  cs.row.hidden = !shp.count;
+  if (shp.count){ cs.inp.min = shp.count[0]; cs.inp.max = shp.count[1]; cs.lab.textContent = shp.count[2]; cs.inp.value = c.count; cs.out.textContent = cs.fmt(c.count); }
+  sliderEls.wobble.row.hidden = !shp.wobble;
+  for (const [key] of SLIDERS){ const s = sliderEls[key]; s.inp.value = c[key]; s.out.textContent = s.fmt(c[key]); }
+}
+function freeLane(b, len){
+  for (let l = 0; l < LANES; l++) if (!show.cues.some((c) => c.lane === l && c.startB < b + len && b < c.startB + c.lenB)) return l;
+  return 0;
+}
+let addIdx = 0;
+const ADD_PRESETS = [
+  { shape: 'circle', color: '#2aff4a', pulse: .5 }, { shape: 'star', count: 5, mode: 'rainbow', spin: .5 }, { shape: 'beams', count: 9, color: '#00e5ff', y: .5, wobble: .5, size: .9 },
+  { shape: 'wave', count: 3, color: '#c42aff', wobble: .5, size: .9 }, { shape: 'polygon', count: 3, color: '#ffe600', spin: -.5, flip: .25 }, { shape: 'knot', count: 2, mode: 'cycle', color: '#ff2a2a', wobble: .4 }
+];
+$('b-add').addEventListener('click', () => {
+  const b = Math.max(Math.ceil(bOf(0)), show.snap ? Math.round(bOf(now())) : Math.round(bOf(now()) * 4) / 4), len = 8;
+  const c = newCue(Object.assign({ startB: b, lenB: len, lane: freeLane(b, len) }, ADD_PRESETS[addIdx++ % ADD_PRESETS.length]));
+  show.cues.push(c); setTab('look'); select(c.id); changed();
+  const x = xOf(tOf(b)); if (x < 0 || x > TW - 40){ scrollT = tOf(b) - 20 / pps; drawTimeline(); }
+});
+$('b-dup').addEventListener('click', () => {
+  const c = sel(); if (!c) return;
+  const d = newCue(JSON.parse(JSON.stringify(c))); d.id = uid(); d.startB = c.startB + c.lenB; d.lane = freeLane(d.startB, d.lenB);
+  show.cues.push(d); select(d.id); changed();
+});
+let undoDel = null;
+function deleteSel(){
+  const c = sel(); if (!c) return;
+  show.cues = show.cues.filter((x) => x !== c); undoDel = c;
+  select(null); changed();
+  toast('Deleted “' + lookName(c) + '”.', () => { show.cues.push(undoDel); select(undoDel.id); changed(); undoDel = null; });
+}
+$('b-del').addEventListener('click', deleteSel);
+
+/* ================= Music tab ================= */
+function renderMusic(){
+  $('music-name').textContent = show.musicName ? (hasMusic() ? 'Playing along to “' + show.musicName + '”.' : 'This show was made with “' + show.musicName + '”. Choose it again to hear it here.') : 'No song yet. The show runs to a plain beat until you add one.';
+  $('b-music-off').hidden = !hasMusic();
+  if (document.activeElement !== $('f-bpm')) $('f-bpm').value = +show.bpm.toFixed(2);
+  $('f-snap').checked = show.snap;
+  if (document.activeElement !== $('f-show')) $('f-show').value = show.name;
+}
+$('f-music').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f){ if (playing) pause(); setMusic(f, f.name, true); } });
+$('b-music-off').addEventListener('click', clearMusic);
+function setBpm(v){
+  v = clamp(v, 40, 240);
+  if (!isFinite(v)) return;
+  show.bpm = v; renderMusic(); changed();
+}
+$('f-bpm').addEventListener('change', (e) => setBpm(+e.target.value));
+let taps = [];
+$('b-tap').addEventListener('click', () => {
+  const T = now();
+  if (taps.length && (T - taps[taps.length - 1] > 2 || T < taps[taps.length - 1])) taps = [];
+  taps.push(T);
+  if (taps.length > 16) taps.shift();
+  const n = taps.length;
+  $('b-tap').textContent = n < 8 ? 'Tap along (' + n + ')' : 'Tap along (locked)';
+  if (n >= 8){
+    // least-squares line through the taps gives both the beat length and where beat 0 falls
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    taps.forEach((t, i) => { sx += i; sy += t; sxx += i * i; sxy += i * t; });
+    const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx), icpt = (sy - slope * sx) / n;
+    if (slope > .25 && slope < 1.5){
+      show.bpm = Math.round(60 / slope * 10) / 10;
+      const beat = 60 / show.bpm;
+      show.beat0 = ((icpt % beat) + beat) % beat;
+      renderMusic(); changed();
+    }
+  }
+  clearTimeout(tapTimer); tapTimer = setTimeout(() => { taps = []; $('b-tap').textContent = 'Tap along'; }, 2500);
+});
+let tapTimer = 0;
+$('b-beat1').addEventListener('click', () => { const beat = bl(); show.beat0 = ((now() % beat) + beat) % beat; changed(); toast('A beat now lands at ' + fmtTime(now(), 2) + '.'); });
+$('f-snap').addEventListener('change', (e) => { show.snap = e.target.checked; save(); });
+$('f-show').addEventListener('input', (e) => { show.name = e.target.value || 'My show'; save(); });
+$('b-save').addEventListener('click', () => saveFile(new Blob([JSON.stringify(show, null, 1)], { type: 'application/json' }), slug(show.name) + '.beamline.json'));
+$('f-open').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try { const d = sanitize(JSON.parse(await f.text())); setShow(d); toast('Opened “' + d.name + '”.'); }
+  catch (err){ toast('That file isn’t a Beamline show.'); }
+});
+$('b-demo').addEventListener('click', () => { const keep = show; setShow(Object.assign(demoShow(), { musicName: show.musicName, bpm: show.bpm, beat0: show.beat0 })); toast('Loaded the demo.', () => setShow(keep)); });
+$('b-new').addEventListener('click', () => { const keep = show; setShow({ v: 1, name: 'My show', bpm: show.bpm, beat0: show.beat0, snap: true, musicName: show.musicName, cues: [] }); toast('Started a new show.', () => setShow(keep)); });
+function setShow(d){
+  if (playing) pause();
+  show = d; selId = null; setDrawMode(false);
+  renderMusic(); renderInspector(); seek(0); save();
+}
+
+/* ================= Export tab ================= */
+function renderBudget(){
+  const { fps, budget } = exportCfg();
+  $('budget-note').innerHTML = '<b>' + budget + ' points</b> per frame at ' + fps + ' frames a second. Pick the scan speed on the laser’s label; 30K suits most show lasers.';
+}
+$('f-pps').addEventListener('change', renderBudget);
+$('f-fps').addEventListener('change', renderBudget);
+$('b-ex-looks').addEventListener('click', () => runExport('looks'));
+$('b-ex-show').addEventListener('click', () => runExport('show'));
+$('b-ex-sheet').addEventListener('click', () => runExport('sheet'));
+
+/* ================= Tabs, views, transport ================= */
+function setTab(id){
+  for (const t of ['look', 'music', 'export']){ $('t-' + t).setAttribute('aria-selected', t === id); $('p-' + t).hidden = t !== id; }
+}
+['look', 'music', 'export'].forEach((t) => $('t-' + t).addEventListener('click', () => setTab(t)));
+function setView(v){ view = v; $('v-screen').setAttribute('aria-pressed', v === 'screen'); $('v-haze').setAttribute('aria-pressed', v === 'haze'); if (v !== 'screen' && drawMode) setDrawMode(false); }
+$('v-screen').addEventListener('click', () => setView('screen'));
+$('v-haze').addEventListener('click', () => setView('haze'));
+function renderTransport(){
+  $('b-play').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  $('play-ico').innerHTML = playing ? '<path d="M6 4.5h4.5v15H6zM13.5 4.5H18v15h-4.5z"/>' : '<path d="M7 4.5v15l13-7.5z"/>';
+}
+$('b-play').addEventListener('click', () => { if (drawMode) setDrawMode(false); playing ? pause() : play(); });
+$('b-rewind').addEventListener('click', () => { seek(0); scrollT = 0; drawTimeline(); });
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input,textarea,select')) return;
+  if (e.code === 'Space'){ e.preventDefault(); playing ? pause() : play(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && sel()){ e.preventDefault(); deleteSel(); }
+});
+
+let toastTimer = 0;
+function toast(msg, undo){
+  $('toast-msg').textContent = msg;
+  const act = $('toast-act');
+  act.hidden = !undo; act.onclick = () => { $('toast').hidden = true; if (undo) undo(); };
+  $('toast').hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, undo ? 6000 : 3500);
+}
+
+/* ================= Main loop ================= */
+let idleT = 0, lastFrame = 0, lastTlDraw = 0;
+function frame(ts){
+  requestAnimationFrame(frame);
+  const dt = lastFrame ? Math.min(.1, (ts - lastFrame) / 1000) : 0; lastFrame = ts;
+  if (!SW) return;
+  let T = now();
+  if (playing && T >= timelineEnd()){ pause(); T = playhead; }
+  if (playing && !hasMusic() && T > timelineEnd()) pause();
+  let paths, tag;
+  const c = sel();
+  if (drawMode && c){
+    paths = cuePaths(c, 0, tOf(c.startB), true);
+    tag = 'Drawing <b>' + esc(lookName(c)) + '</b>';
+  } else if (!playing && c && !cueAt(c, T)){
+    // paused on a look that isn't under the playhead: loop that look so edits show up moving
+    idleT += dt;
+    const len = c.lenB * bl(), local = idleT % len;
+    paths = cuePaths(c, local, tOf(c.startB) + local);
+    tag = 'Previewing <b>' + esc(lookName(c)) + '</b>';
+  } else {
+    if (!playing){ idleT += dt; }
+    // while paused, keep the moment under the playhead gently alive by letting time run inside the looks
+    const live = playing ? T : T + (idleT % 2);
+    paths = [];
+    for (const k of [...show.cues].sort((a, b) => a.lane - b.lane)) if (cueAt(k, T)) paths.push(...cuePaths(k, live - tOf(k.startB), live));
+    tag = paths.length ? (playing ? 'Show' : 'Paused') + ' at <b>' + fmtTime(T) + '</b>' : 'Nothing playing at <b>' + fmtTime(T) + '</b>';
+  }
+  $('stage-tag').innerHTML = tag;
+  drawStage(paths);
+  const { budget } = exportCfg(), sc = toScan(paths, budget), m = $('meter');
+  m.textContent = paths.length ? sc.needed + ' points needed of ' + budget + (sc.needed > budget ? ': detail will thin out' : '') : '';
+  m.classList.toggle('busy', sc.needed > budget);
+  const b = bOf(T);
+  $('clock').innerHTML = fmtTime(T) + '<small>' + (b < 0 ? 'Before beat 1' : 'Bar ' + (Math.floor(b / 4) + 1) + ' · beat ' + (Math.floor(((b % 4) + 4) % 4) + 1)) + ' · ' + +show.bpm.toFixed(1) + ' BPM</small>';
+  if (playing){
+    const x = xOf(T);
+    if (!drag && (x > TW * .85 || x < 0)) scrollT = T - TW * .15 / pps;
+    if (ts - lastTlDraw > 33){ drawTimeline(); lastTlDraw = ts; }
+  }
+}
+const esc = (s) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+
+/* ================= Start ================= */
+show = loadStored() || demoShow();
+if ('ResizeObserver' in window){
+  new ResizeObserver(sizeStage).observe(stageCv);
+  new ResizeObserver(sizeTimeline).observe(tlCv);
+} else window.addEventListener('resize', () => { sizeStage(); sizeTimeline(); });
+sizeStage(); sizeTimeline();
+setZoom(40);
+if (show.cues.length) selId = orderedCues()[0].id;
+renderMusic(); renderInspector(); renderBudget(); renderTransport();
+if (show.musicName) idbGet('music').then((blob) => { if (blob) setMusic(blob, show.musicName, false); });
+document.fonts && document.fonts.ready.then(drawTimeline);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
