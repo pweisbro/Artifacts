@@ -50,7 +50,7 @@ header p{margin:0;color:var(--muted);flex:1 1 300px;max-width:70ch}
 .stage-col{grid-area:stage;display:grid;gap:10px}
 .tl-col{grid-area:tl;display:grid;gap:8px}
 .side{grid-area:side;background:var(--panel);border-radius:16px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
-@media (min-width:901px){.side{position:sticky;top:12px;max-height:calc(100dvh - 24px);display:flex;flex-direction:column}.side .panes{overflow:auto;flex:1}}
+@media (min-width:901px){.studio{grid-template-rows:auto 1fr}.side{position:sticky;top:12px;max-height:calc(100dvh - 24px);display:flex;flex-direction:column}.side .panes{overflow:auto;flex:1}}
 
 .stage{position:relative;aspect-ratio:4/3;width:100%;background:#000;border-radius:16px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
 @media (min-width:901px){.stage{max-height:62dvh;aspect-ratio:auto;height:min(62dvh,calc((100vw - 440px) * .75))}}
@@ -114,6 +114,14 @@ input[type="range"]{width:100%;accent-color:var(--accent);min-height:28px}
 .safety{border-radius:12px;padding:10px 12px;background:rgba(255,179,64,.08);box-shadow:inset 0 0 0 1px rgba(255,179,64,.3);color:#ffd9a0;font-size:13px;margin:0}
 .progress{height:6px;border-radius:3px;background:var(--panel-2);overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:var(--accent)}
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.preset{border:0;padding:0;border-radius:12px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;text-align:left;overflow:hidden;display:grid}
+.preset:hover{box-shadow:inset 0 0 0 1px #3c4260}
+.preset:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.preset canvas{width:100%;aspect-ratio:4/3;display:block;background:#010104}
+.preset span{padding:8px 10px 10px;display:grid;gap:2px}
+.preset b{font-size:13px}
+.preset small{color:var(--muted);font-size:12px;line-height:1.35}
 .toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#1f2236;color:var(--text);padding:10px 14px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.5),inset 0 0 0 1px #3a3f5c;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px);z-index:9;font-size:14px}
 .toast button{border:0;background:none;color:var(--accent);font-weight:700;cursor:pointer;padding:4px}
 .file-btn{position:relative;overflow:hidden}
@@ -162,6 +170,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
     <aside class="side">
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="t-look" aria-selected="true">Look</button>
+        <button class="tab" role="tab" id="t-presets" aria-selected="false">Presets</button>
         <button class="tab" role="tab" id="t-music" aria-selected="false">Music</button>
         <button class="tab" role="tab" id="t-export" aria-selected="false">Export</button>
       </div>
@@ -187,6 +196,12 @@ hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
               <button class="btn danger" id="b-del">Delete</button>
             </div>
           </div>
+        </div>
+
+        <!-- PRESETS -->
+        <div class="pane" id="p-presets" hidden>
+          <p class="note">Dubstep and EDM laser looks. Tap one to add it at the playhead, then tweak it in <b>Look</b>. They're shown here through haze, the way a crowd sees them.</p>
+          <div class="presets" id="presets"></div>
         </div>
 
         <!-- MUSIC -->
@@ -285,12 +300,13 @@ const SHAPES = [
   { id: 'spiral', name: 'Spiral', count: [1, 8, 'Turns'], wobble: true },
   { id: 'knot', name: 'Knot', count: [1, 5, 'Loops'], wobble: true },
   { id: 'beams', name: 'Beam fan', count: [2, 24, 'Beams'], wobble: true },
+  { id: 'burst', name: 'Beam ring', count: [3, 32, 'Beams'], wobble: true },
   { id: 'text', name: 'Text' },
   { id: 'draw', name: 'Drawing' }
 ];
 const SHAPE = Object.fromEntries(SHAPES.map((s) => [s.id, s]));
 const COLORS = [['#ff2a2a', 'Red'], ['#ff8a00', 'Orange'], ['#ffe600', 'Yellow'], ['#2aff4a', 'Green'], ['#00e5ff', 'Cyan'], ['#2a5bff', 'Blue'], ['#c42aff', 'Purple'], ['#ffffff', 'White']];
-const COLOR_MODES = [['solid', 'Solid'], ['rainbow', 'Rainbow'], ['cycle', 'Color cycle'], ['flash', 'Flash on beat']];
+const COLOR_MODES = [['solid', 'Solid'], ['rainbow', 'Rainbow'], ['cycle', 'Color cycle'], ['flash', 'Flash on beat'], ['strobe', 'Strobe']];
 const SLIDERS = [
   ['size', 'Size', .05, 1, .01, (v) => Math.round(v * 100) + '%'],
   ['spin', 'Spin', -2, 2, .25, (v) => turns(v)],
@@ -491,6 +507,12 @@ function genShape(c, t){
       for (let i = 0; i < n; i++){ const x = -1 + 2 * i / (n - 1) + w * .35 * Math.sin(t * 3 + i * .7); out.push({ pts: [[clamp(x, -1.2, 1.2), 0]], dot: true }); }
       return out;
     }
+    case 'burst': {
+      // beams spaced around a ring: through haze it's a cone of light
+      const n = clamp(k, 3, 32), out = [];
+      for (let i = 0; i < n; i++){ const a = TAU * i / n + w * .4 * Math.sin(t * 2.5 + i), r = 1 - w * .25 * (.5 + .5 * Math.sin(t * 4 + i * 1.3)); out.push({ pts: [[r * Math.cos(a), r * Math.sin(a)]], dot: true }); }
+      return out;
+    }
     case 'text': return textPaths(c.text);
     case 'draw': return c.strokes.filter((s) => s.length).map((s) => ({ pts: s, dot: s.length === 1 }));
   }
@@ -544,7 +566,8 @@ function cuePaths(c, local, gT, still){
   const cr = Math.cos(rot), sr = Math.sin(rot), cf = Math.cos(fl), sf = Math.sin(fl);
   const da = local / (beatLen * 8) * TAU, dx = c.x + (still ? 0 : c.drift * .5 * Math.cos(da)), dy = c.y + (still ? 0 : c.drift * .5 * Math.sin(da));
   const base = hexRgb(c.color);
-  const bri = c.mode === 'flash' && !still ? .12 + .88 * Math.exp(-ph * 4) : 1;
+  // strobe: on for the first part of every eighth note
+  const bri = still ? 1 : c.mode === 'flash' ? .12 + .88 * Math.exp(-ph * 4) : c.mode === 'strobe' ? ((beat * 2) % 1 + 1) % 1 < .4 ? 1 : 0 : 1;
   let total = 0;
   for (const p of paths) total += p.pts.length;
   let idx = 0;
@@ -872,28 +895,35 @@ function drawStage(paths){
     strokePaths(ctx, paths, map, lw * 2.6, .28);
     strokePaths(ctx, paths, map, lw, 1);
   } else {
-    // Haze: the projector sits on the stage floor, and every point of the pattern becomes a beam through the smoke.
-    const px = SW / 2, py = SH * .9, cx = SW / 2, cy = SH * .36, R = Math.min(SH * .3, SW * .4);
-    const g = ctx.createRadialGradient(px, py, 0, px, py, SH * .9);
-    g.addColorStop(0, 'rgba(60,64,90,.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
-    ctx.fillStyle = 'rgba(120,128,170,.12)'; ctx.fillRect(0, py + 10, SW, 1);
-    ctx.globalCompositeOperation = 'lighter';
-    const map = (p) => [cx + p[0] * R * 1.25, cy - p[1] * R];
-    for (const p of paths){
-      const stride = p.dot ? 1 : Math.max(1, Math.floor(p.pts.length / 40));
-      for (let i = 0; i < p.pts.length; i += stride){
-        const q = p.pts[i], [x, y] = map(q), ex = px + (x - px) * 3, ey = py + (y - py) * 3;
-        ctx.strokeStyle = rgbStr(q, p.dot ? .55 : .08); ctx.lineWidth = p.dot ? 2 : 1.5;
-        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.stroke();
-      }
-    }
-    strokePaths(ctx, paths, map, 3, .25);
-    strokePaths(ctx, paths, map, 1.2, .9);
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#1b1d2b'; ctx.fillRect(px - 22, py, 44, 18);
-    ctx.fillStyle = '#39ff7a'; ctx.fillRect(px - 2, py, 4, 2);
+    drawHaze(ctx, SW, SH, paths, false);
   }
+}
+// Haze: the projector sits on the stage floor, and every point of the pattern becomes a beam through the smoke.
+function drawHaze(ctx, SW, SH, paths, small){
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#010104'; ctx.fillRect(0, 0, SW, SH);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const px = SW / 2, py = SH * .9, cx = SW / 2, cy = SH * .36, R = Math.min(SH * .3, SW * .4);
+  const g = ctx.createRadialGradient(px, py, 0, px, py, SH * .9);
+  g.addColorStop(0, 'rgba(60,64,90,.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+  ctx.fillStyle = 'rgba(120,128,170,.12)'; ctx.fillRect(0, py + 10, SW, 1);
+  ctx.globalCompositeOperation = 'lighter';
+  const map = (p) => [cx + p[0] * R * 1.25, cy - p[1] * R];
+  for (const p of paths){
+    const stride = p.dot ? 1 : Math.max(1, Math.floor(p.pts.length / (small ? 24 : 40)));
+    for (let i = 0; i < p.pts.length; i += stride){
+      const q = p.pts[i], [x, y] = map(q), ex = px + (x - px) * 3, ey = py + (y - py) * 3;
+      ctx.strokeStyle = rgbStr(q, p.dot ? .55 : small ? .12 : .08); ctx.lineWidth = p.dot ? (small ? 1.4 : 2) : (small ? 1 : 1.5);
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.stroke();
+    }
+  }
+  strokePaths(ctx, paths, map, small ? 2 : 3, .25);
+  strokePaths(ctx, paths, map, small ? .9 : 1.2, .9);
+  ctx.globalCompositeOperation = 'source-over';
+  const bw = small ? 14 : 22;
+  ctx.fillStyle = '#1b1d2b'; ctx.fillRect(px - bw, py, bw * 2, small ? 10 : 18);
+  ctx.fillStyle = '#39ff7a'; ctx.fillRect(px - 2, py, 4, 2);
 }
 
 /* ================= Timeline ================= */
@@ -1204,6 +1234,64 @@ function deleteSel(){
 }
 $('b-del').addEventListener('click', deleteSel);
 
+/* ================= Presets =================
+   Dubstep / EDM show looks. A preset is one look, or a short sequence of looks placed relative to the playhead (offB, lane). */
+const PRESETS = [
+  { name: 'Fan sweep', blurb: 'A wide green fan sweeping over the crowd.', cues: [{ shape: 'beams', count: 12, color: '#2aff4a', size: 1, y: .45, wobble: .8, lenB: 16 }] },
+  { name: 'Light tunnel', blurb: 'A cone that punches out on every kick.', cues: [{ shape: 'circle', color: '#00e5ff', size: .45, pulse: 1, wobble: .15, lenB: 16 }] },
+  { name: 'Beam ring', blurb: 'A spinning ring of beams in shifting color.', cues: [{ shape: 'burst', count: 16, mode: 'cycle', color: '#c42aff', size: .7, spin: .5, pulse: .6, wobble: .3, lenB: 16 }] },
+  { name: 'Liquid sky', blurb: 'A rippling sheet of blue over everyone’s heads.', cues: [{ shape: 'line', color: '#2a5bff', size: 1, y: .85, wobble: .7, lenB: 16 }] },
+  { name: 'Wub wave', blurb: 'A purple wave chopped in eighth notes, for the wobble bass.', cues: [{ shape: 'wave', count: 2, mode: 'strobe', color: '#c42aff', size: .95, wobble: 1, pulse: .4, lenB: 16 }] },
+  { name: 'Strobe fan', blurb: 'White beams strobing in eighth notes.', cues: [{ shape: 'beams', count: 8, mode: 'strobe', color: '#ffffff', size: 1, y: .4, lenB: 8 }] },
+  { name: 'Vortex', blurb: 'A rainbow spiral spinning hard against the beat.', cues: [{ shape: 'spiral', count: 5, mode: 'rainbow', size: .8, spin: -2, pulse: .4, lenB: 16 }] },
+  { name: 'Triangle spin', blurb: 'A red triangle spinning and flipping, kicking on the beat.', cues: [{ shape: 'polygon', count: 3, color: '#ff2a2a', size: .7, spin: 1, flip: .5, pulse: .5, lenB: 16 }] },
+  { name: 'Twister', blurb: 'A color-cycling knot twisting in 3D.', cues: [{ shape: 'knot', count: 3, mode: 'cycle', color: '#00e5ff', size: .75, flip: 1, wobble: .8, lenB: 16 }] },
+  { name: 'Star drop', blurb: 'A rainbow star that draws itself in and slams on each kick.', cues: [{ shape: 'star', count: 6, mode: 'rainbow', size: .7, spin: .75, pulse: 1, drawOn: 2, lenB: 16 }] },
+  { name: '“DROP”', blurb: 'The word, strobing in white.', cues: [{ shape: 'text', text: 'DROP', mode: 'strobe', color: '#ffffff', size: .8, pulse: .8, lenB: 4 }] },
+  { name: 'Build and drop', blurb: 'Eight bars: a tightening build, then the drop with ring, wub wave and strobe.', cues: [
+    { offB: 0, lane: 0, shape: 'beams', count: 6, color: '#2aff4a', size: .6, y: .4, wobble: .3, pulse: .3, lenB: 16 },
+    { offB: 8, lane: 1, shape: 'circle', mode: 'strobe', color: '#ffffff', size: .25, pulse: 1, lenB: 8 },
+    { offB: 16, lane: 0, shape: 'burst', count: 20, mode: 'cycle', color: '#c42aff', size: .8, spin: 1, pulse: 1, wobble: .3, lenB: 16 },
+    { offB: 16, lane: 1, shape: 'wave', count: 2, mode: 'strobe', color: '#ff2a2a', size: .9, y: -.55, wobble: 1, lenB: 16 },
+    { offB: 16, lane: 2, shape: 'text', text: 'DROP', mode: 'flash', color: '#ffffff', size: .5, y: .1, lenB: 2 }
+  ] }
+];
+const presetThumbs = [];
+PRESETS.forEach((pr) => {
+  const b = document.createElement('button'); b.className = 'preset';
+  const cv = document.createElement('canvas'); cv.setAttribute('aria-hidden', 'true');
+  const sp = document.createElement('span'), nb = document.createElement('b'), sm = document.createElement('small');
+  nb.textContent = pr.name; sm.textContent = pr.blurb; sp.append(nb, sm); b.append(cv, sp);
+  b.addEventListener('click', () => addPreset(pr));
+  $('presets').append(b);
+  // the thumbnail plays the busiest moment: the drop of a sequence, or the single look
+  const off = Math.max(...pr.cues.map((c) => c.offB || 0));
+  presetThumbs.push({ cv, ctx: cv.getContext('2d'), w: 0, cues: pr.cues.filter((c) => (c.offB || 0) === off).map((c) => newCue(c)) });
+});
+function drawPresetThumbs(t){
+  for (const th of presetThumbs){
+    const r = th.cv.getBoundingClientRect();
+    if (!r.width) continue;
+    if (th.w !== r.width){ const d = Math.min(window.devicePixelRatio || 1, 2); th.w = r.width; th.h = r.height; th.cv.width = Math.round(r.width * d); th.cv.height = Math.round(r.height * d); th.ctx.setTransform(d, 0, 0, d, 0, 0); }
+    const paths = [];
+    for (const c of th.cues){ const loop = c.lenB * bl(), local = t % loop; paths.push(...cuePaths(c, local, t)); }
+    drawHaze(th.ctx, th.w, th.h, paths, true);
+  }
+}
+function addPreset(pr){
+  const b0 = Math.max(Math.ceil(bOf(0)), Math.round(bOf(now()))), added = [];
+  for (const p of pr.cues){
+    const props = Object.assign({}, p); delete props.offB;
+    const start = b0 + (p.offB || 0);
+    const c = newCue(Object.assign(props, { name: pr.cues.length > 1 ? '' : pr.name.replace(/[“”]/g, ''), startB: start }));
+    c.lane = p.lane !== undefined && !show.cues.some((o) => o.lane === p.lane && o.startB < start + c.lenB && start < o.startB + o.lenB) ? p.lane : freeLane(start, c.lenB);
+    show.cues.push(c); added.push(c);
+  }
+  select(added[0].id); changed();
+  const x = xOf(tOf(b0)); if (x < 0 || x > TW - 40){ scrollT = tOf(b0) - 20 / pps; drawTimeline(); }
+  toast('Added “' + pr.name.replace(/[“”]/g, '') + '” at bar ' + (Math.floor(b0 / 4) + 1) + '.', () => { show.cues = show.cues.filter((c) => !added.includes(c)); select(null); changed(); });
+}
+
 /* ================= Music tab ================= */
 function renderMusic(){
   $('music-name').textContent = show.musicName ? (hasMusic() ? 'Playing along to “' + show.musicName + '”.' : 'This show was made with “' + show.musicName + '”. Choose it again to hear it here.') : 'No song yet. The show runs to a plain beat until you add one.';
@@ -1274,9 +1362,9 @@ $('b-ex-sheet').addEventListener('click', () => runExport('sheet'));
 
 /* ================= Tabs, views, transport ================= */
 function setTab(id){
-  for (const t of ['look', 'music', 'export']){ $('t-' + t).setAttribute('aria-selected', t === id); $('p-' + t).hidden = t !== id; }
+  for (const t of ['look', 'presets', 'music', 'export']){ $('t-' + t).setAttribute('aria-selected', t === id); $('p-' + t).hidden = t !== id; }
 }
-['look', 'music', 'export'].forEach((t) => $('t-' + t).addEventListener('click', () => setTab(t)));
+['look', 'presets', 'music', 'export'].forEach((t) => $('t-' + t).addEventListener('click', () => setTab(t)));
 function setView(v){ view = v; $('v-screen').setAttribute('aria-pressed', v === 'screen'); $('v-haze').setAttribute('aria-pressed', v === 'haze'); if (v !== 'screen' && drawMode) setDrawMode(false); }
 $('v-screen').addEventListener('click', () => setView('screen'));
 $('v-haze').addEventListener('click', () => setView('haze'));
@@ -1330,6 +1418,7 @@ function frame(ts){
     tag = paths.length ? (playing ? 'Show' : 'Paused') + ' at <b>' + fmtTime(T) + '</b>' : 'Nothing playing at <b>' + fmtTime(T) + '</b>';
   }
   $('stage-tag').innerHTML = tag;
+  if (!$('p-presets').hidden) drawPresetThumbs(ts / 1000);
   drawStage(paths);
   const { budget } = exportCfg(), sc = toScan(paths, budget), m = $('meter');
   m.textContent = paths.length ? sc.needed + ' points needed of ' + budget + (sc.needed > budget ? ': detail will thin out' : '') : '';
