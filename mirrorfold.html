@@ -1,0 +1,1267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07060d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mirrorfold">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Mirrorfold</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Righteous&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: the fractal fills the screen; a floating pill dock and a glass control sheet sit over it.
+   On phones the sheet rises above the dock; on wide screens it docks to the right edge.
+   Single dark theme: mirrored light reads best on black. */
+:root{
+  color-scheme: dark;
+  --void:#07060d;
+  --glass:rgba(14,12,24,.72);
+  --line:rgba(236,228,255,.11);
+  --track:rgba(236,228,255,.16);
+  --text:#efecf8;
+  --muted:#9a95b0;
+  --accent:#ff6fd8;
+  --accent-ink:#1a0414;
+  --font-display:'Righteous','Avenir Next',system-ui,sans-serif;
+  --font-body:'Instrument Sans',-apple-system,'Segoe UI',Roboto,system-ui,sans-serif;
+}
+html{box-sizing:border-box;height:100%;overflow:hidden;background:var(--void)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  height:100%;overflow:hidden;margin:0;
+  background:var(--void);color:var(--text);
+  font-family:var(--font-body);font-size:14px;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;overscroll-behavior:none;
+}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#view:active{cursor:grabbing}
+
+.brand{
+  position:fixed;z-index:5;pointer-events:none;
+  top:calc(14px + env(safe-area-inset-top, 0px));
+  left:calc(16px + env(safe-area-inset-left, 0px));
+  text-shadow:0 1px 12px rgba(0,0,0,.7);
+  transition:opacity .4s;
+}
+.brand h1{margin:0;font-family:var(--font-display);font-weight:400;font-size:1.25rem;letter-spacing:.02em;line-height:1}
+.brand p{margin:5px 0 0;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+.hint{
+  position:fixed;z-index:5;left:50%;transform:translateX(-50%);
+  bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+  max-width:calc(100vw - 32px);
+  padding:8px 14px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  font-size:.82rem;text-align:center;pointer-events:none;
+  transition:opacity .6s;
+}
+.hint.gone{opacity:0}
+.toast{
+  position:fixed;z-index:9;left:50%;transform:translateX(-50%);
+  top:calc(16px + env(safe-area-inset-top, 0px));
+  max-width:calc(100vw - 32px);padding:8px 14px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  font-size:.82rem;pointer-events:none;opacity:0;transition:opacity .3s;
+}
+.toast.on{opacity:1}
+
+.dock{
+  position:fixed;z-index:6;left:50%;transform:translateX(-50%);
+  bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+  display:flex;gap:2px;padding:5px;
+  background:var(--glass);border:1px solid var(--line);border-radius:999px;
+  -webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
+  transition:opacity .4s,left .3s;
+}
+.dock button,.dock .home{
+  width:44px;height:44px;border:0;border-radius:999px;background:transparent;
+  display:grid;place-items:center;cursor:pointer;color:var(--text);
+}
+.dock button:hover,.dock .home:hover{background:rgba(255,255,255,.07)}
+/* back to the Stim Lab homepage (a home-screen web app has no back button) */
+.dock .home{text-decoration:none}
+.dock .sep{width:1px;margin:10px 3px;background:var(--line)}
+@media (max-width:400px){ .dock button,.dock .home{width:39px} }
+.dock button[aria-pressed="true"]{color:var(--accent)}
+.dock svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+body.bare .dock,body.bare .brand{opacity:0;pointer-events:none}
+body.bare .dock *{pointer-events:none}
+
+/* ---------- control sheet ---------- */
+.panel{
+  position:fixed;z-index:7;
+  left:max(8px, env(safe-area-inset-left, 0px));right:max(8px, env(safe-area-inset-right, 0px));
+  bottom:calc(70px + env(safe-area-inset-bottom, 0px));
+  max-height:min(56vh, 560px);max-height:min(56dvh, 560px);
+  display:flex;flex-direction:column;
+  background:var(--glass);border:1px solid var(--line);border-radius:20px;
+  -webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);
+  transform:translateY(calc(100% + 90px));transition:transform .28s cubic-bezier(.2,.8,.2,1);
+}
+.panel.open{transform:none}
+@media (min-width:760px) and (min-height:560px){
+  .panel{
+    left:auto;width:360px;max-height:none;
+    top:calc(12px + env(safe-area-inset-top, 0px));bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+    right:calc(12px + env(safe-area-inset-right, 0px));
+    transform:translateX(calc(100% + 30px));
+  }
+  body.panel-open .dock{left:calc(50% - 186px)}
+  body.panel-open .hint{left:calc(50% - 186px)}
+}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;padding:6px;scrollbar-width:none;flex:none;border-bottom:1px solid var(--line)}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{
+  flex:1 0 auto;border:0;background:transparent;border-radius:10px;padding:8px 10px;cursor:pointer;
+  font-size:.8rem;font-weight:600;letter-spacing:.02em;color:var(--muted);white-space:nowrap;
+}
+.tabs button[aria-selected="true"]{background:rgba(255,255,255,.1);color:var(--text)}
+.body{overflow-y:auto;padding:6px 14px 16px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1;min-height:0}
+.page{display:none}
+.page.on{display:block}
+.page h3{margin:16px 0 6px;font-size:.7rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.page h3:first-child{margin-top:8px}
+.note{margin:6px 0 10px;color:var(--muted);font-size:.8rem;line-height:1.4;-webkit-user-select:text;user-select:text}
+
+.row{padding:7px 0 4px}
+.row .top{display:flex;align-items:center;gap:6px;min-height:22px}
+.row .name{flex:1;font-size:.86rem}
+.row .val{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.8rem}
+.row .reset{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:0 2px;width:22px;height:22px;border-radius:6px;visibility:hidden}
+.row.changed .reset{visibility:visible}
+.row .reset svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.track{position:relative;height:30px;display:flex;align-items:center}
+.mod{position:absolute;top:50%;width:3px;height:14px;margin:-7px 0 0 -1.5px;border-radius:2px;background:#7af0ff;box-shadow:0 0 8px #7af0ff;pointer-events:none;display:none}
+.row.modded .mod{display:block}
+
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:30px;margin:0;background:transparent;cursor:pointer;
+  --fill:50%;
+}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:linear-gradient(to right, var(--accent) var(--fill), var(--track) var(--fill))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;border:0;background:var(--text);box-shadow:0 0 0 4px rgba(0,0,0,.28)}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:4px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;border:0;background:var(--text)}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px}
+.chip{
+  border:1px solid var(--line);background:rgba(255,255,255,.04);border-radius:999px;padding:7px 12px;cursor:pointer;
+  font-size:.8rem;
+}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:4px 0 2px}
+.swatch{border:1px solid var(--line);border-radius:10px;height:44px;cursor:pointer;position:relative;padding:0;overflow:hidden}
+.swatch span{position:absolute;left:6px;bottom:4px;font-size:.66rem;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+.swatch[aria-pressed="true"]{outline:2px solid var(--text);outline-offset:1px}
+
+.btn{
+  border:1px solid var(--line);background:rgba(255,255,255,.06);border-radius:12px;padding:10px 14px;cursor:pointer;
+  font-size:.85rem;font-weight:600;
+}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.4;cursor:default}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.field{
+  width:100%;border:1px solid var(--line);background:rgba(0,0,0,.3);border-radius:10px;padding:9px 10px;
+  -webkit-user-select:text;user-select:text;font-size:16px;
+}
+textarea.field{resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+select.field{padding:7px 8px;font-size:.85rem}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:6px 0}
+.card{
+  position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;
+  background:#000;padding:0;text-align:left;aspect-ratio:1/1;
+}
+.card img,.card .sw{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.card .cap{position:absolute;left:0;right:0;bottom:0;padding:16px 7px 6px;font-size:.72rem;font-weight:600;line-height:1.2;
+  background:linear-gradient(transparent,rgba(0,0,0,.8))}
+.card .del{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;display:grid;place-items:center}
+.card .del svg{width:12px;height:12px;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+
+.meters{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0}
+.meter{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.66rem;color:var(--muted)}
+.meter .bar{width:100%;height:46px;border-radius:6px;background:rgba(255,255,255,.06);position:relative;overflow:hidden}
+.meter .bar i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(to top,var(--accent),#7af0ff)}
+.route{display:grid;grid-template-columns:1fr 1fr 30px;gap:6px;align-items:center;padding:8px 0 0;border-top:1px solid var(--line);margin-top:8px}
+.route .amt{grid-column:1/3}
+.route .x{border:0;background:transparent;color:var(--muted);cursor:pointer;height:30px;border-radius:8px}
+.route .x svg{width:13px;height:13px;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+.route .lbl{grid-column:1/-1;display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted)}
+
+.nogl{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+@media (prefers-reduced-motion:reduce){ .hint,.panel,.brand,.dock,.toast{transition:none} }
+</style>
+</head>
+<body>
+<canvas id="view" aria-label="Mirror fractal. Drag to bend the mirrors, pinch to zoom and turn." role="img"></canvas>
+
+<div class="brand">
+  <h1>Mirrorfold</h1>
+  <p id="lookName">Snowflake Hall</p>
+</div>
+
+<div class="hint" id="hint">Drag to bend the mirrors. Pinch to zoom and turn.</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<nav class="dock" id="dock" aria-label="Mirrorfold">
+  <a class="home" href="./" aria-label="Back to Stim Lab" title="Stim Lab">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+  </a>
+  <span class="sep" aria-hidden="true"></span>
+  <button id="btnPanel" aria-pressed="false" aria-label="Controls" title="Controls">
+    <svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+  </button>
+  <button id="btnTouch" aria-pressed="false" aria-label="Drag moves the view" title="Drag moves the view instead of bending the mirrors">
+    <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/></svg>
+  </button>
+  <button id="btnDice" aria-label="Surprise me" title="Surprise me">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r=".6" fill="currentColor"/><circle cx="15" cy="15" r=".6" fill="currentColor"/><circle cx="15" cy="9" r=".6" fill="currentColor"/><circle cx="9" cy="15" r=".6" fill="currentColor"/><circle cx="12" cy="12" r=".6" fill="currentColor"/></svg>
+  </button>
+  <button id="btnSave" aria-label="Bookmark this view" title="Bookmark this view">
+    <svg viewBox="0 0 24 24"><path d="M7 3.5h10a1 1 0 0 1 1 1V21l-6-4-6 4V4.5a1 1 0 0 1 1-1z"/></svg>
+  </button>
+  <button id="btnMic" aria-pressed="false" aria-label="Listen" title="Listen to sound">
+    <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+  </button>
+  <button id="btnPause" aria-pressed="false" aria-label="Pause" title="Pause">
+    <svg viewBox="0 0 24 24"><path d="M8.5 5v14M15.5 5v14"/></svg>
+  </button>
+</nav>
+
+<section class="panel" id="panel" aria-label="Controls">
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div class="body" id="body"></div>
+</section>
+
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<script>
+/* ------------------------------------------------------------------
+   Mirrorfold: a 2D kaleidoscopic fractal. Every pixel's position is
+   folded through a stack of mirrors (a kaleidoscope wedge, abs()
+   mirrors, box and sphere folds), turned, scaled and shifted, over and
+   over; the shapes it passes near on the way light it up. Each frame
+   is then laid over a warped, re-mirrored copy of the frame before, so
+   the picture can feed back into itself.
+
+   ADDING A PARAMETER: add one entry to PARAMS. It gets a slider (or
+   chips) on its tab, a uniform named u_<key> in the shaders, a place
+   in bookmarks and setup codes, and can be picked as a sound target.
+   Then use u_<key> in FRAG or POST (or in effective() for JS-side
+   behavior). Optional fields:
+     unit / fmt(v)  how the value is shown
+     options        a list of labels: chips, value is the index
+     rnd: [lo, hi]  include it in Surprise me, picked in this range
+     noMod          leave it off the sound target list
+     post           used by the display pass (POST) instead of FRAG
+   ------------------------------------------------------------------ */
+const PALETTES = [
+  // cosine palettes, color(t) = a + b * cos(2pi (c t + d))
+  { name: 'Aurora',  a: [.5, .5, .5],   b: [.5, .5, .5],   c: [1, 1, 1],      d: [0, .33, .67] },
+  { name: 'Sunset',  a: [.5, .5, .5],   b: [.5, .5, .5],   c: [1, 1, .5],     d: [.8, .9, .3] },
+  { name: 'Ice',     a: [.45, .55, .65], b: [.4, .45, .45], c: [.7, .8, 1],   d: [.55, .6, .65] },
+  { name: 'Neon',    a: [.5, .5, .5],   b: [.5, .5, .5],   c: [2, 1, 0],      d: [.5, .2, .25] },
+  { name: 'Ember',   a: [.6, .35, .15], b: [.45, .35, .2], c: [1, 1, 1],      d: [0, .1, .2] },
+  { name: 'Jewel',   a: [.5, .5, .5],   b: [.5, .5, .5],   c: [1, 1, 1],      d: [.3, .2, .2] },
+  { name: 'Candy',   a: [.66, .56, .68], b: [.72, .44, .72], c: [.52, .8, .52], d: [-.43, -.4, -.08] },
+  { name: 'Silver',  a: [.55, .55, .6], b: [.45, .45, .45], c: [1, 1, 1],     d: [0, .02, .05] }
+];
+const deg = (v) => Math.round(v) + '°';
+const PARAMS = [
+  // Mirrors
+  { key: 'sides',  label: 'Kaleidoscope sides', group: 'Mirrors', min: 1, max: 16, step: 1, def: 6, rnd: [1, 9], fmt: (v) => v < 1.5 ? 'off' : String(Math.round(v * 10) / 10) },
+  { key: 'iter',   label: 'Reflections', group: 'Mirrors', min: 1, max: 24, step: 1, def: 10, rnd: [6, 16] },
+  { key: 'mirror', label: 'Square mirror', group: 'Mirrors', min: 0, max: 1, step: .01, def: 1, rnd: [0, 1] },
+  { key: 'box',    label: 'Box fold', group: 'Mirrors', min: 0, max: 1, step: .01, def: 0, rnd: [0, .6] },
+  { key: 'sphere', label: 'Sphere fold', group: 'Mirrors', min: 0, max: 1, step: .01, def: 0, rnd: [0, .5] },
+  { key: 'scale',  label: 'Scale', group: 'Mirrors', min: 1.05, max: 2.6, step: .01, def: 1.6, rnd: [1.3, 2.1] },
+  { key: 'angle',  label: 'Turn per reflection', group: 'Mirrors', min: -180, max: 180, step: .5, def: 18, rnd: [-60, 60], fmt: deg },
+  { key: 'twist',  label: 'Twist', group: 'Mirrors', min: -3, max: 3, step: .01, def: 0, rnd: [-.6, .6] },
+  { key: 'offX',   label: 'Offset across', group: 'Mirrors', min: -1.5, max: 1.5, step: .005, def: .62, rnd: [-1, 1] },
+  { key: 'offY',   label: 'Offset up', group: 'Mirrors', min: -1.5, max: 1.5, step: .005, def: .28, rnd: [-1, 1] },
+  { key: 'shape',  label: 'Lit by', group: 'Mirrors', options: ['Lines', 'Dots', 'Rings', 'Cross', 'Squares'], def: 0, rnd: [0, 4] },
+  { key: 'size',   label: 'Shape size', group: 'Mirrors', min: 0, max: 1.5, step: .01, def: .5, rnd: [.1, 1] },
+
+  // Color
+  { key: 'palette', label: 'Palette', group: 'Color', palette: true, def: 0, rnd: [0, 7], noMod: true },
+  { key: 'hue',    label: 'Hue', group: 'Color', min: 0, max: 1, step: .005, def: 0, rnd: [0, 1], fmt: (v) => Math.round(v * 360) + '°' },
+  { key: 'spread', label: 'Color spread', group: 'Color', min: 0, max: 4, step: .01, def: 1, rnd: [.3, 2.5] },
+  { key: 'depth',  label: 'Color by depth', group: 'Color', min: 0, max: 2, step: .01, def: .8, rnd: [0, 1.5] },
+  { key: 'lines',  label: 'Line glow', group: 'Color', min: 0, max: 3, step: .01, def: 1.2, rnd: [.5, 2] },
+  { key: 'width',  label: 'Line width', group: 'Color', min: .2, max: 10, step: .05, def: 1.4, rnd: [.6, 3], unit: ' px' },
+  { key: 'fade',   label: 'Deep fade', group: 'Color', min: .2, max: 1, step: .01, def: .72, rnd: [.5, .9] },
+  { key: 'halo',   label: 'Halo', group: 'Color', min: 0, max: 1.5, step: .01, def: .35, rnd: [0, .8] },
+  { key: 'fill',   label: 'Fill', group: 'Color', min: 0, max: 3, step: .01, def: .35, rnd: [0, 1.2] },
+  { key: 'glow',   label: 'Fill falloff', group: 'Color', min: .2, max: 20, step: .1, def: 4, rnd: [1, 10] },
+  { key: 'bright', label: 'Brightness', group: 'Color', min: .2, max: 3, step: .01, def: 1, post: true },
+  { key: 'contrast', label: 'Contrast', group: 'Color', min: .5, max: 2, step: .01, def: 1.05, post: true },
+  { key: 'sat',    label: 'Saturation', group: 'Color', min: 0, max: 2, step: .01, def: 1.1, post: true },
+  { key: 'vig',    label: 'Vignette', group: 'Color', min: 0, max: 1, step: .01, def: .35, post: true },
+
+  // Trails (the feedback loop)
+  { key: 'fb',     label: 'Feedback', group: 'Trails', min: 0, max: .995, step: .005, def: .8, rnd: [.4, .95] },
+  { key: 'blend',  label: 'Blend', group: 'Trails', options: ['Add', 'Screen', 'Brightest', 'Mix'], def: 2, rnd: [0, 3] },
+  { key: 'fbZoom', label: 'Trail zoom', group: 'Trails', min: .9, max: 1.1, step: .001, def: 1.01, rnd: [.97, 1.04], fmt: (v) => (v >= 1 ? '+' : '') + ((v - 1) * 100).toFixed(1) + '%' },
+  { key: 'fbRot',  label: 'Trail turn', group: 'Trails', min: -6, max: 6, step: .05, def: .4, rnd: [-2, 2], unit: '°' },
+  { key: 'fbX',    label: 'Trail drift across', group: 'Trails', min: -.03, max: .03, step: .0005, def: 0 },
+  { key: 'fbY',    label: 'Trail drift up', group: 'Trails', min: -.03, max: .03, step: .0005, def: 0 },
+  { key: 'fbSides', label: 'Trail mirrors', group: 'Trails', min: 1, max: 12, step: 1, def: 1, rnd: [1, 6], fmt: (v) => v < 1.5 ? 'off' : String(Math.round(v * 10) / 10) },
+  { key: 'fbHue',  label: 'Trail hue drift', group: 'Trails', min: -.05, max: .05, step: .0005, def: .004, rnd: [-.02, .02] },
+  { key: 'fbWarp', label: 'Trail ripple', group: 'Trails', min: 0, max: .08, step: .001, def: 0, rnd: [0, .03] },
+
+  // Motion
+  { key: 'spin',   label: 'Spin', group: 'Motion', min: -60, max: 60, step: .5, def: 3, rnd: [-10, 10], unit: '°/s' },
+  { key: 'foldSpin', label: 'Mirror turn speed', group: 'Motion', min: -30, max: 30, step: .1, def: 2, rnd: [-6, 6], unit: '°/s' },
+  { key: 'drift',  label: 'Offset wander', group: 'Motion', min: 0, max: 1, step: .005, def: .12, rnd: [0, .3] },
+  { key: 'driftSpeed', label: 'Wander speed', group: 'Motion', min: 0, max: 2, step: .01, def: .15, rnd: [.05, .5] },
+  { key: 'hueSpeed', label: 'Color cycle', group: 'Motion', min: -.5, max: .5, step: .005, def: .02, rnd: [-.08, .08] },
+  { key: 'pulse',  label: 'Breathe', group: 'Motion', min: 0, max: .3, step: .005, def: 0, rnd: [0, .08] },
+  { key: 'pulseSpeed', label: 'Breath speed', group: 'Motion', min: .02, max: 2, step: .01, def: .2 },
+  { key: 'speed',  label: 'Overall speed', group: 'Motion', min: 0, max: 4, step: .01, def: 1, noMod: true, fmt: (v) => v.toFixed(2) + '×' },
+
+  // View (pinch and drag set these too)
+  { key: 'zoom',   label: 'Zoom', group: 'View', min: -2, max: 13, step: .01, def: -.3, fmt: (v) => '×' + (Math.pow(2, v) < 10 ? Math.pow(2, v).toFixed(2) : Math.round(Math.pow(2, v))) },
+  { key: 'x',      label: 'Center across', group: 'View', min: -4, max: 4, step: .0001, def: 0, fmt: (v) => v.toFixed(4) },
+  { key: 'y',      label: 'Center up', group: 'View', min: -4, max: 4, step: .0001, def: 0, fmt: (v) => v.toFixed(4) },
+  { key: 'rot',    label: 'Turn', group: 'View', min: -180, max: 180, step: .5, def: 0, fmt: deg }
+];
+const P = {}; PARAMS.forEach((p) => { P[p.key] = p; });
+const GROUPS = ['Mirrors', 'Color', 'Trails', 'Motion', 'View'];
+
+/* What sound (and the two built-in waves) can drive. Each value is 0..1. */
+const SOURCES = [
+  { key: 'level',  label: 'Loudness' },
+  { key: 'bass',   label: 'Bass' },
+  { key: 'mid',    label: 'Mids' },
+  { key: 'treble', label: 'Treble' },
+  { key: 'beat',   label: 'Beat' },
+  { key: 'lfoA',   label: 'Slow wave' },
+  { key: 'lfoB',   label: 'Fast wave' }
+];
+
+function defaults(){ const o = {}; PARAMS.forEach((p) => { o[p.key] = p.def; }); return o; }
+
+/* ---------- built-in looks: only what differs from the defaults ---------- */
+const PRESETS = [
+  { name: 'Snowflake Hall', p: {}, r: [{ s: 'beat', t: 'fbZoom', a: .12 }, { s: 'treble', t: 'lines', a: .25 }] },
+  { name: 'Mirror Tunnel', p: { sides: 4, iter: 9, scale: 1.75, angle: 32, offX: .8, offY: .45, fb: .9, blend: 2, fbZoom: 1.03, fbRot: 1.2, fbSides: 4, fbHue: .006, lines: .9, fill: .25, palette: 3, spin: -4, zoom: .1 },
+    r: [{ s: 'beat', t: 'fbZoom', a: .15 }, { s: 'bass', t: 'scale', a: .06 }] },
+  { name: 'Stained Glass', p: { sides: 8, iter: 8, mirror: 1, scale: 1.5, angle: 0, offX: .7, offY: .7, shape: 4, size: .45, fill: .8, glow: 4, lines: .8, width: 1.8, palette: 5, spread: 1.6, depth: .9, fb: .5, fbZoom: 1, fbRot: 0, spin: 1.5, foldSpin: 1 },
+    r: [{ s: 'bass', t: 'fill', a: .12 }, { s: 'mid', t: 'hue', a: .1 }] },
+  { name: 'Coral Bloom', p: { sides: 5, iter: 12, mirror: .4, box: .7, sphere: .85, scale: 2.05, angle: 24, offX: .9, offY: .2, shape: 1, size: .3, fill: 1.4, glow: 3, lines: .5, palette: 1, spread: .6, depth: 1.1, fb: .75, fbZoom: 1.006, zoom: -.6 },
+    r: [{ s: 'bass', t: 'sphere', a: .15 }, { s: 'lfoA', t: 'box', a: .2 }] },
+  { name: 'Neon Web', p: { sides: 3, iter: 14, scale: 1.45, angle: -40, offX: .5, offY: .9, zoom: -1.2, lines: 1.5, width: .8, halo: .25, fill: .05, palette: 3, depth: 1.6, fb: .85, blend: 1, fbZoom: .992, fbRot: -.6, fbHue: .01, hueSpeed: .05 },
+    r: [{ s: 'treble', t: 'width', a: .08 }, { s: 'beat', t: 'fbRot', a: .25 }] },
+  { name: 'Spiral Galaxy', p: { sides: 3, iter: 12, scale: 1.5, angle: 50, twist: .7, offX: .55, offY: .2, shape: 2, size: .4, lines: 1.4, fill: .3, glow: 6, palette: 0, spread: .8, fb: .9, blend: 2, fbZoom: 1.004, fbRot: 2.4, fbHue: .003, spin: 8, foldSpin: -3 },
+    r: [{ s: 'level', t: 'twist', a: .08 }, { s: 'beat', t: 'fbZoom', a: .1 }] },
+  { name: 'Ember Mandala', p: { sides: 12, iter: 9, scale: 1.7, angle: 10, offX: .95, offY: .15, lines: 1.4, width: 1.2, fill: .3, glow: 6, palette: 4, spread: .5, depth: .6, fb: .82, blend: 2, fbZoom: .975, fbRot: .8, fbHue: 0, hueSpeed: 0, spin: 2 },
+    r: [{ s: 'beat', t: 'fbZoom', a: -.12 }, { s: 'bass', t: 'lines', a: .3 }] },
+  { name: 'Lace', p: { sides: 1, iter: 16, mirror: 1, box: 1, scale: 1.38, angle: 45, offX: .35, offY: .6, shape: 3, lines: 1.1, width: .9, fill: .2, palette: 7, spread: .3, depth: .2, fb: .6, fbZoom: 1, fbRot: 0, spin: 0, foldSpin: .6, sat: .5 },
+    r: [{ s: 'lfoA', t: 'angle', a: .04 }] },
+  { name: 'Ice Cathedral', p: { sides: 6, iter: 11, mirror: .7, scale: 1.9, angle: 60, offX: .3, offY: 1.1, shape: 0, lines: 1.5, width: 1, halo: .25, fill: .15, glow: 9, palette: 2, spread: .4, fb: .85, blend: 2, fbZoom: 1.015, fbRot: 0, fbSides: 6, spin: -2, zoom: .3 },
+    r: [{ s: 'beat', t: 'fbZoom', a: .1 }, { s: 'treble', t: 'halo', a: .3 }] },
+  { name: 'Star Lattice', p: { sides: 5, iter: 10, scale: 1.55, angle: 36, offX: .5, offY: .6, shape: 3, lines: 1.2, width: 1, fill: .3, palette: 5, fb: .85, blend: 2, fbZoom: 1.012, fbRot: 1 },
+    r: [{ s: 'beat', t: 'fbZoom', a: .12 }, { s: 'level', t: 'angle', a: .02 }] },
+  { name: 'Liquid Kaleido', p: { sides: 7, iter: 10, scale: 1.55, angle: 14, offX: .7, offY: .2, lines: 1, fill: .7, palette: 6, fb: .95, blend: 3, fbZoom: 1.008, fbRot: .5, fbWarp: .02, fbHue: .004, drift: .25, driftSpeed: .3 },
+    r: [{ s: 'bass', t: 'fbWarp', a: .2 }, { s: 'lfoB', t: 'hue', a: .03 }] },
+  { name: 'Tile Dream', p: { sides: 1, iter: 12, mirror: 1, box: 1, scale: 1.7, angle: 30, offX: .6, offY: .4, shape: 1, size: .4, lines: .8, fill: .8, glow: 5, palette: 1, spread: 1.5, fb: .6, blend: 2, fbZoom: 1, fbRot: 0, spin: 0, foldSpin: .5, drift: .2, driftSpeed: .1 },
+    r: [{ s: 'beat', t: 'glow', a: -.1 }, { s: 'bass', t: 'size', a: .08 }] }
+];
+
+/* ---------- state ---------- */
+const KEY = 'mirrorfold.current', BKEY = 'mirrorfold.bookmarks', DKEY = 'mirrorfold.device';
+let S = defaults();               // base values the sliders show
+let routes = [];                   // [{ s: source key, t: param key, a: amount -1..1 of the param's range }]
+let lookName = PRESETS[0].name;
+let device = { touch: 'bend', quality: 1, sens: 1, listen: false, src: 'mic' };
+try { const d = JSON.parse(localStorage.getItem(DKEY) || 'null'); if (d && typeof d === 'object') Object.assign(device, d); } catch (e) {}
+function saveDevice(){ try { localStorage.setItem(DKEY, JSON.stringify(device)); } catch (e) {} }
+
+function cleanParams(p){
+  const o = defaults();
+  if (p && typeof p === 'object') for (const k in o) if (typeof p[k] === 'number' && isFinite(p[k])) o[k] = p[k];
+  return o;
+}
+function cleanRoutes(r){
+  if (!Array.isArray(r)) return [];
+  return r.filter((x) => x && SOURCES.some((s) => s.key === x.s) && P[x.t] && !P[x.t].noMod && typeof x.a === 'number')
+    .map((x) => ({ s: x.s, t: x.t, a: Math.max(-1, Math.min(1, x.a)) })).slice(0, 16);
+}
+function applyLook(look, keepView){
+  const view = { zoom: S.zoom, x: S.x, y: S.y, rot: S.rot };
+  S = cleanParams(look.p ? Object.assign(defaults(), look.p) : look.p);
+  if (keepView) Object.assign(S, view);
+  routes = cleanRoutes(look.r);
+  lookName = look.name || 'Untitled';
+  phase.rot = phase.fold = phase.hue = 0;
+  clearTrails = true;
+  syncUI(); saveSoon();
+}
+let saveT = 0;
+function saveSoon(){
+  clearTimeout(saveT);
+  saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify({ p: S, r: routes, name: lookName })); } catch (e) {} }, 300);
+}
+function loadCurrent(){
+  try {
+    const c = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (c && c.p){ S = cleanParams(c.p); routes = cleanRoutes(c.r); lookName = c.name || 'Untitled'; return; }
+  } catch (e) {}
+  applyLook(PRESETS[0]);
+}
+
+/* setup codes: MF1: + base64 JSON, the same idea as Spectrum Bench's SB1: codes */
+function b64e(s){ return btoa(unescape(encodeURIComponent(s))); }
+function b64d(s){ return decodeURIComponent(escape(atob(s))); }
+function encodeCode(name){
+  const p = {}; const d = defaults();
+  for (const k in S) if (S[k] !== d[k]) p[k] = +S[k].toFixed(5);
+  return 'MF1:' + b64e(JSON.stringify({ v: 1, n: name || lookName, p, r: routes }));
+}
+function decodeCode(str){
+  const m = String(str).replace(/\s+/g, '').match(/MF1:([A-Za-z0-9+/=]+)/i);
+  if (!m) throw new Error('format');
+  const o = JSON.parse(b64d(m[1]));
+  return { name: o.n || 'Shared look', p: Object.assign(defaults(), o.p || {}), r: o.r || [] };
+}
+
+/* ---------- WebGL ---------- */
+const canvas = document.getElementById('view');
+const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: false });
+if (!gl){
+  document.body.insertAdjacentHTML('beforeend', '<div class="nogl"><p>This browser can’t run WebGL, which Mirrorfold needs to draw.</p></div>');
+  throw new Error('no webgl');
+}
+
+const UNIFORMS = PARAMS.filter((p) => !p.palette).map((p) => 'uniform float u_' + p.key + ';').join('\n');
+const VERT = 'attribute vec2 a;varying vec2 v_uv;void main(){v_uv=a*.5+.5;gl_Position=vec4(a,0.,1.);}';
+const COMMON = `
+precision highp float;
+varying vec2 v_uv;
+uniform vec2 u_res;
+${UNIFORMS}
+#define PI 3.141592653589793
+#define TAU 6.283185307179586
+mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
+// fold the plane into one wedge of an n-sided kaleidoscope (n < 1.5 leaves it alone)
+vec2 kal(vec2 p, float n){
+  if (n < 1.5) return p;
+  float seg = PI / n;
+  float a = atan(p.y, p.x);
+  a = abs(mod(a + seg, 2. * seg) - seg);
+  return length(p) * vec2(cos(a), sin(a));
+}
+`;
+const FRAG = COMMON + `
+uniform sampler2D u_prev;
+uniform float u_time;
+uniform vec3 u_pa, u_pb, u_pc, u_pd;
+#define MAXI 24
+vec3 pal(float t){ return u_pa + u_pb * cos(TAU * (u_pc * t + u_pd)); }
+vec3 hueShift(vec3 c, float h){
+  const mat3 toYIQ = mat3(.299, .596, .211, .587, -.274, -.523, .114, -.322, .312);
+  const mat3 toRGB = mat3(1., 1., 1., .956, -.272, -1.106, .621, -.647, 1.703);
+  vec3 y = toYIQ * c;
+  y.yz = rot(h) * y.yz;
+  return toRGB * y;
+}
+// distance to the shape that lights the fractal, in folded space
+float trap(vec2 p){
+  if (u_shape < .5) return abs(p.y);
+  if (u_shape < 1.5) return max(length(p) - u_size * .5, 0.);
+  if (u_shape < 2.5) return abs(length(p) - u_size);
+  if (u_shape < 3.5) return min(abs(p.x), abs(p.y));
+  return abs(max(abs(p.x), abs(p.y)) - u_size);
+}
+void main(){
+  vec2 s = (v_uv - .5) * vec2(u_res.x / u_res.y, 1.) * 2.;
+  float z = exp2(u_zoom);
+  vec2 p = rot(radians(u_rot)) * s / z + vec2(u_x, u_y);
+  float px = 2. / u_res.y / z;            // one pixel, in fractal units
+
+  float sc = 1., wt = 1., wsum = 0., g = 0.;
+  float ang = radians(u_angle);
+  vec2 off = vec2(u_offX, u_offY);
+  float n = max(u_iter, 1.);
+  float w = max(u_width * px, 1e-7);
+  vec3 col = vec3(0.);
+  for (int i = 0; i < MAXI; i++){
+    if (float(i) >= u_iter || dot(p, p) > 4e3) break;   // stop once a point has flown off
+    p = kal(p, u_sides);
+    p = mix(p, abs(p), u_mirror);
+    p = mix(p, clamp(p, -1., 1.) * 2. - p, u_box);
+    float r2 = dot(p, p);
+    float k = mix(1., r2 < .25 ? 4. : (r2 < 1. ? 1. / r2 : 1.), u_sphere);
+    p *= k; sc *= k;
+    p = rot(ang + u_twist * length(p)) * p;
+    p = p * u_scale - off * (u_scale - 1.);
+    sc *= u_scale;
+    float d = trap(p);
+    float e = d / sc;                     // roughly the on-screen distance
+    float lit = smoothstep(w * 1.5, w * .4, e) + u_halo * exp(-e / (w * 7.));
+    float t = u_hue + u_depth * float(i) / n + u_spread * .15 * log(1. + d);
+    col += pal(t) * lit * wt * u_lines;
+    float gi = exp(-d * u_glow);
+    g += gi * wt;
+    wsum += wt;
+    wt *= u_fade;                         // deeper reflections glow less
+  }
+  g /= max(wsum, 1e-3);
+  col += pal(u_hue + .35 + u_spread * g) * g * u_fill;
+  // feedback: last frame, re-mirrored, turned, zoomed and rippled
+  vec2 asp = vec2(u_res.x / u_res.y, 1.);
+  vec2 q = (v_uv - .5) * asp * 2.;
+  q = kal(q, u_fbSides);
+  q += u_fbWarp * vec2(sin(q.y * 7. + u_time * 1.3), sin(q.x * 7. - u_time * 1.1));
+  q = rot(-radians(u_fbRot)) * q / u_fbZoom - vec2(u_fbX, u_fbY) * 2.;
+  vec2 tc = q / asp * .5 + .5;
+  tc = 1. - abs(1. - mod(tc, 2.));        // the edges mirror too
+  vec3 prev = max(hueShift(texture2D(u_prev, tc).rgb, u_fbHue * TAU), 0.);
+  vec3 dec = max(prev * u_fb - .002, 0.);
+  vec3 o;
+  if (u_blend < .5) o = dec + col;
+  else if (u_blend < 1.5) o = 1. - (1. - min(col, 1.)) * (1. - min(dec, 1.));
+  else if (u_blend < 2.5) o = max(dec, col);
+  else o = max(mix(col, prev, u_fb) - .002, 0.);
+  gl_FragColor = vec4(min(o, 6.), 1.);
+}
+`;
+const POST = COMMON + `
+uniform sampler2D u_tex;
+void main(){
+  vec3 c = texture2D(u_tex, v_uv).rgb * u_bright;
+  c = c / (1. + max(c - 1., 0.) * .5);    // soften anything brighter than white
+  c = (c - .5) * u_contrast + .5;
+  float l = dot(c, vec3(.299, .587, .114));
+  c = mix(vec3(l), c, u_sat);
+  vec2 d = (v_uv - .5) * vec2(u_res.x / u_res.y, 1.);
+  c *= 1. - u_vig * smoothstep(.25, 1.1, length(d));
+  gl_FragColor = vec4(clamp(c, 0., 1.), 1.);
+}
+`;
+
+function compile(src, type){
+  const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+  return sh;
+}
+function program(fsrc){
+  const pr = gl.createProgram();
+  gl.attachShader(pr, compile(VERT, gl.VERTEX_SHADER)); gl.attachShader(pr, compile(fsrc, gl.FRAGMENT_SHADER));
+  gl.bindAttribLocation(pr, 0, 'a'); gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+  const loc = {};
+  const n = gl.getProgramParameter(pr, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++){ const u = gl.getActiveUniform(pr, i); loc[u.name] = gl.getUniformLocation(pr, u.name); }
+  return { pr, loc };
+}
+const progFold = program(FRAG), progPost = program(POST);
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+// Trails live in half-float textures when the device can render to them, so slow fades
+// don't stall on 8-bit steps; otherwise ordinary 8-bit textures.
+const hf = gl.getExtension('OES_texture_half_float');
+gl.getExtension('EXT_color_buffer_half_float');
+const hfLinear = gl.getExtension('OES_texture_half_float_linear');
+let texType = gl.UNSIGNED_BYTE, texFilter = gl.LINEAR;
+let targets = [], cur = 0, RW = 0, RH = 0, clearTrails = true;
+function makeTarget(w, h, type, filter){
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, type, null);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if (!ok){ gl.deleteTexture(tex); gl.deleteFramebuffer(fbo); return null; }
+  return { tex, fbo };
+}
+if (hf){
+  const t = makeTarget(4, 4, hf.HALF_FLOAT_OES, hfLinear ? gl.LINEAR : gl.NEAREST);
+  if (t){ texType = hf.HALF_FLOAT_OES; texFilter = hfLinear ? gl.LINEAR : gl.NEAREST; gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); }
+}
+
+const QUALITY = [{ label: 'Fast', f: .55 }, { label: 'Balanced', f: .8 }, { label: 'Sharp', f: 1 }, { label: 'Retina', f: 1.6 }];
+function resize(){
+  const w = window.innerWidth, h = window.innerHeight;
+  const dpr = window.devicePixelRatio || 1;
+  // keep the pixel count near a budget so big screens stay smooth; Retina ignores the budget
+  const q = QUALITY[device.quality] || QUALITY[1];
+  let f = Math.min(dpr, Math.sqrt(1.15e6 / (w * h))) * q.f;
+  if (q.label === 'Retina') f = Math.min(dpr, 2);
+  const nw = Math.max(1, Math.round(w * f)), nh = Math.max(1, Math.round(h * f));
+  if (nw === RW && nh === RH) return;
+  RW = nw; RH = nh;
+  canvas.width = RW; canvas.height = RH;
+  targets.forEach((t) => { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); });
+  targets = [makeTarget(RW, RH, texType, texFilter), makeTarget(RW, RH, texType, texFilter)];
+  if (!targets[0] || !targets[1]){ texType = gl.UNSIGNED_BYTE; texFilter = gl.LINEAR; targets = [makeTarget(RW, RH, texType, texFilter), makeTarget(RW, RH, texType, texFilter)]; }
+  clearTrails = true;
+}
+window.addEventListener('resize', resize);
+
+/* ---------- motion, modulation ---------- */
+const phase = { rot: 0, fold: 0, hue: 0, drift: 0, pulse: 0, lfoA: 0, lfoB: 0, time: 0 };
+const src = { level: 0, bass: 0, mid: 0, treble: 0, beat: 0, lfoA: 0, lfoB: 0 };
+let E = Object.assign({}, S);     // the values actually drawn this frame
+function effective(dt){
+  const sp = S.speed;
+  phase.time += dt * sp;
+  phase.lfoA += dt * sp * .08; phase.lfoB += dt * sp * .5;
+  src.lfoA = .5 - .5 * Math.cos(phase.lfoA * Math.PI * 2);
+  src.lfoB = .5 - .5 * Math.cos(phase.lfoB * Math.PI * 2);
+  for (const k in S) E[k] = S[k];
+  for (const r of routes){
+    const p = P[r.t], v = src[r.s] || 0;
+    if (p.options) E[r.t] = Math.round(Math.max(0, Math.min(p.options.length - 1, E[r.t] + r.a * v * (p.options.length - 1))));
+    else E[r.t] = Math.max(p.min, Math.min(p.max, E[r.t] + r.a * v * (p.max - p.min)));
+  }
+  phase.rot += E.spin * dt * sp;
+  phase.fold += E.foldSpin * dt * sp;
+  phase.hue += E.hueSpeed * dt * sp;
+  phase.drift += E.driftSpeed * dt * sp;
+  phase.pulse += E.pulseSpeed * dt * sp;
+  phase.rot %= 360; phase.fold %= 360; phase.hue %= 1;
+  E.rot += phase.rot;
+  E.angle += phase.fold;
+  E.hue += phase.hue;
+  E.offX += E.drift * Math.cos(phase.drift * Math.PI * 2);
+  E.offY += E.drift * Math.sin(phase.drift * Math.PI * 2 * 1.31);
+  E.scale *= 1 + E.pulse * Math.sin(phase.pulse * Math.PI * 2);
+}
+
+function draw(){
+  if (clearTrails){
+    targets.forEach((t) => { gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); });
+    clearTrails = false;
+  }
+  const a = targets[cur], b = targets[1 - cur];
+  const pal = PALETTES[S.palette | 0] || PALETTES[0];
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, b.fbo);
+  gl.viewport(0, 0, RW, RH);
+  gl.useProgram(progFold.pr);
+  const L = progFold.loc;
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, a.tex);
+  gl.uniform1i(L.u_prev, 0);
+  gl.uniform2f(L.u_res, RW, RH);
+  gl.uniform1f(L.u_time, phase.time);
+  gl.uniform3fv(L.u_pa, pal.a); gl.uniform3fv(L.u_pb, pal.b); gl.uniform3fv(L.u_pc, pal.c); gl.uniform3fv(L.u_pd, pal.d);
+  for (const k in E) if (L['u_' + k]) gl.uniform1f(L['u_' + k], E[k]);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, RW, RH);
+  gl.useProgram(progPost.pr);
+  const M = progPost.loc;
+  gl.bindTexture(gl.TEXTURE_2D, b.tex);
+  gl.uniform1i(M.u_tex, 0);
+  gl.uniform2f(M.u_res, RW, RH);
+  for (const k in E) if (M['u_' + k]) gl.uniform1f(M['u_' + k], E[k]);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  cur = 1 - cur;
+}
+
+/* ---------- sound ---------- */
+const AU = { ctx: null, an: null, data: null, stream: null, node: null, el: null, on: false,
+  bands: { level: [0, 0], bass: [0, 0], mid: [0, 0], treble: [0, 0] }, bassAvg: 0, lastBeat: 0 };
+function bandRange(lo, hi){
+  const ny = AU.ctx.sampleRate / 2, n = AU.data.length;
+  return [Math.max(1, Math.floor(lo / ny * n)), Math.min(n - 1, Math.ceil(hi / ny * n))];
+}
+function ensureCtx(){
+  if (!AU.ctx){
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return false;
+    AU.ctx = new C();
+    AU.an = AU.ctx.createAnalyser(); AU.an.fftSize = 2048; AU.an.smoothingTimeConstant = .45;
+    AU.data = new Uint8Array(AU.an.frequencyBinCount);
+    AU.ranges = { bass: bandRange(25, 160), mid: bandRange(160, 2000), treble: bandRange(2000, 9000), level: bandRange(25, 9000) };
+  }
+  if (AU.ctx.state === 'suspended') AU.ctx.resume();
+  return true;
+}
+async function startListening(){
+  if (!ensureCtx()){ toast('This browser can’t listen to sound.'); return false; }
+  stopListening(true);
+  try {
+    if (device.src === 'file'){
+      if (!AU.el){ toast('Pick a song file first, on the Sound tab.'); return false; }
+      AU.node = AU.node || AU.ctx.createMediaElementSource(AU.el);
+      AU.node.connect(AU.an); AU.an.connect(AU.ctx.destination);
+      await AU.el.play();
+    } else {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('This browser can’t share the microphone.'); return false; }
+      AU.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      AU.mic = AU.ctx.createMediaStreamSource(AU.stream);
+      AU.mic.connect(AU.an);
+    }
+  } catch (e){
+    toast(device.src === 'file' ? 'That song wouldn’t play.' : 'The microphone wasn’t allowed. Check Settings, then try again.');
+    return false;
+  }
+  AU.on = true; device.listen = true; saveDevice(); syncListen();
+  return true;
+}
+function stopListening(quiet){
+  if (AU.stream){ AU.stream.getTracks().forEach((t) => t.stop()); AU.stream = null; }
+  if (AU.mic){ try { AU.mic.disconnect(); } catch (e) {} AU.mic = null; }
+  if (AU.el && !quiet) AU.el.pause();
+  if (AU.an){ try { AU.an.disconnect(); } catch (e) {} }
+  if (AU.node){ try { AU.node.disconnect(); } catch (e) {} }
+  AU.on = false;
+  if (!quiet){ device.listen = false; saveDevice(); }
+  for (const k of ['level', 'bass', 'mid', 'treble', 'beat']) src[k] = 0;
+  syncListen();
+}
+// Each band levels itself: it remembers how quiet and how loud it has been lately, so bass
+// and treble both swing across their full range whatever the music.
+function listen(dt){
+  if (!AU.on) return;
+  AU.an.getByteFrequencyData(AU.data);
+  const d = AU.data, t = performance.now() / 1000;
+  for (const k in AU.ranges){
+    const [lo, hi] = AU.ranges[k];
+    let sum = 0; for (let i = lo; i <= hi; i++) sum += d[i];
+    const raw = sum / (hi - lo + 1) / 255;
+    const b = AU.bands[k];               // [floor, peak]
+    b[1] = Math.max(raw, b[1] - dt * .05);
+    b[0] = raw < b[0] ? raw : b[0] + (raw - b[0]) * Math.min(1, dt * .15);
+    let v = (raw - b[0]) / Math.max(.04, b[1] - b[0]);
+    v = Math.max(0, Math.min(1, v * device.sens));
+    const k2 = v > src[k] ? Math.min(1, dt * 30) : Math.min(1, dt * 7);
+    src[k] += (v - src[k]) * k2;
+    if (k === 'bass'){
+      AU.bassAvg += (raw - AU.bassAvg) * Math.min(1, dt * 2);
+      if (raw > AU.bassAvg * 1.15 + .02 / device.sens && t - AU.lastBeat > .2){ AU.lastBeat = t; src.beat = 1; }
+    }
+  }
+  src.beat *= Math.exp(-dt * 7);
+}
+
+/* ---------- UI ---------- */
+const $ = (id) => document.getElementById(id);
+const panel = $('panel'), tabsEl = $('tabs'), bodyEl = $('body');
+const hint = $('hint');
+let toastT = 0;
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600); }
+function el(tag, attrs, kids){
+  const e = document.createElement(tag);
+  for (const k in attrs || {}){
+    if (k === 'text') e.textContent = attrs[k];
+    else if (k === 'html') e.innerHTML = attrs[k];
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  (kids || []).forEach((c) => c && e.appendChild(c));
+  return e;
+}
+const ICON_RESET = '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+function fmtVal(p, v){
+  if (p.fmt) return p.fmt(v);
+  const dec = p.step >= 1 ? 0 : p.step >= .1 ? 1 : p.step >= .01 ? 2 : 3;
+  return v.toFixed(dec) + (p.unit || '');
+}
+function palCss(pal){
+  const stops = [];
+  for (let i = 0; i <= 8; i++){
+    const t = i / 8, c = [0, 1, 2].map((j) => Math.round(255 * Math.max(0, Math.min(1, pal.a[j] + pal.b[j] * Math.cos(6.2832 * (pal.c[j] * t + pal.d[j]))))));
+    stops.push('rgb(' + c.join(',') + ') ' + Math.round(t * 100) + '%');
+  }
+  return 'linear-gradient(90deg,' + stops.join(',') + ')';
+}
+
+const rows = {};    // key -> { row, input, val, mod } or { chips: [...] }
+function paramRow(p){
+  if (p.palette){
+    const wrap = el('div', { class: 'swatches', role: 'group', 'aria-label': p.label });
+    const chips = PALETTES.map((pal, i) => {
+      const b = el('button', { class: 'swatch', 'aria-pressed': 'false', 'aria-label': pal.name, style: 'background:' + palCss(pal), onclick: () => { S.palette = i; changed(p.key); } }, [el('span', { text: pal.name })]);
+      wrap.appendChild(b); return b;
+    });
+    rows[p.key] = { chips };
+    return el('div', { class: 'row' }, [el('div', { class: 'top' }, [el('span', { class: 'name', text: p.label })]), wrap]);
+  }
+  if (p.options){
+    const wrap = el('div', { class: 'chips', role: 'group', 'aria-label': p.label });
+    const chips = p.options.map((o, i) => {
+      const b = el('button', { class: 'chip', 'aria-pressed': 'false', text: o, onclick: () => { S[p.key] = i; changed(p.key); } });
+      wrap.appendChild(b); return b;
+    });
+    rows[p.key] = { chips };
+    return el('div', { class: 'row' }, [el('div', { class: 'top' }, [el('span', { class: 'name', text: p.label })]), wrap]);
+  }
+  const input = el('input', { type: 'range', min: p.min, max: p.max, step: p.step, 'aria-label': p.label });
+  const val = el('span', { class: 'val' });
+  const mod = el('i', { class: 'mod' });
+  const reset = el('button', { class: 'reset', 'aria-label': 'Reset ' + p.label, title: 'Reset', html: ICON_RESET, onclick: () => { S[p.key] = p.def; changed(p.key); } });
+  const row = el('div', { class: 'row' }, [
+    el('div', { class: 'top' }, [el('span', { class: 'name', text: p.label }), val, reset]),
+    el('div', { class: 'track' }, [input, mod])
+  ]);
+  input.addEventListener('input', () => { S[p.key] = parseFloat(input.value); changed(p.key); });
+  rows[p.key] = { row, input, val, mod };
+  return row;
+}
+function syncRow(k){
+  const p = P[k], r = rows[k];
+  if (!r) return;
+  if (r.chips){ r.chips.forEach((c, i) => c.setAttribute('aria-pressed', String(i === Math.round(S[k])))); return; }
+  if (document.activeElement !== r.input || r.input.value != S[k]) r.input.value = S[k];
+  r.input.style.setProperty('--fill', ((S[k] - p.min) / (p.max - p.min) * 100) + '%');
+  r.val.textContent = fmtVal(p, S[k]);
+  r.row.classList.toggle('changed', Math.abs(S[k] - p.def) > 1e-9);
+}
+function changed(k){
+  syncRow(k);
+  dirty = true;
+  saveSoon();
+}
+function syncUI(){
+  for (const k in rows) syncRow(k);
+  $('lookName').textContent = lookName;
+  renderRoutes();
+}
+
+const TABS = [];
+function addTab(name, build){
+  const id = 'tab-' + name.toLowerCase();
+  const btn = el('button', { role: 'tab', 'aria-selected': 'false', 'aria-controls': id, text: name, onclick: () => selectTab(name) });
+  const page = el('div', { class: 'page', id, role: 'tabpanel' });
+  tabsEl.appendChild(btn); bodyEl.appendChild(page);
+  TABS.push({ name, btn, page });
+  build(page);
+}
+let tabNow = 'Looks';
+function selectTab(name){
+  tabNow = name;
+  TABS.forEach((t) => { t.btn.setAttribute('aria-selected', String(t.name === name)); t.page.classList.toggle('on', t.name === name); });
+  bodyEl.scrollTop = 0;
+  if (name === 'Saved') renderBookmarks();
+}
+
+/* Looks: built-in presets and Surprise me */
+addTab('Looks', (pg) => {
+  pg.appendChild(el('h3', { text: 'Presets' }));
+  const g = el('div', { class: 'grid' });
+  PRESETS.forEach((pr) => {
+    const pal = PALETTES[pr.p.palette != null ? pr.p.palette : 0];
+    g.appendChild(el('button', { class: 'card', 'aria-label': pr.name, onclick: () => { applyLook(pr); toast(pr.name); } }, [
+      el('div', { class: 'sw', style: presetArt(pr, pal) }),
+      el('div', { class: 'cap', text: pr.name })
+    ]));
+  });
+  pg.appendChild(g);
+  pg.appendChild(el('div', { class: 'btns' }, [
+    el('button', { class: 'btn', text: 'Surprise me', onclick: randomize }),
+    el('button', { class: 'btn', text: 'Clear trails', onclick: () => { clearTrails = true; } })
+  ]));
+  pg.appendChild(el('p', { class: 'note', text: 'Drag the picture to bend the mirrors, or switch the arrows button in the dock to move around instead. Pinch to zoom and turn, and tap once to hide the controls.' }));
+});
+// a little kaleidoscope swatch in the preset's palette, so each card hints at its look
+function presetArt(pr, pal){
+  const sides = Math.max(3, Math.round(pr.p.sides || 6) * 2);
+  const g = palCss(pal).replace('linear-gradient(90deg,', 'conic-gradient(from ' + ((pr.p.angle || 18) * 2) + 'deg,');
+  return 'background:radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0 18%, rgba(0,0,0,.55) 60%, #000 100%),' +
+    'repeating-conic-gradient(from 0deg, rgba(0,0,0,.0) 0 ' + (180 / sides) + 'deg, rgba(0,0,0,.45) ' + (180 / sides) + 'deg ' + (360 / sides) + 'deg),' + g;
+}
+
+GROUPS.forEach((gname) => addTab(gname === 'Mirrors' ? 'Mirrors' : gname, (pg) => {
+  PARAMS.filter((p) => p.group === gname).forEach((p) => pg.appendChild(paramRow(p)));
+  if (gname === 'View'){
+    pg.appendChild(el('div', { class: 'btns' }, [el('button', { class: 'btn', text: 'Reset view', onclick: () => { ['zoom', 'x', 'y', 'rot'].forEach((k) => { S[k] = P[k].def; syncRow(k); }); phase.rot = 0; saveSoon(); } })]));
+    pg.appendChild(el('h3', { text: 'Detail on this device' }));
+    const wrap = el('div', { class: 'chips' });
+    const qc = QUALITY.map((q, i) => {
+      const b = el('button', { class: 'chip', 'aria-pressed': String(device.quality === i), text: q.label, onclick: () => { device.quality = i; saveDevice(); qc.forEach((c, j) => c.setAttribute('aria-pressed', String(j === i))); resize(); } });
+      wrap.appendChild(b); return b;
+    });
+    pg.appendChild(wrap);
+    pg.appendChild(el('p', { class: 'note', text: 'Sharper detail looks finer but works the device harder. This stays on this device and isn’t saved with looks.' }));
+  }
+  if (gname === 'Trails') pg.appendChild(el('p', { class: 'note', text: 'Each frame is drawn over a copy of the one before, turned, zoomed and mirrored by these settings, so the picture keeps feeding back into itself.' }));
+}));
+
+/* Sound: listening, meters, and what sound changes */
+let routesEl, listenBtn, srcChips, fileName, meterEls = {};
+addTab('Sound', (pg) => {
+  pg.appendChild(el('h3', { text: 'Listen to' }));
+  const wrap = el('div', { class: 'chips' });
+  srcChips = ['mic', 'file'].map((k) => {
+    const b = el('button', { class: 'chip', 'aria-pressed': String(device.src === k), text: k === 'mic' ? 'Microphone' : 'Song file', onclick: () => {
+      device.src = k; saveDevice(); srcChips.forEach((c, i) => c.setAttribute('aria-pressed', String(['mic', 'file'][i] === k)));
+      if (k === 'file' && !AU.el) fileIn.click();
+      else if (AU.on) startListening();
+    } });
+    wrap.appendChild(b); return b;
+  });
+  pg.appendChild(wrap);
+  const fileIn = el('input', { type: 'file', accept: 'audio/*', style: 'display:none' });
+  fileIn.addEventListener('change', () => {
+    const f = fileIn.files && fileIn.files[0]; if (!f) return;
+    if (!AU.el){ AU.el = new Audio(); AU.el.loop = true; AU.el.crossOrigin = 'anonymous'; }
+    AU.el.src = URL.createObjectURL(f);
+    fileName.textContent = f.name;
+    device.src = 'file'; srcChips.forEach((c, i) => c.setAttribute('aria-pressed', String(i === 1)));
+    startListening();
+  });
+  pg.appendChild(fileIn);
+  fileName = el('p', { class: 'note', text: 'Songs play here on the device and are never uploaded.' });
+  pg.appendChild(fileName);
+  listenBtn = el('button', { class: 'btn primary', text: 'Start listening', onclick: () => AU.on ? stopListening() : startListening() });
+  pg.appendChild(el('div', { class: 'btns' }, [listenBtn, el('button', { class: 'btn', text: 'Choose song…', onclick: () => fileIn.click() })]));
+  const sens = { key: 'sens', label: 'Sensitivity', min: .3, max: 3, step: .05, def: 1 };
+  const sIn = el('input', { type: 'range', min: sens.min, max: sens.max, step: sens.step, value: device.sens, 'aria-label': 'Sensitivity' });
+  const sVal = el('span', { class: 'val', text: device.sens.toFixed(2) + '×' });
+  const sFill = () => sIn.style.setProperty('--fill', ((device.sens - sens.min) / (sens.max - sens.min) * 100) + '%');
+  sFill();
+  sIn.addEventListener('input', () => { device.sens = parseFloat(sIn.value); sVal.textContent = device.sens.toFixed(2) + '×'; sFill(); saveDevice(); });
+  pg.appendChild(el('div', { class: 'row' }, [el('div', { class: 'top' }, [el('span', { class: 'name', text: 'Sensitivity' }), sVal]), el('div', { class: 'track' }, [sIn])]));
+  const meters = el('div', { class: 'meters' });
+  SOURCES.filter((s) => !s.key.startsWith('lfo')).forEach((s) => {
+    const bar = el('i');
+    meterEls[s.key] = bar;
+    meters.appendChild(el('div', { class: 'meter' }, [el('div', { class: 'bar' }, [bar]), el('span', { text: s.label })]));
+  });
+  pg.appendChild(meters);
+
+  pg.appendChild(el('h3', { text: 'Sound changes' }));
+  pg.appendChild(el('p', { class: 'note', text: 'Each line lets one part of the sound push one setting. A negative amount pushes it the other way. The two waves move on their own, even without sound. These are saved with each look.' }));
+  routesEl = el('div');
+  pg.appendChild(routesEl);
+  pg.appendChild(el('div', { class: 'btns' }, [el('button', { class: 'btn', text: 'Add a sound change', onclick: () => { routes.push({ s: 'bass', t: 'scale', a: .1 }); renderRoutes(); dirty = true; saveSoon(); } })]));
+});
+const TARGETS = PARAMS.filter((p) => !p.noMod);
+function renderRoutes(){
+  if (!routesEl) return;
+  routesEl.textContent = '';
+  routes.forEach((r, i) => {
+    const sSel = el('select', { class: 'field', 'aria-label': 'Sound' });
+    SOURCES.forEach((s) => sSel.appendChild(el('option', { value: s.key, text: s.label })));
+    sSel.value = r.s;
+    const tSel = el('select', { class: 'field', 'aria-label': 'Setting' });
+    GROUPS.forEach((g) => {
+      const og = el('optgroup', { label: g });
+      TARGETS.filter((p) => p.group === g).forEach((p) => og.appendChild(el('option', { value: p.key, text: p.label })));
+      tSel.appendChild(og);
+    });
+    tSel.value = r.t;
+    const amt = el('input', { type: 'range', class: 'amt', min: -1, max: 1, step: .01, value: r.a, 'aria-label': 'Amount' });
+    const lbl = el('span', { text: Math.round(r.a * 100) + '%' });
+    const fill = () => amt.style.setProperty('--fill', ((r.a + 1) / 2 * 100) + '%');
+    fill();
+    sSel.addEventListener('change', () => { r.s = sSel.value; saveSoon(); });
+    tSel.addEventListener('change', () => { r.t = tSel.value; saveSoon(); markMods(); });
+    amt.addEventListener('input', () => { r.a = parseFloat(amt.value); lbl.textContent = Math.round(r.a * 100) + '%'; fill(); saveSoon(); });
+    const x = el('button', { class: 'x', 'aria-label': 'Remove', html: ICON_X, onclick: () => { routes.splice(i, 1); renderRoutes(); saveSoon(); } });
+    routesEl.appendChild(el('div', { class: 'route' }, [sSel, tSel, x, el('div', { class: 'lbl' }, [el('span', { text: 'Amount' }), lbl]), el('div', { class: 'amt track' }, [amt])]));
+  });
+  markMods();
+}
+function markMods(){
+  for (const k in rows) if (rows[k].row) rows[k].row.classList.toggle('modded', routes.some((r) => r.t === k));
+}
+function syncListen(){
+  if (listenBtn) listenBtn.textContent = AU.on ? 'Stop listening' : 'Start listening';
+  $('btnMic').setAttribute('aria-pressed', String(AU.on));
+}
+
+/* Saved: bookmarks and setup codes */
+let bmGrid, codeIn;
+function loadBookmarks(){ try { const a = JSON.parse(localStorage.getItem(BKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function saveBookmarks(a){ try { localStorage.setItem(BKEY, JSON.stringify(a)); return true; } catch (e) { toast('There’s no room left to save bookmarks on this device.'); return false; } }
+function thumb(){
+  // read the canvas straight after drawing, before the browser clears it
+  draw();
+  const c = document.createElement('canvas'); c.width = c.height = 160;
+  const s = Math.min(canvas.width, canvas.height);
+  c.getContext('2d').drawImage(canvas, (canvas.width - s) / 2, (canvas.height - s) / 2, s, s, 0, 0, 160, 160);
+  try { return c.toDataURL('image/jpeg', .72); } catch (e) { return ''; }
+}
+function bookmark(name){
+  const a = loadBookmarks();
+  const n = name || lookName.replace(/ \d+$/, '') + ' ' + (a.length + 1);
+  a.unshift({ id: Date.now().toString(36), name: n, p: Object.assign({}, S), r: routes.map((r) => Object.assign({}, r)), thumb: thumb() });
+  if (saveBookmarks(a)){ lookName = n; $('lookName').textContent = n; saveSoon(); toast('Saved “' + n + '”'); }
+  renderBookmarks();
+}
+function renderBookmarks(){
+  if (!bmGrid) return;
+  const a = loadBookmarks();
+  bmGrid.textContent = '';
+  if (!a.length){ bmGrid.appendChild(el('p', { class: 'note', text: 'Nothing saved yet. The bookmark button in the dock saves whatever is on screen.' })); return; }
+  a.forEach((b) => {
+    const card = el('div', { class: 'card', role: 'button', tabindex: '0', 'aria-label': b.name });
+    if (b.thumb) card.appendChild(el('img', { src: b.thumb, alt: '' }));
+    card.appendChild(el('div', { class: 'cap', text: b.name }));
+    const del = el('button', { class: 'del', 'aria-label': 'Delete ' + b.name, html: ICON_X });
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!confirm('Delete “' + b.name + '”?')) return;
+      saveBookmarks(loadBookmarks().filter((x) => x.id !== b.id)); renderBookmarks();
+    });
+    card.appendChild(del);
+    const open = () => { applyLook({ name: b.name, p: b.p, r: b.r }); toast(b.name); };
+    card.addEventListener('click', open);
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); open(); } });
+    bmGrid.appendChild(card);
+  });
+}
+addTab('Saved', (pg) => {
+  pg.appendChild(el('h3', { text: 'Bookmarks' }));
+  const nameIn = el('input', { class: 'field', type: 'text', placeholder: 'Name (optional)', 'aria-label': 'Bookmark name', maxlength: '40' });
+  pg.appendChild(nameIn);
+  pg.appendChild(el('div', { class: 'btns' }, [el('button', { class: 'btn primary', text: 'Save this view', onclick: () => { bookmark(nameIn.value.trim()); nameIn.value = ''; } })]));
+  bmGrid = el('div', { class: 'grid' });
+  pg.appendChild(bmGrid);
+  pg.appendChild(el('h3', { text: 'Setup code' }));
+  pg.appendChild(el('p', { class: 'note', text: 'One line of text that holds every setting and sound change, starting with MF1:. Send it to another device, or paste one here to load it.' }));
+  codeIn = el('textarea', { class: 'field', rows: '3', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off', autocomplete: 'off', placeholder: 'MF1:…', 'aria-label': 'Setup code' });
+  pg.appendChild(codeIn);
+  pg.appendChild(el('div', { class: 'btns' }, [
+    el('button', { class: 'btn', text: 'Copy code', onclick: async () => {
+      const code = encodeCode(); codeIn.value = code;
+      try { await navigator.clipboard.writeText(code); toast('Code copied'); } catch (e) { codeIn.select(); toast('Select the code and copy it'); }
+    } }),
+    navigator.share ? el('button', { class: 'btn', text: 'Share…', onclick: async () => { try { await navigator.share({ title: lookName, text: encodeCode() }); } catch (e) {} } }) : null,
+    el('button', { class: 'btn primary', text: 'Load code', onclick: () => {
+      try { const l = decodeCode(codeIn.value); applyLook(l); toast('Loaded “' + l.name + '”'); }
+      catch (e){ toast('That doesn’t look like a setup code. Codes start with MF1:'); }
+    } })
+  ]));
+});
+
+/* Surprise me: pick fresh values for everything that has a range, and roll again
+   (a few times) if the result comes out nearly black or blown out */
+function roll(){
+  const r = (a, b) => a + Math.random() * (b - a);
+  PARAMS.forEach((p) => {
+    if (!p.rnd) return;
+    let v = r(p.rnd[0], p.rnd[1]);
+    if (p.options || p.palette || p.step >= 1) v = Math.round(v);
+    S[p.key] = v;
+  });
+  // keep the odd folds occasional so most rolls stay crisp
+  if (Math.random() < .6) S.box = 0;
+  if (Math.random() < .6) S.sphere = 0;
+  if (Math.random() < .3) S.fbSides = 1;
+  // adding and screening pile light up quickly, so use them less and with shorter trails
+  if (S.blend < 2 && Math.random() < .5) S.blend = 2;
+  if (S.blend < 2) S.fb = Math.min(S.fb, .8);
+}
+function looksGood(){
+  // run a few frames so the trails have started to pile up
+  clearTrails = true;
+  for (let i = 0; i < 10; i++){ effective(1 / 30); draw(); }
+  const px = new Uint8Array(RW * RH * 4);
+  gl.readPixels(0, 0, RW, RH, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  let sum = 0, lit = 0, n = 0;
+  for (let i = 0; i < px.length; i += 4 * 53){ const l = (px[i] * .3 + px[i + 1] * .59 + px[i + 2] * .11) / 255; sum += l; if (l > .12) lit++; n++; }
+  const mean = sum / n;
+  return mean > .05 && mean < .62 && lit / n > .05;
+}
+function randomize(){
+  const view = { zoom: S.zoom, x: S.x, y: S.y, rot: S.rot };
+  for (let i = 0; i < 6; i++){ roll(); if (looksGood()) break; }
+  Object.assign(S, view);
+  lookName = 'Surprise';
+  clearTrails = true; dirty = true;
+  syncUI(); saveSoon();
+}
+
+/* ---------- dock ---------- */
+function setPanel(open){
+  panel.classList.toggle('open', open);
+  document.body.classList.toggle('panel-open', open);
+  $('btnPanel').setAttribute('aria-pressed', String(open));
+  if (open) document.body.classList.remove('bare');
+}
+$('btnPanel').addEventListener('click', () => setPanel(!panel.classList.contains('open')));
+function syncTouch(){
+  const view = device.touch === 'view';
+  $('btnTouch').setAttribute('aria-pressed', String(view));
+  $('btnTouch').setAttribute('aria-label', view ? 'Drag moves the view' : 'Drag bends the mirrors');
+}
+$('btnTouch').addEventListener('click', () => {
+  device.touch = device.touch === 'view' ? 'bend' : 'view'; saveDevice(); syncTouch();
+  toast(device.touch === 'view' ? 'Dragging moves around' : 'Dragging bends the mirrors');
+});
+$('btnDice').addEventListener('click', randomize);
+$('btnSave').addEventListener('click', () => bookmark());
+$('btnMic').addEventListener('click', () => {
+  if (AU.on) stopListening();
+  else startListening().then((ok) => { if (ok) toast(device.src === 'file' ? 'Playing your song' : 'Listening'); });
+});
+let paused = false, dirty = true;
+$('btnPause').addEventListener('click', () => {
+  paused = !paused;
+  $('btnPause').setAttribute('aria-pressed', String(paused));
+  $('btnPause').setAttribute('aria-label', paused ? 'Play' : 'Pause');
+  $('btnPause').innerHTML = paused ? '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8.5 5v14M15.5 5v14"/></svg>';
+});
+
+/* ---------- touch: drag bends or moves, pinch zooms and turns, tap hides the controls ---------- */
+const ptrs = new Map();
+let gesture = null, hintShown = true;
+function hideHint(){ if (hintShown){ hintShown = false; hint.classList.add('gone'); } }
+setTimeout(hideHint, 6000);
+function screenToFrac(x, y, E2){
+  // a CSS-pixel point to fractal coordinates using the current effective view
+  const h = window.innerHeight, w = window.innerWidth;
+  const sx = (x - w / 2) / h * 2, sy = -(y - h / 2) / h * 2;
+  const z = Math.pow(2, S.zoom), a = (S.rot + phase.rot) * Math.PI / 180;
+  const c = Math.cos(a), s = Math.sin(a);
+  return [(c * sx - s * sy) / z + S.x, (s * sx + c * sy) / z + S.y];
+}
+function startGesture(){
+  const pts = [...ptrs.values()];
+  if (pts.length === 1) gesture = { type: 'one', x: pts[0].x, y: pts[0].y, t0: performance.now(), moved: 0, sx: pts[0].x, sy: pts[0].y };
+  else if (pts.length >= 2){
+    const [a, b] = pts;
+    gesture = { type: 'two', cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, d: Math.hypot(b.x - a.x, b.y - a.y), ang: Math.atan2(b.y - a.y, b.x - a.x), moved: 99 };
+  } else gesture = null;
+}
+canvas.addEventListener('pointerdown', (e) => {
+  canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const wasOne = gesture && gesture.type === 'one';
+  startGesture();
+  if (wasOne && gesture && gesture.type === 'two') gesture.moved = 99;
+  hideHint();
+});
+canvas.addEventListener('pointermove', (e) => {
+  const pt = ptrs.get(e.pointerId); if (!pt || !gesture) return;
+  pt.x = e.clientX; pt.y = e.clientY;
+  const h = window.innerHeight;
+  if (gesture.type === 'one'){
+    const dx = pt.x - gesture.x, dy = pt.y - gesture.y;
+    gesture.x = pt.x; gesture.y = pt.y;
+    gesture.moved = Math.max(gesture.moved, Math.hypot(pt.x - gesture.sx, pt.y - gesture.sy));
+    if (gesture.moved < 6) return;
+    if (device.touch === 'view') pan(dx, dy);
+    else {
+      const k = 1.6 / h;
+      S.offX = clampP('offX', S.offX + dx * k);
+      S.offY = clampP('offY', S.offY - dy * k);
+      syncRow('offX'); syncRow('offY');
+    }
+    saveSoon();
+  } else {
+    const pts = [...ptrs.values()]; if (pts.length < 2) return;
+    const [a, b] = pts;
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, d = Math.hypot(b.x - a.x, b.y - a.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
+    // keep the point under the fingers' midpoint fixed while zooming and turning around it
+    const before = screenToFrac(gesture.cx, gesture.cy);
+    S.zoom = clampP('zoom', S.zoom + Math.log2(d / Math.max(1, gesture.d)));
+    S.rot = wrapDeg(S.rot - (ang - gesture.ang) * 180 / Math.PI);
+    const after = screenToFrac(cx, cy);
+    S.x = clampP('x', S.x + before[0] - after[0]); S.y = clampP('y', S.y + before[1] - after[1]);
+    Object.assign(gesture, { cx, cy, d, ang });
+    ['zoom', 'rot', 'x', 'y'].forEach(syncRow);
+    saveSoon();
+  }
+});
+function endPtr(e){
+  if (!ptrs.has(e.pointerId)) return;
+  const g = gesture;
+  ptrs.delete(e.pointerId);
+  if (g && g.type === 'one' && g.moved < 6 && performance.now() - g.t0 < 300 && e.type === 'pointerup'){
+    if (panel.classList.contains('open')) setPanel(false);
+    else document.body.classList.toggle('bare');
+  }
+  startGesture();
+  if (gesture) gesture.moved = 99;   // a finger left over from a pinch never counts as a tap
+}
+canvas.addEventListener('pointerup', endPtr);
+canvas.addEventListener('pointercancel', endPtr);
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const before = screenToFrac(e.clientX, e.clientY);
+  S.zoom = clampP('zoom', S.zoom - e.deltaY * .0025);
+  const after = screenToFrac(e.clientX, e.clientY);
+  S.x = clampP('x', S.x + before[0] - after[0]); S.y = clampP('y', S.y + before[1] - after[1]);
+  ['zoom', 'x', 'y'].forEach(syncRow); saveSoon(); hideHint();
+}, { passive: false });
+function pan(dx, dy){
+  const a = screenToFrac(0, 0), b = screenToFrac(dx, dy);
+  S.x = clampP('x', S.x - (b[0] - a[0])); S.y = clampP('y', S.y - (b[1] - a[1]));
+  syncRow('x'); syncRow('y');
+}
+function clampP(k, v){ return Math.max(P[k].min, Math.min(P[k].max, v)); }
+function wrapDeg(v){ return ((v + 180) % 360 + 360) % 360 - 180; }
+
+/* keyboard: space pauses, R rolls, S saves, H hides */
+window.addEventListener('keydown', (e) => {
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if (e.key === ' '){ e.preventDefault(); $('btnPause').click(); }
+  else if (e.key === 'r') randomize();
+  else if (e.key === 's') bookmark();
+  else if (e.key === 'h') document.body.classList.toggle('bare');
+});
+
+/* ---------- loop ---------- */
+let last = 0;
+function frame(now){
+  const dt = Math.min(.05, last ? (now - last) / 1000 : 1 / 60);
+  last = now;
+  listen(dt);
+  if (!paused || dirty){
+    effective(paused ? 0 : dt);
+    draw();
+    dirty = false;
+  }
+  if (panel.classList.contains('open')){
+    if (tabNow === 'Sound') for (const k in meterEls) meterEls[k].style.height = (src[k] * 100) + '%';
+    for (const r of routes){
+      const row = rows[r.t]; if (!row || !row.mod) continue;
+      const p = P[r.t];
+      row.mod.style.left = ((E[r.t] - p.min) / (p.max - p.min) * 100) + '%';
+    }
+  }
+  requestAnimationFrame(frame);
+}
+document.addEventListener('visibilitychange', () => { last = 0; });
+// coming back to the page (or the Home Screen app) restarts listening if it was on
+// (a song file has to be picked again, so only the microphone comes back by itself)
+if (device.listen && device.src === 'mic'){
+  const resume = (e) => {
+    if (e.target.closest && e.target.closest('#btnMic, #panel')) return;
+    window.removeEventListener('pointerdown', resume, true);
+    if (device.listen && !AU.on) startListening();
+  };
+  window.addEventListener('pointerdown', resume, true);
+}
+
+loadCurrent();
+syncUI();
+syncTouch();
+selectTab('Looks');
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

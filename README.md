@@ -82,6 +82,16 @@ Sections (A, B, C…) each hold their own notes; tap the current one to rename, 
 
 **Export** writes standard ILDA files (format 5, true color) with blanking and corner dwell points fitted to the chosen scan speed and frame rate: each look as its own loop in a .zip with a cue sheet, or the whole show as one .ild. Pangolin BEYOND loads ILDA files; the FB4 itself plays shows that BEYOND or QuickShow copy to its SD card with FB4 Export, so the files go through that software rather than straight onto the FB4. The show saves itself in the browser and can be saved to a show file; the song stays on the device.
 
+### Mirrorfold
+
+`mirrorfold.html` is a fractal toy built from mirrors. Every point on screen is folded through a stack of mirrors (a kaleidoscope wedge, square mirrors, box and sphere folds), turned, scaled and shifted, over and over; whatever shape it passes near on the way (lines, dots, rings, crosses or squares) lights it up. Each frame is then laid over a turned, zoomed and re-mirrored copy of the frame before, so the picture feeds back into itself in trails and tunnels.
+
+Drag to bend the mirrors (or switch the arrows button to move around instead), pinch to zoom and turn, and tap to hide the controls. Twelve presets cover the range, and **Surprise me** rolls a new look, rerolling anything that comes out nearly black or washed out. The controls have tabs for the mirrors, color, trails, motion and view, about forty settings in all.
+
+**Sound** listens to the microphone or a song file. Its **sound changes** let loudness, bass, mids, treble, the beat, or one of two slow built-in waves push any setting by an amount you choose, and they are saved with each look. **Saved** keeps bookmarks with a thumbnail on the device, and setup codes (one line starting `MF1:`) carry a look to another device, the same way Spectrum Bench shares setups.
+
+To add a setting, add one entry to `PARAMS` near the top of the script: it gets a slider, a shader uniform `u_<key>`, a place in bookmarks and codes, and a spot on the sound target list.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.
