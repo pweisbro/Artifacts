@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&family=IBM+Plex+Mono:wght@500&family=Caveat:wght@700&family=Chakra+Petch:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&family=IBM+Plex+Mono:wght@500&family=Caveat:wght@700&family=Chakra+Petch:wght@700&family=Righteous&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -90,6 +90,8 @@ body{
 .label h2.t-worm{font:700 29px/1 "Caveat","Bradley Hand",cursive;letter-spacing:.01em;color:#ffe3d3}
 .label h2.t-beam{font:700 21px/1.1 "Chakra Petch","Avenir Next Condensed",system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase}
 .label h2.t-beam span{color:#39ff7a;text-shadow:0 0 10px rgba(57,255,122,.5)}
+.label h2.t-fold{font:400 24px/1.05 "Righteous","Avenir Next",system-ui,sans-serif;letter-spacing:.02em;
+  background:linear-gradient(90deg,#ff6fd8,#c39bff 45%,#7af0ff);-webkit-background-clip:text;background-clip:text;color:transparent}
 .label h2.t-orrery{font:600 23px/1.1 "Fredoka","Avenir Next",system-ui,sans-serif;letter-spacing:.01em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
@@ -120,6 +122,7 @@ body{
         <li><a class="tile" href="xy-scope.html"><div class="label"><h2>X-Y Scope</h2></div></a></li>
         <li><a class="tile" href="earworm.html"><div class="label"><h2>Earworm</h2></div></a></li>
         <li><a class="tile" href="beamline.html"><div class="label"><h2>Beamline</h2></div></a></li>
+        <li><a class="tile" href="mirrorfold.html"><div class="label"><h2>Mirrorfold</h2></div></a></li>
       </ul>
     </noscript>
   </main>
@@ -214,6 +217,15 @@ const APPS = [
     accent: '#39ff7a',
     titleClass: 't-beam',
     art: 'beam'
+  },
+  {
+    name: 'Mirrorfold',
+    href: 'mirrorfold.html',
+    blurb: 'Fly through fractals made of mirrors folded over and over, with glowing trails that feed back into themselves. Bend it with a finger, let it dance to sound, and bookmark the views you find.',
+    ground: '#07060d',
+    accent: '#ff6fd8',
+    titleClass: 't-fold',
+    art: 'fold'
   }
 ];
 
@@ -719,6 +731,39 @@ ARTS.worm = {
 };
 function clampA(x){ return Math.max(0, Math.min(1, x * 2.5)); }
 
+// A few glowing curves folded through a turning kaleidoscope, leaving trails, like the app's feedback loop.
+ARTS.fold = {
+  init(s){ s.frameN = 0; },
+  frame(ctx, s, w, h, t){
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = (++s.frameN % 6) ? 'rgba(0,0,0,.09)' : 'rgba(0,0,0,.2)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const sides = 6, r = Math.hypot(w, h) * .5;
+    for (let k = 0; k < sides * 2; k++){
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(Math.floor(k / 2) * Math.PI * 2 / sides + t * .08);
+      if (k % 2) ctx.scale(1, -1);
+      for (let c = 0; c < 3; c++){
+        const hue = (300 + c * 50 + t * 12) % 360;
+        ctx.beginPath();
+        for (let i = 0; i <= 24; i++){
+          const u = i / 24;
+          const rr = r * u * (.35 + .65 * (.5 + .5 * Math.sin(t * .5 + c * 2.1)));
+          const a = (Math.PI / sides) * (.5 + .5 * Math.sin(u * 6 + t * (.6 + c * .2) + c)) ;
+          const x = rr * Math.cos(a), y = rr * Math.sin(a);
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.strokeStyle = 'hsla(' + hue + ',95%,62%,.10)'; ctx.lineWidth = 5; ctx.stroke();
+        ctx.strokeStyle = 'hsla(' + hue + ',100%,75%,.55)'; ctx.lineWidth = 1.2; ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+};
+
 ARTS.glow = {
   init(){},
   frame(ctx, s, w, h, t){
@@ -792,7 +837,7 @@ function sizeTile(tile){
 }
 // With reduced motion, settle each preview into a single still frame.
 function drawStill(tile){
-  const steps = tile.art === ARTS.ink || tile.art === ARTS.wells || tile.art === ARTS.grain ? 160 : 1;
+  const steps = tile.art === ARTS.ink || tile.art === ARTS.wells || tile.art === ARTS.grain || tile.art === ARTS.fold ? 160 : 1;
   for (let i = 0; i < steps; i++) tile.art.frame(tile.ctx, tile.state, tile.w, tile.h, tile.t + i / 60, 1 / 60);
 }
 
