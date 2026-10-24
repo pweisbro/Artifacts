@@ -48,6 +48,10 @@ header p { flex-basis: 100%; margin: 0; color: var(--ink-soft); max-width: 62ch;
 .screen.drawing { cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
 .tool-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .text-row { display: flex; gap: 8px; }
+.yt { position: relative; aspect-ratio: 16 / 9; width: 100%; border-radius: 6px; overflow: hidden; background: #000; }
+.yt iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.section h3 { margin: 6px 0 0; font-family: var(--display); font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
+#yt-url { text-transform: none; font-size: 14px; }
 .text-row input { flex: 1; min-width: 0; font: 500 16px var(--mono); padding: 7px 10px; border-radius: 6px; border: 2px solid var(--ink); background: var(--panel); color: var(--ink); text-transform: uppercase; }
 .tool-row .btn { font-size: 14px; padding: 7px 14px; }
 .btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
@@ -158,7 +162,15 @@ input[type="file"] { font: inherit; max-width: 100%; }
       </div>
 
       <div class="section" id="pane-file" hidden>
-        <h2>Play a stereo file</h2>
+        <h2>YouTube</h2>
+        <form class="text-row" id="yt-form">
+          <input type="text" inputmode="url" id="yt-url" placeholder="Paste a YouTube link" aria-label="YouTube link" autocomplete="off" spellcheck="false" enterkeyhint="go">
+          <button class="btn" type="submit">Load</button>
+        </form>
+        <div class="yt" id="yt"></div>
+        <div class="tool-row" id="cap-row" hidden><button class="btn" id="cap" type="button">Show on scope</button></div>
+        <p class="hint" id="yt-hint"></p>
+        <h3>Stereo file</h3>
         <input type="file" id="file" accept="audio/*,.wav,.wave,.aif,.aiff,.mp3,.m4a,.aac,.flac,.ogg,.opus">
         <div class="mono" id="file-name">No file loaded. Try a normal song first, then an oscilloscope-music track.</div>
         <div class="ctl"><label for="pos">Position</label><input type="range" id="pos" min="0" max="1" step="0.0001" value="0" disabled><output id="pos-o">–</output></div>
@@ -191,7 +203,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
 (() => {
   const $ = id => document.getElementById(id);
   const S = {
-    mode: 'gen', xf: 220, yf: 330, wx: 'sine', wy: 'sine', phase: 90, detune: 0.25,
+    mode: 'file', xf: 220, yf: 330, wx: 'sine', wy: 'sine', phase: 90, detune: 0.25,
     shape: 'cube', sf: 110, spin: 0.2, song: 0.8, overlay: 0,
     zoom: 1, persist: 0.75, glow: 1, vol: 0.25
   };
@@ -386,7 +398,9 @@ input[type="file"] { font: inherit; max-width: 100%; }
     proc.connect(procGain); songGain.connect(sum); procGain.connect(sum);
     sum.connect(master); master.connect(ctx.destination);
     sum.connect(split); split.connect(anX, 0); split.connect(anY, 1);
-    A = { ctx, proc, procGain, songGain, master, anX, anY,
+    // Captured tab sound (a YouTube video) goes to the screen only: you already hear it from the video.
+    const capIn = ctx.createGain(); capIn.connect(split);
+    A = { ctx, proc, procGain, songGain, master, anX, anY, capIn,
           bx: new Float32Array(2048), by: new Float32Array(2048) };
     applyLevels();
   }
@@ -506,12 +520,76 @@ input[type="file"] { font: inherit; max-width: 100%; }
     if (on && !playing) {
       playing = true; startSong(); await A.ctx.resume();
     } else if (!on && playing) {
-      playing = false; stopSong(); await A.ctx.suspend();
+      playing = false; stopSong(); stopCapture(); await A.ctx.suspend();
     }
     $('power').textContent = playing ? 'Stop sound' : 'Start sound';
     $('power').classList.toggle('on', playing);
   }
   $('power').addEventListener('click', () => setPower(!playing));
+
+  // ---------- YouTube ----------
+  // The video plays in YouTube's own player, which never hands its sound to the page. Desktop Chrome and Edge
+  // can share this tab's sound with the page, which is how the video reaches the scope; iPhone and iPad can't.
+  const MUSHROOMS = 'https://www.youtube.com/watch?v=rtR63-ecUNo', YT_KEY = 'xy-scope-youtube';
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const canCapture = !isIOS && !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+  let cap = null;
+  function ytId(url) {
+    url = url.trim();
+    if (/^[\w-]{11}$/.test(url)) return url;
+    const m = url.match(/(?:youtu\.be\/|[?&]v=|\/(?:embed|shorts|live|v)\/)([\w-]{11})/);
+    return m ? m[1] : null;
+  }
+  function loadVideo(url) {
+    const id = ytId(url);
+    if (!id) { $('yt-hint').textContent = "That doesn't look like a YouTube link."; return false; }
+    const f = document.createElement('iframe');
+    f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?playsinline=1&rel=0';
+    f.title = 'YouTube video'; f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; f.allowFullscreen = true;
+    $('yt').replaceChildren(f);
+    $('yt-url').value = url.trim();
+    try { localStorage.setItem(YT_KEY, url.trim()); } catch (e) {}
+    ytHint();
+    return true;
+  }
+  function ytHint(extra) {
+    $('cap-row').hidden = !canCapture;
+    $('cap').textContent = cap ? 'Stop showing' : 'Show on scope';
+    $('yt-hint').textContent = (extra ? extra + ' ' : '') + (canCapture
+      ? 'Play the video, then tap Show on scope and pick this tab with "Also share tab audio" on. The scope draws what the video plays; YouTube\'s compression softens the picture a little.'
+      : 'iPhone and iPad don\'t let a page read a YouTube video\'s sound, so the video plays here but can\'t drive the scope. To see a track on the scope, load its audio as a file below, or open this page in Chrome or Edge on a computer.');
+  }
+  async function startCapture() {
+    if (!A) setupAudio();
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
+        preferCurrentTab: true, selfBrowserSurface: 'include', systemAudio: 'include'
+      });
+      if (!stream.getAudioTracks().length) {
+        stream.getTracks().forEach(t => t.stop());
+        ytHint('No sound came through. Pick this tab and turn on "Also share tab audio".');
+        return;
+      }
+      const src = A.ctx.createMediaStreamSource(stream);
+      src.connect(A.capIn);
+      cap = { stream, src };
+      stream.getTracks().forEach(t => t.addEventListener('ended', stopCapture));
+      await setPower(true);
+      ytHint(); refresh();
+    } catch (e) { ytHint(e && e.name === 'NotAllowedError' ? '' : "This browser couldn't share the tab's sound."); }
+  }
+  function stopCapture() {
+    if (!cap) return;
+    const c = cap; cap = null;
+    c.src.disconnect(); c.stream.getTracks().forEach(t => t.stop());
+    ytHint(); refresh();
+  }
+  $('cap').addEventListener('click', () => cap ? stopCapture() : startCapture());
+  $('yt-form').addEventListener('submit', e => { e.preventDefault(); if (loadVideo($('yt-url').value)) $('yt-url').blur(); });
+  let savedVideo = null;
+  try { savedVideo = localStorage.getItem(YT_KEY); } catch (e) {}
+  if (!(savedVideo && ytId(savedVideo) && loadVideo(savedVideo))) loadVideo(MUSHROOMS);
 
   const clock = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = String(t % 60).padStart(2, '0'); return h ? h + ':' + String(m).padStart(2, '0') + ':' + s : m + ':' + s; };
   const mb = n => n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : Math.max(0.1, n / 1e6).toFixed(1) + ' MB';
@@ -636,7 +714,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
         A.anX.getFloatTimeDomainData(A.bx); A.anY.getFloatTimeDomainData(A.by);
         draw(A.bx, A.by, 2048);
       } else if (S.mode === 'file') {
-        draw(null, null, 0, song ? 'Press Start sound' : 'Load a stereo file');
+        draw(null, null, 0, song ? 'Press Start sound' : canCapture ? 'Play a video or load a file' : 'Load a stereo file');
       } else {
         generate(pxs, pys, prevN, PREV_SR, S.mode);
         draw(pxs, pys, prevN);
@@ -756,7 +834,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
     if (S.mode === 'gen') ro.innerHTML = `<span>CH1 X <b>${S.xf} Hz ${S.wx}</b></span><span>CH2 Y <b>${(S.yf + S.detune).toFixed(2)} Hz ${S.wy}</b></span><span>Ratio <b>${ratio}</b></span>`;
     else if (S.mode === 'draw') ro.innerHTML = `<span>Strokes <b>${strokes.length}</b></span><span>Trace rate <b>${S.sf} Hz</b></span><span>Note <b>${note(S.sf)}</b></span>`;
     else if (S.mode === 'shape') ro.innerHTML = `<span>Shape <b>${SHAPES[S.shape].label}</b></span><span>Trace rate <b>${S.sf} Hz</b></span><span>Note <b>${note(S.sf)}</b></span>`;
-    else ro.innerHTML = `<span>Source <b>${song ? 'file' : 'none'}</b></span><span>Song <b>${Math.round(S.song * 100)}%</b></span><span>Shape overlay <b>${Math.round(S.overlay * 100)}%</b> ${SHAPES[S.shape].label}</span>`;
+    else ro.innerHTML = `<span>Source <b>${cap ? 'YouTube' : song ? 'file' : 'none'}</b></span><span>Song <b>${Math.round(S.song * 100)}%</b></span><span>Shape overlay <b>${Math.round(S.overlay * 100)}%</b> ${SHAPES[S.shape].label}</span>`;
     applyLevels();
   }
 
