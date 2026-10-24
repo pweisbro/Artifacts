@@ -19,7 +19,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 <!-- Each app's name on its tile is set in that app's own typeface, so the tile looks like the app it opens. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&family=IBM+Plex+Mono:wght@500&family=Caveat:wght@700&family=Chakra+Petch:wght@700&family=Righteous&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Syne:wght@800&family=Fredoka:wght@600&family=Silkscreen&family=Unbounded:wght@700&family=IBM+Plex+Mono:wght@500&family=Caveat:wght@700&family=Chakra+Petch:wght@700&family=Righteous&family=Teko:wght@700&display=swap">
 <style>
 /* Layout: a quiet, native-feeling page (system type, graphite wall) holding one dark window per app.
    Each window runs a small live preview drawn in that app's own colors; the apps carry the personality. */
@@ -92,6 +92,8 @@ body{
 .label h2.t-beam span{color:#39ff7a;text-shadow:0 0 10px rgba(57,255,122,.5)}
 .label h2.t-fold{font:400 24px/1.05 "Righteous","Avenir Next",system-ui,sans-serif;letter-spacing:.02em;
   background:linear-gradient(90deg,#ff6fd8,#c39bff 45%,#7af0ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.label h2.t-doom{font:700 30px/.9 "Teko","Impact",sans-serif;letter-spacing:.06em;text-transform:uppercase;
+  background:linear-gradient(180deg,#ffd27a,#ff7a2e 45%,#c81e14);-webkit-background-clip:text;background-clip:text;color:transparent}
 .label h2.t-orrery{font:600 23px/1.1 "Fredoka","Avenir Next",system-ui,sans-serif;letter-spacing:.01em}
 
 .foot{margin-top:28px;font-size:14px;color:var(--muted)}
@@ -226,6 +228,15 @@ const APPS = [
     accent: '#ff6fd8',
     titleClass: 't-fold',
     art: 'fold'
+  },
+  {
+    name: 'DOOM',
+    href: 'doom.html',
+    blurb: 'The real 1993 DOOM engine, running right here. The shareware episode is built in, or add your own WAD to play the full game, DOOM II or Freedoom. Touch controls on iPhone and iPad.',
+    ground: '#0b0302',
+    accent: '#ff5a1f',
+    titleClass: 't-doom',
+    art: 'doomfire'
   }
 ];
 
@@ -764,6 +775,49 @@ ARTS.fold = {
   }
 };
 
+// The classic low-res "DOOM fire": heat rises from the bottom row, cooling and drifting as it climbs.
+ARTS.doomfire = {
+  init(s, w, h){
+    s.cols = 64; s.rows = Math.max(24, Math.round(64 * h / w));
+    s.heat = new Uint8Array(s.cols * s.rows);
+    s.img = document.createElement('canvas');
+    s.img.width = s.cols; s.img.height = s.rows;
+    s.ictx = s.img.getContext('2d');
+    s.data = s.ictx.createImageData(s.cols, s.rows);
+    s.pal = [];
+    for (let i = 0; i < 37; i++){
+      const u = i / 36;
+      s.pal.push([Math.min(255, 40 + u * 480) | 0, Math.max(0, Math.min(255, (u - .3) * 400)) | 0, Math.max(0, Math.min(255, (u - .78) * 1100)) | 0, i ? 255 : 0]);
+    }
+    s.acc = 0;
+  },
+  frame(ctx, s, w, h, t, dt){
+    const { cols, rows, heat } = s;
+    s.acc += dt;
+    while (s.acc > 1 / 30){
+      s.acc -= 1 / 30;
+      const base = 36 * (.82 + .18 * Math.sin(t * .7));
+      for (let x = 0; x < cols; x++) heat[(rows - 1) * cols + x] = base;
+      for (let y = 1; y < rows; y++) for (let x = 0; x < cols; x++){
+        const r = Math.random() * 3.2 | 0;
+        const v = heat[y * cols + x] - (Math.random() < .6 ? 1 : 0);
+        const nx = Math.min(cols - 1, Math.max(0, x - r + 1));
+        heat[(y - 1) * cols + nx] = v > 0 ? v : 0;
+      }
+    }
+    const d = s.data.data;
+    for (let i = 0; i < heat.length; i++){
+      const c = s.pal[heat[i]];
+      d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = c[3];
+    }
+    s.ictx.putImageData(s.data, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = s.ground; ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(s.img, 0, 0, w, h);
+  }
+};
+
 ARTS.glow = {
   init(){},
   frame(ctx, s, w, h, t){
@@ -837,7 +891,7 @@ function sizeTile(tile){
 }
 // With reduced motion, settle each preview into a single still frame.
 function drawStill(tile){
-  const steps = tile.art === ARTS.ink || tile.art === ARTS.wells || tile.art === ARTS.grain || tile.art === ARTS.fold ? 160 : 1;
+  const steps = tile.art === ARTS.ink || tile.art === ARTS.wells || tile.art === ARTS.grain || tile.art === ARTS.fold || tile.art === ARTS.doomfire ? 160 : 1;
   for (let i = 0; i < steps; i++) tile.art.frame(tile.ctx, tile.state, tile.w, tile.h, tile.t + i / 60, 1 / 60);
 }
 
