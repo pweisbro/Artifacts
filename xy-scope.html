@@ -47,6 +47,8 @@ header p { flex-basis: 100%; margin: 0; color: var(--ink-soft); max-width: 62ch;
 .screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .screen.drawing { cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
 .tool-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.text-row { display: flex; gap: 8px; }
+.text-row input { flex: 1; min-width: 0; font: 500 16px var(--mono); padding: 7px 10px; border-radius: 6px; border: 2px solid var(--ink); background: var(--panel); color: var(--ink); text-transform: uppercase; }
 .tool-row .btn { font-size: 14px; padding: 7px 14px; }
 .btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
 .btn:disabled { opacity: .4; cursor: default; }
@@ -143,12 +145,16 @@ input[type="file"] { font: inherit; max-width: 100%; }
 
       <div class="section" id="pane-draw" hidden>
         <h2>Draw your own shape</h2>
+        <form class="text-row" id="text-form">
+          <input type="text" id="txt" maxlength="48" placeholder="Type to write" aria-label="Text for the beam to write" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done">
+          <button class="btn" id="write" type="submit">Write</button>
+        </form>
         <div class="tool-row">
           <button class="btn ghost" id="undo" type="button">Undo</button>
           <button class="btn ghost" id="clear" type="button">Clear</button>
         </div>
         <div class="ctl"><label for="df">Pitch</label><input type="range" id="df" min="30" max="660" step="1" value="110"><output id="df-o"></output></div>
-        <p class="hint">Draw on the screen with your finger or the mouse, in as many strokes as you like. The beam traces every line once per cycle and darts between separate strokes, so the trace rate is still the note you hear, and you can draw while the sound plays. Simple drawings stay sharp; busy ones get grainier at high pitch. Your drawing is kept on this device and also appears under Shapes, where it can spin or sit on top of a song.</p>
+        <p class="hint">Draw on the screen with your finger or the mouse, in as many strokes as you like, or type something and tap Write to have the beam spell it out (long text wraps onto up to four lines). Writing replaces the drawing, and Undo brings it back. The beam traces every line once per cycle and darts between separate strokes, so the trace rate is still the note you hear, and you can draw while the sound plays. Simple drawings stay sharp; busy ones get grainier at high pitch. Your drawing is kept on this device and also appears under Shapes, where it can spin or sit on top of a song.</p>
       </div>
 
       <div class="section" id="pane-file" hidden>
@@ -238,8 +244,8 @@ input[type="file"] { font: inherit; max-width: 100%; }
 
   // ---------- drawing ----------
   // Strokes in screen units (-1..1). The beam runs along each stroke, then darts to the next one and finally
-  // back to the start; those jumps count for a fraction of their length so they take little time and look faint.
-  const JUMP = 0.08, DRAW_KEY = 'xy-scope-drawing';
+  // back to the start; those jumps count for 1% of their length, so the beam darts across them and they look faint.
+  const JUMP = 0.01, DRAW_KEY = 'xy-scope-drawing';
   let strokes = [], penDown = false;
   try { const v = JSON.parse(localStorage.getItem(DRAW_KEY)); if (Array.isArray(v)) strokes = v.filter(st => Array.isArray(st) && st.length > 1); } catch (e) {}
   function buildDrawing() {
@@ -256,6 +262,57 @@ input[type="file"] { font: inherit; max-width: 100%; }
     const len = cum.length ? cum[cum.length - 1] : 0;
     SHAPES.drawing = { label: 'My drawing', pts: len ? pts : [[0, 0], [0, 0]], cum: len ? cum : [0, 0], len, empty: !len };
   }
+  // Undo history: each change saves the strokes it replaced.
+  const history = [];
+  function remember() { history.push(strokes.map(st => st.slice())); if (history.length > 50) history.shift(); }
+
+  // A single-line vector font for writing text, like a vector display's. Each glyph is strokes on a
+  // 4-wide, 6-tall grid; a stroke is a run of digit pairs (x, y), y up.
+  const FONT = {
+    A: '002640 1333', B: '00063645443303 3342413000', C: '4536160501103041', D: '00062644422000',
+    E: '46060040 0333', F: '460600 0333', G: '45361605011030414323', H: '0006 4640 0343',
+    I: '1636 2620 1030', J: '4641301001', K: '0006 4602 1340', L: '060040', M: '0006234640',
+    N: '00064046', O: '100105163645413010', P: '00063645443303', Q: '100105163645413010 2240',
+    R: '00063645443303 2340', S: '453616050413334241301001', T: '0646 2620', U: '060110304146',
+    V: '062046', W: '0610233046', X: '0046 0640', Y: '0623 4623 2320', Z: '06460040',
+    0: '100105163645413010 1135', 1: '1526 2620 1030', 2: '05163645440040',
+    3: '05163645443313 334241301001', 4: '30360242', 5: '4606033342413000',
+    6: '4536160501103041423303', 7: '064610', 8: '13040516364544331302011030414233',
+    9: '4313040516364541301001', '.': '2021', ',': '2110', '!': '2623 2021', '?': '05163645442322 2021',
+    '-': '1333', '+': '1333 2224', '=': '1232 1434', '/': '0046', ':': '2223 2425', "'": '2625',
+    '"': '1615 3635', '(': '3616041030', ')': '1636443010', '*': '2224 1335 1533', '#': '1214 3234 0333 0131',
+    '<': '360330', '>': '064300', '&': '40041625140130212141'
+  };
+  function textStrokes(text) {
+    // wrap at spaces to lines of up to 12 characters, at most four lines
+    const lines = [];
+    for (const word of text.toUpperCase().replace(/\s+/g, ' ').trim().split(' ')) {
+      for (let w = word; w;) {
+        const last = lines[lines.length - 1], piece = w.slice(0, 12);
+        if (last !== undefined && last.length + 1 + piece.length <= 12) lines[lines.length - 1] = last + ' ' + piece;
+        else lines.push(piece);
+        w = w.slice(12);
+      }
+    }
+    lines.splice(4);
+    const raw = [];
+    lines.forEach((line, li) => {
+      [...line].forEach((ch, ci) => {
+        const g = FONT[ch]; if (!g) return;
+        for (const part of g.split(' ')) {
+          const st = [];
+          for (let i = 0; i + 1 < part.length; i += 2) st.push([ci * 6 - (line.length * 6 - 2) / 2 + +part[i], (lines.length - 1) * 5.5 - li * 11 + +part[i + 1] - 3]);
+          raw.push(st);
+        }
+      });
+    });
+    if (!raw.length) return [];
+    let w = 0, h = 0;
+    for (const st of raw) for (const p of st) { w = Math.max(w, Math.abs(p[0])); h = Math.max(h, Math.abs(p[1])); }
+    const k = Math.min(0.9 / w, 0.75 / h, 0.07);
+    return raw.map(st => st.map(p => [p[0] * k, p[1] * k]));
+  }
+
   function saveDrawing() { try { localStorage.setItem(DRAW_KEY, JSON.stringify(strokes.map(st => st.map(p => [+p[0].toFixed(3), +p[1].toFixed(3)])))); } catch (e) {} }
   buildDrawing();
 
@@ -620,7 +677,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
   beam.addEventListener('pointerdown', e => {
     if (S.mode !== 'draw') return;
     e.preventDefault(); beam.setPointerCapture(e.pointerId);
-    penDown = true; strokes.push([toUnit(e)]);
+    penDown = true; remember(); strokes.push([toUnit(e)]);
   });
   beam.addEventListener('pointermove', e => {
     if (!penDown) return;
@@ -644,8 +701,14 @@ input[type="file"] { font: inherit; max-width: 100%; }
   }
   beam.addEventListener('pointerup', penUp);
   beam.addEventListener('pointercancel', penUp);
-  $('undo').addEventListener('click', () => { strokes.pop(); buildDrawing(); saveDrawing(); refresh(); });
-  $('clear').addEventListener('click', () => { strokes = []; buildDrawing(); saveDrawing(); refresh(); });
+  function setStrokes(next) { remember(); strokes = next; buildDrawing(); saveDrawing(); refresh(); }
+  $('undo').addEventListener('click', () => { strokes = history.length ? history.pop() : []; buildDrawing(); saveDrawing(); refresh(); });
+  $('clear').addEventListener('click', () => setStrokes([]));
+  $('text-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const st = textStrokes($('txt').value);
+    if (st.length) { setStrokes(st); $('txt').blur(); }
+  });
 
   const FMT = {
     xf: v => v + ' Hz', yf: v => v + ' Hz', phase: v => v + '°',
@@ -677,7 +740,7 @@ input[type="file"] { font: inherit; max-width: 100%; }
     $('pane-file').hidden = S.mode !== 'file';
     $('pane-draw').hidden = S.mode !== 'draw';
     screenEl.classList.toggle('drawing', S.mode === 'draw');
-    $('undo').disabled = $('clear').disabled = !strokes.length;
+    $('clear').disabled = !strokes.length; $('undo').disabled = !strokes.length && !history.length;
     document.querySelectorAll('#shapes .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.shape === S.shape)));
     const g0 = gcd(Math.round(S.xf), Math.round(S.yf));
     document.querySelectorAll('#ratios .chip').forEach((c, i) => {
