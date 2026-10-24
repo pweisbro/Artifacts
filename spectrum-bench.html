@@ -46,10 +46,10 @@ if('serviceWorker' in navigator){window.addEventListener('load',function(){navig
 html{height:100%;background:var(--bench)}
 body{height:100%;margin:0;background:var(--bench);color:var(--text);font-family:var(--body);font-size:15px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
 
-.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,44%);gap:10px;
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,min(var(--dock-h,44%),75%));gap:10px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px 12px}
 @media (min-width:880px), (orientation:landscape) and (min-width:620px){
-  .app{grid-template-columns:minmax(0,1fr) clamp(290px,34vw,356px);grid-template-rows:auto minmax(0,1fr);gap:12px;padding-block:12px 14px}
+  .app{grid-template-columns:minmax(0,1fr) min(var(--dock-w,clamp(290px,34vw,356px)),60vw);grid-template-rows:auto minmax(0,1fr);gap:12px;padding-block:12px 14px}
   .top{grid-column:1/-1}
   .stage{grid-column:1;grid-row:2}
   .dock{grid-column:2;grid-row:2}
@@ -71,13 +71,16 @@ h1{margin:0;font-family:var(--display);font-weight:600;font-size:21px;line-heigh
 .top-acts{display:flex;gap:8px;flex-shrink:0;margin-left:auto}
 .lib-btn[data-live="true"]{color:var(--amber)}
 .lib-btn[data-live="true"]::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
-@media (max-width:440px){.lib-btn span{display:none}.lib-btn{padding:8px 10px}}
+@media (max-width:440px){.lib-btn span{display:none}.lib-btn{padding:8px 9px}.top{gap:8px}.top-acts{gap:6px}.hide-btn,.home-btn{width:36px}}
 @media (max-width:540px){.band{display:none}h1{font-size:18px;letter-spacing:.13em}}
+@media (max-width:400px){h1{font-size:16.5px;letter-spacing:.1em}}
 
 .stage{position:relative;min-height:0;border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:var(--bench)}
 #bench{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
 #bench:focus-visible{box-shadow:inset 0 0 0 2px var(--amber)}
-.hint{position:absolute;left:12px;right:12px;bottom:9px;font:400 11px/1.4 var(--data);color:rgba(221,225,231,.42);pointer-events:none}
+.hint{position:absolute;left:12px;right:150px;bottom:9px;font:400 11px/1.4 var(--data);color:rgba(221,225,231,.42);pointer-events:none}
+.hint-short{display:none}
+@media (max-width:540px){.hint-long{display:none}.hint-short{display:inline}}
 .toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;max-width:calc(100% - 24px);padding:6px 6px 6px 14px;border-radius:10px;background:rgba(25,29,36,.96);border:1px solid var(--rule-hi);font-size:14px;box-shadow:0 8px 28px rgba(0,0,0,.45);z-index:3}
 .toast span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .toast button{flex:none;border:0;background:transparent;color:var(--amber);font:600 14px/1 var(--body);padding:8px 10px;border-radius:7px;min-height:32px}
@@ -169,6 +172,27 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .tog input::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--text);transition:transform .15s}
 .tog input:checked{background:var(--amber)}
 .tog input:checked::after{transform:translateX(16px);background:var(--amber-ink)}
+/* zoom buttons on the bench, the handle that resizes the dock, and the hidden-interface mode */
+.zoom{position:absolute;right:8px;bottom:8px;z-index:2;display:flex;align-items:center;gap:2px;padding:2px;border-radius:9px;background:rgba(18,21,27,.78);border:1px solid var(--rule);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.zoom button{display:grid;place-items:center;min-width:34px;height:32px;padding:0 4px;border:0;border-radius:7px;background:transparent;color:var(--text)}
+.zoom button:hover{background:rgba(255,255,255,.06)}
+.zoom svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+#z-reset{min-width:50px;font:500 11.5px/1 var(--data);color:var(--muted);font-variant-numeric:tabular-nums}
+.split{position:fixed;z-index:4;display:grid;place-items:center;touch-action:none;cursor:row-resize}
+.split::after{content:"";width:40px;height:4px;border-radius:2px;background:var(--rule-hi);transition:background .15s}
+.split.wide{cursor:col-resize}
+.split.wide::after{width:4px;height:40px}
+.split:hover::after,.split.on::after{background:var(--amber)}
+.hide-btn{display:inline-grid;place-items:center;width:38px;padding:0;flex-shrink:0}
+.hide-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.show-ui{position:fixed;z-index:6;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  display:grid;place-items:center;width:44px;height:44px;padding:0;border-radius:12px;border:1px solid var(--rule-hi);background:rgba(18,21,27,.7);color:var(--text);opacity:.45;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);transition:opacity .2s}
+.show-ui:hover,.show-ui:focus-visible{opacity:1}
+.show-ui svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ui-hidden .top,.ui-hidden .dock,.ui-hidden .hint,.ui-hidden .zoom,.ui-hidden .split{display:none}
+.ui-hidden .app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);padding:0;gap:0}
+.ui-hidden .app .stage{grid-column:1;grid-row:1;border:0;border-radius:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -183,15 +207,22 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
     <div class="top-acts">
       <button type="button" class="ghost lib-btn" id="b-snd" aria-pressed="false" aria-label="Sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h2M7 8v8M11 4v16M15 8v8M19 10v4M21 12h0"/></svg><span>Sound</span></button>
       <button type="button" class="ghost lib-btn" id="b-lib" aria-pressed="false" aria-label="Setups"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5L12 3l9 4.5L12 12z"/><path d="M3 12l9 4.5L21 12"/><path d="M3 16.5L12 21l9-4.5"/></svg><span>Setups</span></button>
+      <button type="button" class="ghost hide-btn" id="b-hide" aria-label="Hide interface" title="Hide interface (H)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.1c.5-.1.9-.1 1.4-.1 5 0 9 6 9 6a16.8 16.8 0 0 1-3.2 3.7M6.6 6.6A16.8 16.8 0 0 0 3 12s4 6 9 6c1.5 0 2.9-.4 4.2-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
     </div>
   </header>
 
   <main class="stage" id="stage">
     <canvas id="bench" tabindex="0" role="img" aria-label="Optical bench with light sources, prisms, lenses, mirrors, gratings, filters and screens. Arrow keys move the selected piece; square brackets turn it."></canvas>
-    <div class="hint">Drag to move · amber knob turns · tap empty bench for settings</div>
+    <div class="hint"><span class="hint-long">Drag to move · amber knob turns · drag empty bench to pan · pinch or scroll to zoom</span><span class="hint-short">Drag to move · knob turns · pinch to zoom · drag empty bench to pan</span></div>
+    <div class="zoom" role="group" aria-label="Zoom">
+      <button type="button" id="z-out" aria-label="Zoom out" title="Zoom out (−)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>
+      <button type="button" id="z-reset" aria-label="Reset zoom and position" title="Reset view (0)">100%</button>
+      <button type="button" id="z-in" aria-label="Zoom in" title="Zoom in (+)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M12 6v12"/></svg></button>
+    </div>
     <div class="toast" id="toast" role="status" hidden><span id="toast-msg"></span><button type="button" id="toast-undo">Undo</button></div>
   </main>
 
+  <div class="split" id="split" role="separator" aria-label="Resize the bench" title="Drag to resize the bench · double-click to reset"></div>
   <input type="file" id="snd-file" accept="audio/*" hidden>
   <aside class="dock" id="dock">
     <div class="add" role="toolbar" aria-label="Add to the bench">
@@ -211,6 +242,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
     <section class="insp" id="insp"></section>
   </aside>
 </div>
+<button type="button" class="show-ui" id="b-show" aria-label="Show interface" title="Show interface (H)" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="3"/></svg></button>
 
 <script>
 (function(){
@@ -800,12 +832,15 @@ function traceDelayed(sc,geos,o){
 /* ================= Rendering ================= */
 const stage=$('stage'),canvas=$('bench'),ctx=canvas.getContext('2d');
 let W=1,H=1,dpr=1,scale=1,cx=0,cy=0,bgc=null;
+// The view: base fits a 600 mm square in the stage; zoom multiplies it, and (vx,vy) is the bench point at the stage's center.
+let base=1,zoom=1,vx=0,vy=0;const ZMIN=.25,ZMAX=6;
 const toScreen=(x,y)=>[cx+x*scale,cy+y*scale];
 const toWorld=(x,y)=>[(x-cx)/scale,(y-cy)/scale];
 const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a.toFixed(3)})`;
 
 function buildBg(){
-  bgc=document.createElement('canvas');bgc.width=canvas.width;bgc.height=canvas.height;
+  if(!bgc)bgc=document.createElement('canvas');
+  if(bgc.width!==canvas.width||bgc.height!==canvas.height){bgc.width=canvas.width;bgc.height=canvas.height;}
   const g=bgc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const grd=g.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.hypot(W,H)*.62);
   grd.addColorStop(0,'#11141b');grd.addColorStop(1,'#07080b');
@@ -962,9 +997,20 @@ function resize(){
   const r=stage.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);
   dpr=Math.min(2,window.devicePixelRatio||1);
   canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
-  scale=Math.min(W,H)/600;cx=W/2;cy=H/2;VIEWR=Math.hypot(W,H)/scale;
+  base=Math.min(W,H)/600;applyView();placeSplit();
+}
+function applyView(){
+  scale=base*zoom;cx=W/2-vx*scale;cy=H/2-vy*scale;VIEWR=Math.hypot(W,H)/scale+Math.hypot(vx,vy);
+  const z=$('z-reset');if(z)z.textContent=Math.round(zoom*100)+'%';
   buildBg();request();
 }
+// Zoom to nz keeping the bench point under screen point (sx,sy) where it is.
+function zoomAt(sx,sy,nz){
+  const [wx,wy]=toWorld(sx,sy);zoom=clamp(nz,ZMIN,ZMAX);const s=base*zoom;
+  setCenter(wx-(sx-W/2)/s,wy-(sy-H/2)/s);
+}
+function setCenter(x,y){vx=clamp(x,-3000,3000);vy=clamp(y,-3000,3000);applyView();saveUiSoon();}
+function resetView(){zoom=1;setCenter(0,0);}
 
 /* ================= Readout charts ================= */
 function interp(s,l){if(l<s[0][0]||l>s[s.length-1][0])return 0;for(let i=1;i<s.length;i++)if(l<=s[i][0]){const t=(l-s[i-1][0])/(s[i][0]-s[i-1][0]);return s[i-1][1]+(s[i][1]-s[i-1][1])*t;}return 0;}
@@ -1309,23 +1355,60 @@ function pick(x,y){
 }
 function evPt(e){const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
 function onKnob(sx,sy){if(!sel||sel.type==='hole')return false;const k=knobPos(sel,geomOf(sel));return Math.hypot(sx-k[0],sy-k[1])<24;}
+// One finger or the mouse moves a piece, turns it by its knob, or pans the bench when it starts on empty space. Two fingers pinch to zoom and pan.
+const PTS=new Map();
+const pinchOf=()=>{const [a,b]=[...PTS.values()];return{d:Math.max(1,Math.hypot(a[0]-b[0],a[1]-b[1])),m:[(a[0]+b[0])/2,(a[1]+b[1])/2]};};
+function startPinch(){const p=pinchOf();drag={mode:'pinch',z0:zoom,d0:p.d,w:toWorld(p.m[0],p.m[1])};}
 canvas.addEventListener('pointerdown',e=>{
-  const [sx,sy]=evPt(e);
-  if(onKnob(sx,sy)){drag={mode:'rot',el:sel};canvas.setPointerCapture(e.pointerId);e.preventDefault();request();return;}
+  const [sx,sy]=evPt(e);PTS.set(e.pointerId,[sx,sy]);canvas.setPointerCapture(e.pointerId);e.preventDefault();
+  if(PTS.size===2){if(drag&&drag.mode!=='pan'&&drag.mode!=='pinch')saveSoon();startPinch();request();return;}
+  if(PTS.size>2)return;
+  if(onKnob(sx,sy)){drag={mode:'rot',el:sel,id:e.pointerId};request();return;}
   const [wx,wy]=toWorld(sx,sy),el=pick(wx,wy);
-  if(el){if(el!==sel||view!=='insp'){sel=el;renderInspector();}drag={mode:'move',el,ox:el.x-wx,oy:el.y-wy};canvas.setPointerCapture(e.pointerId);}
-  else{if(sel){sel=null;if(view==='insp')renderInspector();}drag=null;}
-  e.preventDefault();request();
+  if(el){if(el!==sel||view!=='insp'){sel=el;renderInspector();}drag={mode:'move',el,ox:el.x-wx,oy:el.y-wy,id:e.pointerId};}
+  else{if(sel){sel=null;if(view==='insp')renderInspector();}drag={mode:'pan',id:e.pointerId,lx:sx,ly:sy};if(e.pointerType==='mouse')canvas.style.cursor='grabbing';}
+  request();
 });
 canvas.addEventListener('pointermove',e=>{
   const [sx,sy]=evPt(e);
-  if(!drag){if(e.pointerType==='mouse')canvas.style.cursor=onKnob(sx,sy)?'crosshair':pick(...toWorld(sx,sy))?'move':'default';return;}
-  if(drag.mode==='move'){const [wx,wy]=toWorld(sx,sy),hw=W/2/scale-6,hh=H/2/scale-6;drag.el.x=clamp(wx+drag.ox,-hw,hw);drag.el.y=clamp(wy+drag.oy,-hh,hh);}
+  if(!PTS.has(e.pointerId)){if(!drag&&e.pointerType==='mouse')canvas.style.cursor=onKnob(sx,sy)?'crosshair':pick(...toWorld(sx,sy))?'move':'grab';return;}
+  PTS.set(e.pointerId,[sx,sy]);
+  if(!drag)return;
+  if(drag.mode==='pinch'){
+    if(PTS.size<2)return;const p=pinchOf();zoom=clamp(drag.z0*p.d/drag.d0,ZMIN,ZMAX);const s=base*zoom;
+    setCenter(drag.w[0]-(p.m[0]-W/2)/s,drag.w[1]-(p.m[1]-H/2)/s);return;
+  }
+  if(e.pointerId!==drag.id)return;
+  if(drag.mode==='pan'){setCenter(vx-(sx-drag.lx)/scale,vy-(sy-drag.ly)/scale);drag.lx=sx;drag.ly=sy;return;}
+  if(drag.mode==='move'){const [wx,wy]=toWorld(sx,sy),hw=W/2/scale-6,hh=H/2/scale-6;drag.el.x=clamp(clamp(wx+drag.ox,vx-hw,vx+hw),-3000,3000);drag.el.y=clamp(clamp(wy+drag.oy,vy-hh,vy+hh),-3000,3000);}
   else{const [px,py]=toScreen(drag.el.x,drag.el.y);let a=Math.atan2(sy-py,sx-px)*R2D;const sn=Math.round(a/15)*15;if(Math.abs(a-sn)<2.5)a=sn;drag.el.angle=Math.round(a*10)/10;syncAngle();}
   request();
 });
-const endDrag=()=>{if(drag){drag=null;request();saveSoon();}};
+const endDrag=e=>{
+  PTS.delete(e.pointerId);
+  if(!drag)return;
+  if(drag.mode==='pinch'){ // the finger left behind carries on panning
+    if(PTS.size===1){const [id,p]=[...PTS][0];drag={mode:'pan',id,lx:p[0],ly:p[1]};}else if(PTS.size>=2)startPinch();else drag=null;
+    return;
+  }
+  if(e.pointerId!==drag.id)return;
+  if(drag.mode!=='pan')saveSoon();
+  drag=null;if(e.pointerType==='mouse')canvas.style.cursor='default';request();
+};
 canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
+canvas.addEventListener('wheel',e=>{ // a mouse wheel or trackpad pinch zooms around the pointer; a sideways trackpad swipe pans
+  e.preventDefault();const [sx,sy]=evPt(e),u=e.deltaMode===1?16:e.deltaMode===2?H:1;
+  if(!e.ctrlKey&&Math.abs(e.deltaX)>Math.abs(e.deltaY)){setCenter(vx+e.deltaX*u/scale,vy+e.deltaY*u/scale);return;}
+  zoomAt(sx,sy,zoom*Math.exp(-e.deltaY*u*(e.ctrlKey?.01:.0015)));
+},{passive:false});
+let gz=1; // Safari on a Mac reports trackpad pinches as gesture events (on iPhone and iPad the two pointers above handle it)
+canvas.addEventListener('gesturestart',e=>{e.preventDefault();gz=zoom;});
+canvas.addEventListener('gesturechange',e=>{e.preventDefault();if(PTS.size)return;const [sx,sy]=evPt(e);zoomAt(sx,sy,gz*e.scale);});
+canvas.addEventListener('gestureend',e=>e.preventDefault());
+const stepZoom=k=>zoomAt(W/2,H/2,zoom*k);
+$('z-in').addEventListener('click',()=>stepZoom(1.25));
+$('z-out').addEventListener('click',()=>stepZoom(1/1.25));
+$('z-reset').addEventListener('click',resetView);
 canvas.addEventListener('keydown',e=>{
   if(!sel)return;const st=e.shiftKey?10:2,rs=e.shiftKey?15:1;let used=true;
   switch(e.key){
@@ -1340,7 +1423,8 @@ canvas.addEventListener('keydown',e=>{
 document.querySelector('.add').addEventListener('click',e=>{
   const b=e.target.closest('button[data-add]');if(!b)return;
   const t=b.dataset.add,n=scene.length%6,o={x:(n-2.5)*16,y:(n-2.5)*12};
-  if(t==='light'){o.x=-200;o.y=(n-2.5)*20;}
+  if(t==='light'){o.x=-200/Math.max(1,zoom);o.y=(n-2.5)*20;}
+  o.x=Math.round(o.x+vx);o.y=Math.round(o.y+vy); // lands in the middle of what's on screen
   const el=mk(t,o);scene.push(el);sel=el;renderInspector();$('dock').scrollTop=0;changed();
 });
 
@@ -1523,7 +1607,7 @@ function loadData(data,name){
   if(!sc.length){toast('That setup is empty.');return;}
   const prev=snapshotBench(),pn=benchName;
   scene=sc;bright=clamp(+data.bright||1,.4,2.5);sel=null;benchName=name;
-  refreshPanel();changed();
+  zoom=1;setCenter(0,0);refreshPanel();changed();
   toast('Loaded “'+name+'”',()=>{restoreBench(prev);benchName=pn;refreshPanel();});
 }
 function renderLib(){
@@ -1907,6 +1991,56 @@ function loadCurrent(){
   }catch(e){}
   return false;
 }
+
+/* ================= View, dock size and hidden interface ================= */
+// Remembered on this device apart from the bench, so setup codes stay as they were.
+const UIKEY='spectrum-bench-ui';let uiT=0;
+function saveUiSoon(){clearTimeout(uiT);uiT=setTimeout(()=>{try{localStorage.setItem(UIKEY,JSON.stringify({zoom,vx,vy,dockH:ui.dockH,dockW:ui.dockW}));}catch(e){}},400);}
+const ui={dockH:0,dockW:0};
+function applyDock(){const r=document.documentElement.style;ui.dockH?r.setProperty('--dock-h',ui.dockH+'px'):r.removeProperty('--dock-h');ui.dockW?r.setProperty('--dock-w',ui.dockW+'px'):r.removeProperty('--dock-w');}
+try{const u=JSON.parse(localStorage.getItem(UIKEY)||'null');if(u&&typeof u==='object'){
+  if(isFinite(u.zoom))zoom=clamp(+u.zoom,ZMIN,ZMAX);if(isFinite(u.vx))vx=clamp(+u.vx,-3000,3000);if(isFinite(u.vy))vy=clamp(+u.vy,-3000,3000);
+  if(u.dockH>0)ui.dockH=+u.dockH;if(u.dockW>0)ui.dockW=+u.dockW;applyDock();}}catch(e){}
+// The handle sits in the gap between the bench and the dock: below the bench on phones, beside it on wider screens.
+const split=$('split'),dock=$('dock');
+const isWide=()=>{const a=stage.getBoundingClientRect(),b=dock.getBoundingClientRect();return b.left>=a.right-1;};
+function placeSplit(){
+  if(document.body.classList.contains('ui-hidden'))return;
+  const a=stage.getBoundingClientRect(),b=dock.getBoundingClientRect(),wide=isWide(),S=split.style;split.classList.toggle('wide',wide);
+  if(wide){const g=b.left-a.right;S.left=(a.right+g/2-12)+'px';S.top=(a.top+a.height/2-32)+'px';S.width='24px';S.height='64px';}
+  else{const g=b.top-a.bottom;S.top=(a.bottom+g/2-12)+'px';S.left=(a.left+a.width/2-32)+'px';S.width='64px';S.height='24px';}
+}
+let sdrag=null;
+split.addEventListener('pointerdown',e=>{sdrag={wide:isWide()};split.setPointerCapture(e.pointerId);split.classList.add('on');e.preventDefault();});
+split.addEventListener('pointermove',e=>{
+  if(!sdrag)return;const b=dock.getBoundingClientRect(),app=document.querySelector('.app').getBoundingClientRect();
+  if(sdrag.wide)ui.dockW=Math.round(clamp(b.right-e.clientX-6,240,Math.max(240,app.width*.6)));
+  else ui.dockH=Math.round(clamp(b.bottom-e.clientY-5,110,Math.max(110,app.height*.72)));
+  applyDock();placeSplit();
+});
+const endSplit=()=>{if(!sdrag)return;sdrag=null;split.classList.remove('on');saveUiSoon();};
+split.addEventListener('pointerup',endSplit);split.addEventListener('pointercancel',endSplit);
+split.addEventListener('dblclick',()=>{ui.dockH=ui.dockW=0;applyDock();saveUiSoon();});
+window.addEventListener('resize',placeSplit);
+// Hide everything but the bench, as Resonant Ink does; the eye in the corner (or H) brings it back.
+function setUiHidden(h){
+  document.body.classList.toggle('ui-hidden',h);$('b-show').hidden=!h;
+  if(h)$('b-show').focus({preventScroll:true});else{placeSplit();$('b-hide').focus({preventScroll:true});}
+}
+$('b-hide').addEventListener('click',()=>setUiHidden(true));
+$('b-show').addEventListener('click',()=>setUiHidden(false));
+document.addEventListener('keydown',e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey||e.defaultPrevented)return;
+  const t=e.target;if(t&&t.closest&&t.closest('input,textarea,select,[contenteditable]'))return;
+  switch(e.key){
+    case 'h':case 'H':setUiHidden(!document.body.classList.contains('ui-hidden'));break;
+    case '+':case '=':stepZoom(1.25);break;
+    case '-':case '_':stepZoom(1/1.25);break;
+    case '0':resetView();break;
+    default:return;
+  }
+  e.preventDefault();
+});
 
 /* ================= Boot ================= */
 if(!loadCurrent()){const p=starters()[0];scene=p.data.scene.map(sanitize);bright=p.data.bright;benchName=p.name;toast('Tap Sound, then play some music.',null,9000);}
