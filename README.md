@@ -92,6 +92,14 @@ Drag to bend the mirrors (or switch the arrows button to move around instead), p
 
 To add a setting, add one entry to `PARAMS` near the top of the script: it gets a slider, a shader uniform `u_<key>`, a place in bookmarks and codes, and a spot on the sound target list.
 
+### DOOM
+
+`doom.html` runs the original 1993 DOOM. It isn't a remake: the engine is [Chocolate Doom](https://www.chocolate-doom.org/), which is id Software's released DOOM source with only the fixes needed to run on modern systems, compiled to WebAssembly by [Cloudflare's doom-wasm](https://github.com/cloudflare/doom-wasm). It plays like DOS DOOM 1.9: same levels, monsters, weapons, physics, bugs and demo playback. The engine files live in `doom/` (GPL v2, see `doom/README.md`).
+
+The shareware episode (Knee-Deep in the Dead, `doom/doom1.wad`) is built in. **Add your own WAD** takes the `DOOM.WAD`, `DOOM2.WAD`, `TNT.WAD` or `PLUTONIA.WAD` from a copy you own (Steam and GOG keep them in the game folder), or a free Freedoom WAD; the page reads the WAD to tell which game it is, and keeps it in the browser on that device only. Save games (F2 / F3, or the menu) are kept per WAD on the device too.
+
+Keyboard and mouse on a computer (WASD, mouse or arrows to turn, click or Space to fire, E to use; click the game to grab the mouse), a gamepad, or touch controls on iPhone and iPad: the left thumb walks and turns (push it all the way to run), the right side has Fire, Use, strafe, next weapon and map, and the top row has Menu, Enter, Y and N. The keyboard button brings up the on-screen keyboard for save names and cheats. Music is off in this build; sound effects play. The engine and WAD (about 6.5 MB) download the first time you press Play and then work offline.
+
 ## Updating
 
 To update an app, replace its page with the new version. Pages refresh themselves the next time you open them online.

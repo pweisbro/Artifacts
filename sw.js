@@ -1,7 +1,9 @@
 // Stim Lab offline support, shared by the homepage and every app page.
 // Pages are fetched fresh when you're online (so updates show up) and served from the cache when you're not.
 // When you add an app page, list it in CORE and bump the CACHE number.
-const CACHE = 'artifacts-v32';
+// DOOM's engine and shareware WAD (doom/, about 6.5 MB) are left out of CORE so the homepage stays light;
+// they're cached the first time you press Play, and bumping CACHE also refreshes them.
+const CACHE = 'artifacts-v33';
 const CORE = [
   './',
   './index.html',
@@ -15,6 +17,7 @@ const CORE = [
   './earworm.html',
   './beamline.html',
   './mirrorfold.html',
+  './doom.html',
   './resonant-ink.webmanifest',
   './resonant-ink-apple-touch-icon.png',
   './resonant-ink-icon-192.png',

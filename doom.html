@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DOOM">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>DOOM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Teko:wght@500;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* Layout: the real engine draws into one canvas, kept at DOOM's 4:3 picture and fitted to the screen.
+   In portrait the picture sits at the top and the touch pad fills the space below; in landscape the
+   touch controls sit over the black side bars. Single dark theme: it's DOOM. */
+:root{
+  color-scheme: dark;
+  --void:#000;
+  --panel:rgba(20,8,6,.92);
+  --line:rgba(255,190,150,.16);
+  --text:#f3e6dc;
+  --muted:#a8968a;
+  --red:#d8261c;
+  --hot:#ff7a2e;
+  --font-display:'Teko','Impact','Arial Narrow',sans-serif;
+  --font-body:'Share Tech Mono',ui-monospace,Menlo,monospace;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
+}
+html{box-sizing:border-box;height:100%;overflow:hidden;background:var(--void)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  height:100%;overflow:hidden;margin:0;background:var(--void);color:var(--text);
+  font-family:var(--font-body);font-size:14px;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;overscroll-behavior:none;
+}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+
+/* The game picture. SDL sets the canvas's drawing size; CSS decides how big it shows. */
+#canvas{
+  position:fixed;display:block;background:#000;border:0;padding:0;
+  left:var(--gx,0px) !important;top:var(--gy,0px) !important;
+  width:var(--gw,100vw) !important;height:var(--gh,75vw) !important;
+  image-rendering:pixelated;touch-action:none;outline:none;
+}
+
+/* ---------- top bar ---------- */
+.bar{
+  position:fixed;z-index:20;display:flex;gap:6px;align-items:center;
+  top:calc(8px + var(--safe-t));left:calc(8px + var(--safe-l));
+}
+.bar a,.bar button{
+  width:38px;height:38px;display:grid;place-items:center;border-radius:10px;
+  background:rgba(0,0,0,.55);border:1px solid var(--line);color:var(--text);cursor:pointer;text-decoration:none;
+}
+.bar a:hover,.bar button:hover{border-color:rgba(255,190,150,.4)}
+.bar svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.bar .home svg{fill:currentColor;stroke:none}
+.bar button[aria-pressed="true"]{background:rgba(216,38,28,.35);border-color:rgba(255,122,46,.6)}
+.bar .hidden{display:none}
+body.playing .bar{opacity:.55;transition:opacity .3s}
+@media (orientation: landscape){ body.playing .bar{flex-direction:column} }
+body.playing .bar:hover,body.playing .bar:focus-within{opacity:1}
+
+/* ---------- start screen ---------- */
+.launch{
+  position:fixed;inset:0;z-index:10;overflow:auto;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;align-items:center;
+  padding:calc(64px + var(--safe-t)) calc(16px + var(--safe-r)) calc(28px + var(--safe-b)) calc(16px + var(--safe-l));
+  background:
+    radial-gradient(120% 70% at 50% 110%,rgba(216,38,28,.35),transparent 60%),
+    radial-gradient(80% 50% at 50% -10%,rgba(255,122,46,.12),transparent 70%),#060201;
+}
+.launch[hidden]{display:none}
+.logo{
+  margin:0;font-family:var(--font-display);font-weight:700;line-height:.8;letter-spacing:.04em;
+  font-size:clamp(84px,22vw,150px);
+  background:linear-gradient(180deg,#ffe1a0 0%,#ff9a3c 32%,#d8261c 62%,#6a0a06 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 3px 0 #2a0402) drop-shadow(0 0 24px rgba(216,38,28,.45));
+  transform:perspective(400px) rotateX(14deg);
+}
+.tag{margin:10px 0 22px;color:var(--muted);font-size:13px;letter-spacing:.14em;text-transform:uppercase;text-align:center}
+.card{
+  width:100%;max-width:520px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;
+}
+.card+.card{margin-top:12px}
+.card h2{margin:0 0 10px;font:500 20px/1 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--hot)}
+.wads{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.wad{
+  display:flex;align-items:center;gap:10px;padding:10px 10px 10px 12px;border-radius:10px;
+  background:rgba(255,255,255,.035);border:1px solid var(--line);
+}
+.wad.sel{border-color:rgba(255,122,46,.65);background:rgba(216,38,28,.14)}
+.wad .info{flex:1;min-width:0}
+.wad .t{font:500 21px/1 var(--font-display);letter-spacing:.04em}
+.wad .d{margin-top:3px;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{
+  border:1px solid rgba(255,122,46,.55);background:linear-gradient(#b81e16,#7a0f0a);color:#fff;
+  border-radius:9px;padding:9px 14px;cursor:pointer;font:500 19px/1 var(--font-display);letter-spacing:.08em;text-transform:uppercase;
+}
+.btn:hover{filter:brightness(1.15)}
+.btn.ghost{background:transparent;border-color:var(--line);color:var(--muted)}
+.btn.ghost:hover{color:var(--text)}
+.btn.big{width:100%;padding:14px;font-size:30px;margin-top:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.note{margin:10px 0 0;color:var(--muted);font-size:12.5px;line-height:1.5}
+.note b{color:var(--text);font-weight:400}
+.file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.status{margin-top:10px;min-height:1.4em;color:var(--hot);font-size:13px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px;color:var(--muted)}
+.keys kbd{font:inherit;color:var(--text);white-space:nowrap}
+.credits{margin-top:14px;max-width:520px;color:#6f625a;font-size:11.5px;line-height:1.5;text-align:center}
+.credits a{color:#8f7f74}
+
+/* loading text over the black canvas */
+.loading{
+  position:fixed;z-index:8;left:var(--gx);top:var(--gy);width:var(--gw);height:var(--gh);
+  display:grid;place-items:center;color:var(--hot);font:500 26px var(--font-display);letter-spacing:.1em;pointer-events:none;
+}
+.loading[hidden]{display:none}
+
+/* ---------- touch controls ---------- */
+.touch{position:fixed;inset:0;z-index:15;pointer-events:none}
+.touch[hidden]{display:none}
+.stick-zone{
+  position:absolute;left:0;bottom:0;pointer-events:auto;touch-action:none;
+  width:var(--zw,50%);height:var(--zh,45%);
+}
+.stick-base,.stick-knob{position:absolute;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%)}
+.stick-base{width:120px;height:120px;border:2px solid rgba(255,190,150,.28);background:rgba(0,0,0,.25)}
+.stick-knob{width:54px;height:54px;background:rgba(255,122,46,.45);border:2px solid rgba(255,210,170,.55)}
+.stick-zone .stick-base,.stick-zone .stick-knob{left:var(--sx,90px);top:var(--sy,calc(100% - 110px))}
+.stick-zone .stick-knob{left:var(--kx,var(--sx,90px));top:var(--ky,var(--sy,calc(100% - 110px)))}
+.stick-zone:not(.on) .stick-base,.stick-zone:not(.on) .stick-knob{opacity:.5}
+.pad{
+  position:absolute;right:calc(10px + var(--safe-r));bottom:calc(14px + var(--safe-b));pointer-events:none;
+  display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,58px);gap:10px;
+}
+.tbtn{
+  pointer-events:auto;touch-action:none;border-radius:50%;
+  border:2px solid rgba(255,190,150,.3);background:rgba(0,0,0,.35);color:rgba(255,235,220,.9);
+  font:500 17px/1 var(--font-display);letter-spacing:.06em;display:grid;place-items:center;padding:0;
+}
+.tbtn.down{background:rgba(216,38,28,.55);border-color:rgba(255,160,110,.8)}
+.tbtn.fire{grid-column:2 / span 2;grid-row:2 / span 2;width:126px;height:126px;font-size:24px;border-color:rgba(255,90,60,.55);background:rgba(120,10,6,.35)}
+.tbtn.use{grid-column:1;grid-row:3}
+.tbtn.sl{grid-column:1;grid-row:2}
+.tbtn.sr{grid-column:3;grid-row:1}
+.tbtn.wpn{grid-column:2;grid-row:1}
+.tbtn.map{grid-column:1;grid-row:1}
+@media (orientation: landscape) and (max-height: 500px){
+  .pad{grid-template-columns:repeat(3,50px);grid-template-rows:repeat(3,50px);gap:8px}
+  .tbtn.fire{width:108px;height:108px}
+}
+.menu-row{
+  position:absolute;top:calc(8px + var(--safe-t));right:calc(8px + var(--safe-r));display:flex;gap:6px;pointer-events:none;
+}
+.portrait .menu-row{top:calc(var(--gy) + var(--gh) + 12px);left:calc(8px + var(--safe-l));justify-content:center}
+.menu-row .tbtn{width:auto;min-width:44px;height:38px;border-radius:10px;padding:0 10px;font-size:16px}
+.typer{position:fixed;left:-200px;top:0;width:100px;height:30px;opacity:0;font-size:16px}
+
+@media (prefers-reduced-motion: reduce){ .logo{transform:none} }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()" aria-label="DOOM"></canvas>
+<div class="loading" id="loading" hidden>Loading…</div>
+
+<nav class="bar" aria-label="DOOM controls">
+  <a class="home" href="./" aria-label="Back to Stim Lab" title="Stim Lab">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+  </a>
+  <button id="btnGames" class="hidden" aria-label="Choose game data" title="Choose game data (restarts DOOM)">
+    <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+  </button>
+  <button id="btnTouch" class="hidden" aria-pressed="false" aria-label="Touch controls" title="Touch controls">
+    <svg viewBox="0 0 24 24"><circle cx="8" cy="14" r="4"/><circle cx="17" cy="10" r="2.5"/><circle cx="17" cy="17" r="1.6"/></svg>
+  </button>
+  <button id="btnType" class="hidden" aria-label="Type (for save names and cheats)" title="Type (for save names and cheats)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h1M11 10h1M15 10h1M7 14h10"/></svg>
+  </button>
+  <button id="btnFull" class="hidden" aria-label="Full screen" title="Full screen">
+    <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  </button>
+</nav>
+
+<main class="launch" id="launch">
+  <h1 class="logo">DOOM</h1>
+  <p class="tag">The original 1993 engine, running in your browser</p>
+
+  <section class="card" aria-labelledby="h-data">
+    <h2 id="h-data">Game data</h2>
+    <ul class="wads" id="wads"></ul>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" id="btnAdd">Add your own WAD…</button>
+    </div>
+    <input class="file" type="file" id="file" aria-label="Choose a WAD file">
+    <p class="note">The shareware episode, <b>Knee-Deep in the Dead</b>, is built in. If you own DOOM, DOOM II, Final DOOM or The Ultimate DOOM, add its <b>.wad</b> file (for example <b>DOOM.WAD</b> or <b>DOOM2.WAD</b> from the game's folder on Steam or GOG). It stays on this device, saved in this browser only, and is never uploaded. Free <b>Freedoom</b> WADs work too.</p>
+    <div class="status" id="status" role="status"></div>
+    <button class="btn big" id="btnPlay">Play</button>
+  </section>
+
+  <section class="card" aria-labelledby="h-keys">
+    <h2 id="h-keys">Controls</h2>
+    <div class="keys">
+      <kbd>W A S D</kbd><span>move and strafe</span>
+      <kbd>Mouse, ← →</kbd><span>turn (click the game to grab the mouse; Esc lets go)</span>
+      <kbd>Click, Space</kbd><span>fire</span>
+      <kbd>E</kbd><span>open doors, flip switches</span>
+      <kbd>Shift</kbd><span>run</span>
+      <kbd>1–7, wheel, [ ]</kbd><span>weapons</span>
+      <kbd>Tab</kbd><span>map</span>
+      <kbd>Esc</kbd><span>menu (↑ ↓ and Enter to pick; F2 save, F3 load)</span>
+      <kbd>Touch</kbd><span>left thumb moves and turns (push all the way to run), right thumb fires; the keyboard button types save names and cheats</span>
+      <kbd>Gamepad</kbd><span>plug in and play</span>
+    </div>
+  </section>
+
+  <p class="credits">
+    Engine: <a href="https://github.com/cloudflare/doom-wasm" target="_blank" rel="noopener">Cloudflare's doom-wasm</a>, a WebAssembly build of
+    <a href="https://www.chocolate-doom.org/" target="_blank" rel="noopener">Chocolate Doom</a>, from id Software's 1997 source release. GNU GPL v2.
+    DOOM and the shareware DOOM1.WAD are © id Software, shared under the shareware licence. Music is off in this build.
+  </p>
+</main>
+
+<div class="touch" id="touch" hidden>
+  <div class="stick-zone" id="stick"><div class="stick-base"></div><div class="stick-knob"></div></div>
+  <div class="pad">
+    <button class="tbtn map" data-key="Tab">MAP</button>
+    <button class="tbtn wpn" data-key="BracketRight">WPN</button>
+    <button class="tbtn sr" data-key="KeyD" aria-label="Strafe right">▶</button>
+    <button class="tbtn sl" data-key="KeyA" aria-label="Strafe left">◀</button>
+    <button class="tbtn use" data-key="KeyE">USE</button>
+    <button class="tbtn fire" data-key="Space">FIRE</button>
+  </div>
+  <div class="menu-row">
+    <button class="tbtn" data-key="KeyY">Y</button>
+    <button class="tbtn" data-key="KeyN">N</button>
+    <button class="tbtn" data-key="Enter">ENTER</button>
+    <button class="tbtn" data-key="Escape">MENU</button>
+  </div>
+</div>
+<input class="typer" id="typer" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-hidden="true" tabindex="-1">
+
+<script>
+(() => {
+'use strict';
+/* ---------- engine config ----------
+   Chocolate Doom reads two files: the vanilla default.cfg and its own extras. Keys are DOS scancodes. */
+const DEFAULT_CFG = [
+  'mouse_sensitivity 5', 'sfx_volume 8', 'music_volume 8', 'show_messages 1',
+  'key_right 205', 'key_left 203', 'key_up 17', 'key_down 31',
+  'key_strafeleft 30', 'key_straferight 32', 'key_fire 57', 'key_use 18',
+  'key_strafe 46', 'key_speed 42',
+  'use_mouse 1', 'mouseb_fire 0', 'mouseb_strafe 1', 'mouseb_forward 2',
+  'use_joystick 1', 'screenblocks 10', 'detaillevel 0', 'snd_channels 8',
+  'snd_musicdevice 0', 'snd_sfxdevice 3', 'usegamma 0'
+].join('\n') + '\n';
+const EXTRA_CFG = [
+  'grabmouse 1', 'fullscreen 0', 'aspect_ratio_correct 1', 'integer_scaling 0',
+  'window_width 640', 'window_height 480', 'startup_delay 0', 'show_endoom 0', 'show_diskicon 1',
+  'novert 1', 'mouse_acceleration 1.0', 'use_libsamplerate 0', 'vanilla_keyboard_mapping 1',
+  'key_nextweapon 27', 'key_prevweapon 26', 'mouseb_nextweapon 4', 'mouseb_prevweapon 3'
+].join('\n') + '\n';
+
+const BUILTIN = { id: 'shareware', title: 'DOOM Shareware', desc: 'Episode 1: Knee-Deep in the Dead · built in', iwad: 'doom1.wad', url: 'doom/doom1.wad' };
+
+const $ = (id) => document.getElementById(id);
+const statusEl = $('status');
+const coarse = matchMedia('(pointer: coarse)').matches;
+let selected = lsGet('doom.wad') || BUILTIN.id;
+let started = false;
+
+function lsGet(k){ try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v){ try { localStorage.setItem(k, v); } catch (e) {} }
+function say(t){ statusEl.textContent = t || ''; }
+
+/* ---------- IndexedDB: your own WADs and save games stay on this device ---------- */
+let dbp = null;
+function db(){
+  if (!dbp) dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('stimlab-doom', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('wads', { keyPath: 'id' }); r.result.createObjectStore('saves'); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return dbp;
+}
+async function tx(store, mode, fn){
+  const d = await db();
+  return new Promise((res, rej) => {
+    const t = d.transaction(store, mode), s = t.objectStore(store);
+    const out = fn(s);
+    t.oncomplete = () => res(out && 'result' in out ? out.result : out);
+    t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  });
+}
+const idb = {
+  all: (store) => tx(store, 'readonly', (s) => s.getAll()),
+  get: (store, k) => tx(store, 'readonly', (s) => s.get(k)),
+  put: (store, v, k) => tx(store, 'readwrite', (s) => k === undefined ? s.put(v) : s.put(v, k)),
+  del: (store, k) => tx(store, 'readwrite', (s) => s.delete(k)),
+  keys: (store) => tx(store, 'readonly', (s) => s.getAllKeys())
+};
+async function wadMeta(){
+  try { return (await idb.all('wads')).map(({ data, ...m }) => m); } catch (e) { return []; }
+}
+
+/* ---------- reading a WAD's directory to tell which game it is ---------- */
+function identify(buf, fileName){
+  const v = new DataView(buf);
+  if (buf.byteLength < 12) return null;
+  const magic = String.fromCharCode(v.getUint8(0), v.getUint8(1), v.getUint8(2), v.getUint8(3));
+  if (magic !== 'IWAD' && magic !== 'PWAD') return null;
+  const n = v.getInt32(4, true), ofs = v.getInt32(8, true);
+  if (n <= 0 || ofs < 12 || ofs + n * 16 > buf.byteLength) return null;
+  const names = new Set();
+  const bytes = new Uint8Array(buf, ofs, n * 16);
+  for (let i = 0; i < n; i++){
+    let s = '';
+    for (let j = 0; j < 8; j++){ const c = bytes[i * 16 + 8 + j]; if (!c) break; s += String.fromCharCode(c); }
+    names.add(s.toUpperCase());
+  }
+  const fn = (fileName || '').toLowerCase();
+  const free = names.has('FREEDOOM');
+  if (magic === 'PWAD') return { pwad: true };
+  if (names.has('MAP01')){
+    if (fn.includes('tnt')) return { iwad: 'tnt.wad', title: 'Final DOOM: TNT Evilution' };
+    if (fn.includes('plutonia')) return { iwad: 'plutonia.wad', title: 'Final DOOM: The Plutonia Experiment' };
+    if (free) return { iwad: 'freedoom2.wad', title: 'Freedoom: Phase 2' };
+    return { iwad: 'doom2.wad', title: 'DOOM II: Hell on Earth' };
+  }
+  if (names.has('E2M1')){
+    if (free) return { iwad: 'freedoom1.wad', title: 'Freedoom: Phase 1' };
+    return { iwad: 'doom.wad', title: names.has('E4M1') ? 'The Ultimate DOOM' : 'DOOM (registered)' };
+  }
+  if (names.has('E1M1')) return { iwad: 'doom1.wad', title: 'DOOM Shareware' };
+  return null;
+}
+
+/* ---------- the start screen ---------- */
+async function renderWads(){
+  const list = $('wads');
+  const mine = await wadMeta();
+  if (selected !== BUILTIN.id && !mine.some((m) => m.id === selected)) selected = BUILTIN.id;
+  list.textContent = '';
+  for (const w of [BUILTIN, ...mine]){
+    const li = document.createElement('li');
+    li.className = 'wad' + (w.id === selected ? ' sel' : '');
+    const info = document.createElement('div'); info.className = 'info';
+    const t = document.createElement('div'); t.className = 't'; t.textContent = w.title;
+    const d = document.createElement('div'); d.className = 'd';
+    d.textContent = w.desc || (w.fileName + ' · ' + (w.size / 1048576).toFixed(1) + ' MB · on this device');
+    info.append(t, d);
+    const pick = document.createElement('button');
+    pick.className = 'btn' + (w.id === selected ? '' : ' ghost');
+    pick.textContent = w.id === selected ? 'Selected' : 'Select';
+    pick.setAttribute('aria-pressed', String(w.id === selected));
+    pick.onclick = () => { selected = w.id; lsSet('doom.wad', w.id); renderWads(); };
+    li.append(info, pick);
+    if (w.id !== BUILTIN.id){
+      const rm = document.createElement('button');
+      rm.className = 'btn ghost'; rm.textContent = '✕'; rm.title = 'Remove ' + w.title + ' from this device';
+      rm.setAttribute('aria-label', 'Remove ' + w.title);
+      rm.onclick = async () => {
+        if (!confirm('Remove ' + w.title + ' from this device? Its save games stay, in case you add it again.')) return;
+        await idb.del('wads', w.id); renderWads();
+      };
+      li.append(rm);
+    }
+    list.appendChild(li);
+  }
+}
+
+$('btnAdd').onclick = () => $('file').click();
+$('file').onchange = async (e) => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  say('Reading ' + f.name + '…');
+  try {
+    const buf = await f.arrayBuffer();
+    const id = identify(buf, f.name);
+    if (!id){ say(f.name + " doesn't look like a DOOM WAD."); return; }
+    if (id.pwad){ say(f.name + ' is an add-on (PWAD), not a full game. Only full game WADs work here for now.'); return; }
+    const entry = { id: id.iwad + ':' + f.size, iwad: id.iwad, title: id.title, fileName: f.name, size: f.size, added: Date.now(), data: buf };
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    await idb.put('wads', entry);
+    selected = entry.id; lsSet('doom.wad', entry.id);
+    say('Added ' + id.title + '.');
+    renderWads();
+  } catch (err){
+    say("Couldn't save that file in this browser (" + (err && err.message || err) + ').');
+  }
+};
+$('btnPlay').onclick = () => start();
+
+/* ---------- fitting the picture ---------- */
+function layout(){
+  const W = innerWidth, H = innerHeight;
+  const portrait = H > W * 1.1;
+  let gw, gh, gx, gy;
+  if (portrait){
+    const top = 54;
+    gw = W; gh = Math.round(W * 3 / 4);
+    if (gh > H * .62){ gh = Math.round(H * .62); gw = Math.round(gh * 4 / 3); }
+    gx = Math.round((W - gw) / 2); gy = Math.min(top, Math.max(0, H - gh));
+  } else {
+    gh = H; gw = Math.round(H * 4 / 3);
+    if (gw > W){ gw = W; gh = Math.round(W * 3 / 4); }
+    gx = Math.round((W - gw) / 2); gy = Math.round((H - gh) / 2);
+  }
+  document.body.classList.toggle('portrait', portrait);
+  const s = document.documentElement.style;
+  s.setProperty('--gx', gx + 'px'); s.setProperty('--gy', gy + 'px');
+  s.setProperty('--gw', gw + 'px'); s.setProperty('--gh', gh + 'px');
+  // In portrait the stick gets the whole lower-left; in landscape, the left side bar and a bit more.
+  s.setProperty('--zw', (portrait ? 50 : Math.max(32, (gx / W) * 100 + 8)) + '%');
+  s.setProperty('--zh', (portrait ? Math.max(30, (1 - (gy + gh) / H) * 100) : 70) + '%');
+}
+addEventListener('resize', layout);
+layout();
+
+/* ---------- starting the real engine ---------- */
+async function loadWad(){
+  if (selected === BUILTIN.id){
+    const res = await fetch(BUILTIN.url);
+    if (!res.ok) throw new Error('could not download the shareware WAD');
+    return { iwad: BUILTIN.iwad, saveKey: BUILTIN.id, data: new Uint8Array(await res.arrayBuffer()) };
+  }
+  const w = await idb.get('wads', selected);
+  if (!w) throw new Error('that WAD is no longer on this device');
+  return { iwad: w.iwad, saveKey: w.id, data: new Uint8Array(w.data) };
+}
+
+async function start(){
+  if (started) return;
+  if (typeof WebAssembly !== 'object'){ say('This browser cannot run WebAssembly.'); return; }
+  started = true;
+  say('Loading…');
+  $('btnPlay').disabled = true;
+  let wad, saves;
+  try {
+    wad = await loadWad();
+    saves = await loadSaves(wad.saveKey);
+  } catch (err){
+    started = false; $('btnPlay').disabled = false;
+    say("Couldn't start: " + (err && err.message || err));
+    return;
+  }
+  $('launch').hidden = true;
+  $('loading').hidden = false;
+  document.body.classList.add('playing');
+  for (const id of ['btnGames', 'btnTouch', 'btnType']) $(id).classList.remove('hidden');
+  if (document.fullscreenEnabled) $('btnFull').classList.remove('hidden');
+  setTouch(coarse);
+
+  window.Module = {
+    canvas: $('canvas'),
+    noInitialRun: true,
+    locateFile: (p) => 'doom/' + p,
+    print: (t) => console.log(t),
+    printErr: (t) => console.warn(t),
+    setStatus: () => {},
+    // Quit Game in DOOM's menu ends the program; go back to the start screen.
+    onExit: () => location.reload(),
+    preRun: [() => {
+      const FS = Module.FS;
+      FS.writeFile('/' + wad.iwad, wad.data);
+      FS.writeFile('/default.cfg', DEFAULT_CFG);
+      FS.writeFile('/chocolate-doom.cfg', EXTRA_CFG);
+      FS.mkdir('/saves');
+      for (const [name, data] of saves) FS.writeFile('/saves/' + name, data);
+    }],
+    onRuntimeInitialized: () => {
+      $('loading').hidden = true;
+      watchSaves(wad.saveKey);
+      $('canvas').focus();
+      // Chocolate Doom, as vanilla as it gets. No music device in this build, so -nomusic.
+      callMain(['-iwad', '/' + wad.iwad, '-window', '-nogui', '-nomusic',
+        '-config', '/default.cfg', '-extraconfig', '/chocolate-doom.cfg', '-savedir', '/saves']);
+    }
+  };
+  const s = document.createElement('script');
+  s.src = 'doom/websockets-doom.js';
+  s.onerror = () => { $('loading').textContent = "Couldn't load the engine. Check your connection and reload."; };
+  document.body.appendChild(s);
+}
+
+/* ---------- save games: mirrored from the engine's memory into IndexedDB ---------- */
+async function loadSaves(key){
+  const out = [];
+  try {
+    const keys = (await idb.keys('saves')).filter((k) => k.startsWith(key + '/'));
+    for (const k of keys) out.push([k.slice(key.length + 1), await idb.get('saves', k)]);
+  } catch (e) {}
+  return out;
+}
+function watchSaves(key){
+  const seen = new Map();
+  try { for (const n of Module.FS.readdir('/saves')) if (n[0] !== '.') seen.set(n, Module.FS.stat('/saves/' + n).mtime.getTime()); } catch (e) {}
+  const sync = () => {
+    let names = [];
+    try { names = Module.FS.readdir('/saves').filter((n) => n[0] !== '.'); } catch (e) { return; }
+    for (const n of names){
+      try {
+        const m = Module.FS.stat('/saves/' + n).mtime.getTime();
+        if (seen.get(n) === m) continue;
+        seen.set(n, m);
+        idb.put('saves', Module.FS.readFile('/saves/' + n), key + '/' + n).catch(() => {});
+      } catch (e) {}
+    }
+  };
+  setInterval(sync, 2000);
+  addEventListener('pagehide', sync);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) sync(); });
+}
+
+/* ---------- touch: synthetic key presses the engine sees as a keyboard ---------- */
+const KEYS = {
+  ArrowUp: ['ArrowUp', 38], ArrowDown: ['ArrowDown', 40], ArrowLeft: ['ArrowLeft', 37], ArrowRight: ['ArrowRight', 39],
+  KeyW: ['w', 87], KeyS: ['s', 83], KeyA: ['a', 65], KeyD: ['d', 68], KeyE: ['e', 69], KeyY: ['y', 89], KeyN: ['n', 78],
+  Space: [' ', 32], Enter: ['Enter', 13], Escape: ['Escape', 27], Tab: ['Tab', 9], ShiftLeft: ['Shift', 16],
+  BracketRight: [']', 221]
+};
+const held = new Map();
+function pressKey(code, down){
+  const n = (held.get(code) || 0) + (down ? 1 : -1);
+  const was = (held.get(code) || 0) > 0;
+  held.set(code, Math.max(0, n));
+  if (was === n > 0) return;
+  const [k, kc] = KEYS[code];
+  const ev = new KeyboardEvent(down ? 'keydown' : 'keyup', { key: k, code, bubbles: true, cancelable: true, location: code === 'ShiftLeft' ? 1 : 0 });
+  for (const p of ['keyCode', 'which']) Object.defineProperty(ev, p, { get: () => kc });
+  Object.defineProperty(ev, 'charCode', { get: () => 0 });
+  window.dispatchEvent(ev);
+}
+
+function setTouch(on){
+  $('touch').hidden = !on;
+  $('btnTouch').setAttribute('aria-pressed', String(on));
+  if (!on) for (const code of held.keys()) while ((held.get(code) || 0) > 0) pressKey(code, false);
+}
+$('btnTouch').onclick = () => setTouch($('touch').hidden);
+
+for (const b of document.querySelectorAll('.tbtn')){
+  const code = b.dataset.key;
+  let id = null;
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); if (id !== null) return;
+    id = e.pointerId; try { b.setPointerCapture(id); } catch (err) {} b.classList.add('down'); pressKey(code, true);
+  });
+  const up = (e) => { if (e.pointerId !== id) return; id = null; b.classList.remove('down'); pressKey(code, false); };
+  b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+// Left thumb: up and down walk (and move the menu cursor), left and right turn; push all the way to run.
+const stick = $('stick');
+let sp = null;
+const stickKeys = new Set();
+function setStickKeys(want){
+  for (const c of stickKeys) if (!want.has(c)){ pressKey(c, false); stickKeys.delete(c); }
+  for (const c of want) if (!stickKeys.has(c)){ pressKey(c, true); stickKeys.add(c); }
+}
+stick.addEventListener('pointerdown', (e) => {
+  if (sp) return;
+  e.preventDefault();
+  const r = stick.getBoundingClientRect();
+  sp = { id: e.pointerId, x: e.clientX, y: e.clientY, r };
+  try { stick.setPointerCapture(e.pointerId); } catch (err) {}
+  stick.classList.add('on');
+  stick.style.setProperty('--sx', (e.clientX - r.left) + 'px'); stick.style.setProperty('--sy', (e.clientY - r.top) + 'px');
+  stick.style.setProperty('--kx', (e.clientX - r.left) + 'px'); stick.style.setProperty('--ky', (e.clientY - r.top) + 'px');
+});
+stick.addEventListener('pointermove', (e) => {
+  if (!sp || e.pointerId !== sp.id) return;
+  const R = 56;
+  let dx = e.clientX - sp.x, dy = e.clientY - sp.y;
+  const m = Math.hypot(dx, dy);
+  if (m > R){ dx *= R / m; dy *= R / m; }
+  stick.style.setProperty('--kx', (sp.x - sp.r.left + dx) + 'px'); stick.style.setProperty('--ky', (sp.y - sp.r.top + dy) + 'px');
+  const x = dx / R, y = dy / R, want = new Set();
+  if (y < -.35){ want.add('KeyW'); want.add('ArrowUp'); }
+  if (y > .35){ want.add('KeyS'); want.add('ArrowDown'); }
+  if (x < -.4) want.add('ArrowLeft');
+  if (x > .4) want.add('ArrowRight');
+  if (m > R * 1.25) want.add('ShiftLeft');
+  setStickKeys(want);
+});
+const stickUp = (e) => {
+  if (!sp || e.pointerId !== sp.id) return;
+  sp = null; stick.classList.remove('on'); setStickKeys(new Set());
+  for (const p of ['--sx', '--sy', '--kx', '--ky']) stick.style.removeProperty(p);
+};
+stick.addEventListener('pointerup', stickUp); stick.addEventListener('pointercancel', stickUp);
+
+// Typing: a hidden text box brings up the on-screen keyboard; its key events reach the engine as usual.
+$('btnType').onclick = () => { const t = $('typer'); t.value = ''; t.focus(); };
+$('typer').addEventListener('input', (e) => { e.target.value = ''; });
+$('typer').addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); });
+
+$('btnFull').onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else document.documentElement.requestFullscreen().catch(() => {});
+};
+$('btnGames').onclick = () => {
+  if (confirm('Go back to choose game data? This restarts DOOM, and anything since your last save is lost.')) location.reload();
+};
+
+// iPhone and iPad start web audio muted until a tap, so wake the engine's sound on any touch or key.
+const wakeAudio = () => {
+  const ac = window.Module && Module.SDL2 && Module.SDL2.audioContext;
+  if (ac && ac.state === 'suspended') ac.resume().catch(() => {});
+};
+for (const t of ['pointerdown', 'touchend', 'keydown']) addEventListener(t, wakeAudio, true);
+
+renderWads();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>
